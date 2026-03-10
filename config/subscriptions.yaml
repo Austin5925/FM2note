@@ -1,4 +1,4 @@
 podcasts:
-  - name: "示例播客"
-    rss_url: "http://rsshub:1200/xiaoyuzhou/podcast/PODCAST_ID"
-    tags: ["example"]
+  - name: "非共识的20分钟"
+    rss_url: "http://rsshub:1200/xiaoyuzhou/podcast/6978a31df828d4e9f2787d3d"
+    tags: ["finance", "macro"]

@@ -134,7 +134,8 @@ make deploy      # ssh server + docker compose rebuild
 
 - **v0.1.0** — Phase 0 脚手架：项目结构初始化、config/models 模块、Makefile、Dockerfile、pyproject.toml、20 个测试用例通过
 - **v0.2.0** — Phase 0.5 ASR 评测：Transcriber Protocol 抽象、通义听悟/百炼/Whisper 三引擎实现、工厂模式、benchmark 脚本、37 个测试用例通过
+- **v0.3.0** — Phase 1 MVP 核心管线：RSS 检测、SQLite 状态管理、音频下载、Markdown 生成、Obsidian 写入、Pipeline 编排、CLI 接入、72 个测试用例通过
 
 ## Current Version
 
-v0.2.0 — Phase 0.5 ASR 评测完成
+v0.3.0 — Phase 1 MVP 核心管线完成

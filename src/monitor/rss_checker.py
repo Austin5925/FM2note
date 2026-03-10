@@ -102,6 +102,9 @@ class RSSChecker:
         # Link
         link = getattr(entry, "link", "")
 
+        # 字幕检测：检查 <podcast:transcript> 标签
+        subtitle_url = self._detect_subtitle(entry)
+
         return Episode(
             guid=guid,
             title=getattr(entry, "title", "未知标题"),
@@ -112,4 +115,32 @@ class RSSChecker:
             show_notes=show_notes,
             link=link,
             tags=tags,
+            subtitle_url=subtitle_url,
         )
+
+    def _detect_subtitle(self, entry) -> str | None:
+        """检测 RSS entry 中的字幕链接。
+
+        检查 podcast:transcript 标签和其他已知的字幕扩展字段。
+        """
+        # podcast:transcript 标签（Podcasting 2.0 标准）
+        transcripts = getattr(entry, "podcast_transcript", None)
+        if transcripts:
+            if isinstance(transcripts, list):
+                for t in transcripts:
+                    url = t.get("url", "") if isinstance(t, dict) else ""
+                    if url:
+                        logger.info("发现内置字幕: {}", url)
+                        return url
+            elif isinstance(transcripts, dict) and transcripts.get("url"):
+                logger.info("发现内置字幕: {}", transcripts["url"])
+                return transcripts["url"]
+
+        # 其他常见字幕字段
+        for attr in ("transcript_url", "subtitle_url"):
+            val = getattr(entry, attr, None)
+            if val:
+                logger.info("发现内置字幕 ({}): {}", attr, val)
+                return val
+
+        return None

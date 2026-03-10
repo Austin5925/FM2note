@@ -10,6 +10,11 @@ tags:
 {% for tag in episode.tags %}
   - {{ tag }}
 {% endfor %}
+{% if transcript.keywords %}
+{% for kw in transcript.keywords %}
+  - {{ kw | replace(' ', '-') | lower }}
+{% endfor %}
+{% endif %}
 status: unread
 created: {{ now.strftime('%Y-%m-%dT%H:%M:%S') }}
 asr_engine: "{{ asr_engine }}"
@@ -38,9 +43,17 @@ asr_engine: "{{ asr_engine }}"
 
 {% endfor %}
 {% endif %}
+{% if transcript.keywords %}
+## 关键词
+
+{% for kw in transcript.keywords %}
+`{{ kw }}`{% if not loop.last %} · {% endif %}
+{% endfor %}
+
+{% endif %}
 ## Show Notes
 
-{{ episode.show_notes }}
+{{ show_notes_cleaned }}
 
 ## 全文转写
 

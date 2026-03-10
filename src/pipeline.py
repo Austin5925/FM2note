@@ -6,9 +6,10 @@ from loguru import logger
 
 from src.config import AppConfig
 from src.downloader.audio import AudioDownloader
-from src.models import Episode
+from src.models import Episode, TranscriptResult
 from src.monitor.rss_checker import RSSChecker
 from src.monitor.state import StateManager
+from src.monitor.subtitle import fetch_subtitle_from_url
 from src.transcriber.base import Transcriber
 from src.writer.markdown import MarkdownGenerator
 from src.writer.obsidian import ObsidianWriter
@@ -38,7 +39,12 @@ class Pipeline:
     async def process_episode(self, episode: Episode) -> Path:
         """处理单集的完整流程。
 
-        流程：标记状态 → 转写 → 生成笔记 → 写入 vault
+        流程：
+        1. 检查 MCP 去重（可选）
+        2. 若有内置字幕 → 直接使用，跳过 ASR
+        3. 否则 → 调用 ASR 转写
+        4. 生成 Markdown 笔记
+        5. 写入 Obsidian vault
 
         Args:
             episode: 剧集信息
@@ -51,16 +57,50 @@ class Pipeline:
         """
         guid = episode.guid
         try:
-            # 转写（通义听悟直接接受 URL，无需先下载）
-            await self._state.mark_status(
-                guid, "transcribing", podcast_name=episode.podcast_name, title=episode.title
-            )
-            logger.info("开始转写: {}", episode.title)
-            transcript = await self._transcriber.transcribe(episode.audio_url)
+            # MCP 去重检查（可选，失败不阻断）
+            if await self._writer.search_existing_mcp(episode.title):
+                logger.info("MCP 发现同名笔记，跳过: {}", episode.title)
+                await self._state.mark_status(
+                    guid, "done",
+                    podcast_name=episode.podcast_name,
+                    title=episode.title,
+                )
+                raise FileExistsError(f"MCP 发现同名笔记: {episode.title}")
+
+            # 获取转写结果
+            asr_engine = self._config.asr_engine
+            if episode.subtitle_url:
+                # 有内置字幕，直接下载文本，跳过 ASR
+                await self._state.mark_status(
+                    guid, "transcribing",
+                    podcast_name=episode.podcast_name,
+                    title=episode.title,
+                )
+                logger.info("发现内置字幕，跳过 ASR: {}", episode.title)
+                subtitle_text = await fetch_subtitle_from_url(episode.subtitle_url)
+                if subtitle_text:
+                    paragraphs = [p.strip() for p in subtitle_text.split("\n") if p.strip()]
+                    transcript = TranscriptResult(
+                        text=subtitle_text,
+                        paragraphs=paragraphs,
+                    )
+                    asr_engine = "subtitle"
+                else:
+                    logger.warning("字幕下载失败，回退到 ASR: {}", episode.title)
+                    transcript = await self._transcriber.transcribe(episode.audio_url)
+            else:
+                # 正常 ASR 转写
+                await self._state.mark_status(
+                    guid, "transcribing",
+                    podcast_name=episode.podcast_name,
+                    title=episode.title,
+                )
+                logger.info("开始转写: {}", episode.title)
+                transcript = await self._transcriber.transcribe(episode.audio_url)
 
             # 生成 Markdown
             await self._state.mark_status(guid, "writing")
-            content = self._md_generator.render(episode, transcript)
+            content = self._md_generator.render(episode, transcript, asr_engine=asr_engine)
 
             # 写入 Obsidian
             note_path = self._writer.write_note(episode, content)
@@ -69,6 +109,8 @@ class Pipeline:
             logger.success("处理完成: {} → {}", episode.title, note_path)
             return note_path
 
+        except FileExistsError:
+            raise
         except Exception as e:
             logger.error("处理失败: {} — {}", episode.title, e)
             await self._state.mark_status(guid, "failed", error_msg=str(e))
@@ -89,7 +131,6 @@ class Pipeline:
         failed = await self._state.get_failed(max_retries=self._config.max_retries)
         retry_episodes = []
         for f in failed:
-            # 重新构建 Episode（简化版，实际使用时需从 RSS 重新获取完整信息）
             logger.info("重试失败任务: {} (第 {} 次)", f.title, f.retry_count + 1)
 
         all_episodes = new_episodes + retry_episodes

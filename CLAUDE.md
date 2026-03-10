@@ -136,7 +136,8 @@ make deploy      # ssh server + docker compose rebuild
 - **v0.2.0** — Phase 0.5 ASR 评测：Transcriber Protocol 抽象、通义听悟/百炼/Whisper 三引擎实现、工厂模式、benchmark 脚本、37 个测试用例通过
 - **v0.3.0** — Phase 1 MVP 核心管线：RSS 检测、SQLite 状态管理、音频下载、Markdown 生成、Obsidian 写入、Pipeline 编排、CLI 接入、72 个测试用例通过
 - **v0.4.0** — Phase 2 自动化与可靠性：APScheduler 定时调度、SIGTERM 优雅关闭、serve 命令接入、Docker 部署就绪、77 个测试用例通过
+- **v0.5.0** — Phase 3 AI 增强：字幕检测（跳过 ASR）、Show Notes HTML 清洗、关键词渲染、Obsidian MCP 搜索去重、Pipeline 字幕/ASR 双路径、105 个测试用例通过
 
 ## Current Version
 
-v0.4.0 — Phase 2 自动化与可靠性完成
+v0.5.0 — Phase 3 AI 增强完成

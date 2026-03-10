@@ -17,6 +17,7 @@ class Episode:
     show_notes: str
     link: str
     tags: list[str] = field(default_factory=list)
+    subtitle_url: str | None = None  # 内置字幕 URL（有则跳过 ASR）
 
 
 @dataclass

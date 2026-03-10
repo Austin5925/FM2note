@@ -104,3 +104,35 @@ class TestMarkdownGenerator:
         result = self.gen.render(ep, tr)
 
         assert "[小宇宙](https://www.xiaoyuzhoufm.com/episode/test)" in result
+
+    def test_render_with_keywords(self):
+        ep = _make_episode()
+        tr = _make_transcript(keywords=["人工智能", "播客"])
+        result = self.gen.render(ep, tr)
+
+        assert "## 关键词" in result
+        assert "`人工智能`" in result
+        assert "`播客`" in result
+
+    def test_render_html_show_notes_cleaned(self):
+        ep = _make_episode(show_notes="<p>这是 <b>HTML</b> 格式</p>")
+        tr = _make_transcript()
+        result = self.gen.render(ep, tr)
+
+        assert "这是" in result
+        assert "<p>" not in result
+        assert "<b>" not in result
+
+    def test_render_asr_engine(self):
+        ep = _make_episode()
+        tr = _make_transcript()
+        result = self.gen.render(ep, tr, asr_engine="bailian")
+
+        assert 'asr_engine: "bailian"' in result
+
+    def test_render_subtitle_engine(self):
+        ep = _make_episode()
+        tr = _make_transcript()
+        result = self.gen.render(ep, tr, asr_engine="subtitle")
+
+        assert 'asr_engine: "subtitle"' in result

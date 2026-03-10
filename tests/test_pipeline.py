@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -47,6 +47,7 @@ def mock_pipeline(mock_config, tmp_path):
     md_generator = MagicMock()
     md_generator.render = MagicMock(return_value="# Note content")
     writer = MagicMock()
+    writer.search_existing_mcp = AsyncMock(return_value=False)
     note_path = tmp_path / "note.md"
     note_path.write_text("# Note content")
     writer.write_note = MagicMock(return_value=note_path)
@@ -124,3 +125,48 @@ class TestPipeline:
         results = await mock_pipeline.run_once()
         # 第一个失败，第二个成功
         assert len(results) == 1
+
+    @pytest.mark.asyncio
+    async def test_process_episode_with_subtitle(self, mock_pipeline):
+        """有内置字幕时跳过 ASR"""
+        ep = _make_episode(subtitle_url="https://example.com/sub.srt")
+
+        with patch(
+            "src.pipeline.fetch_subtitle_from_url",
+            AsyncMock(return_value="字幕文本第一行\n字幕文本第二行"),
+        ):
+            path = await mock_pipeline.process_episode(ep)
+
+        assert path.exists()
+        # 不应调用 transcriber
+        mock_pipeline._transcriber.transcribe.assert_not_called()
+        # render 应收到 asr_engine="subtitle"
+        render_call = mock_pipeline._md_generator.render.call_args
+        assert render_call.kwargs.get("asr_engine") == "subtitle"
+
+    @pytest.mark.asyncio
+    async def test_process_episode_subtitle_fallback(self, mock_pipeline):
+        """字幕下载失败时回退到 ASR"""
+        ep = _make_episode(subtitle_url="https://example.com/sub.srt")
+
+        with patch(
+            "src.pipeline.fetch_subtitle_from_url",
+            AsyncMock(return_value=None),
+        ):
+            path = await mock_pipeline.process_episode(ep)
+
+        assert path.exists()
+        # 应回退调用 transcriber
+        mock_pipeline._transcriber.transcribe.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_process_episode_mcp_dedup(self, mock_pipeline):
+        """MCP 发现同名笔记时跳过"""
+        mock_pipeline._writer.search_existing_mcp = AsyncMock(return_value=True)
+        ep = _make_episode()
+
+        with pytest.raises(FileExistsError, match="MCP"):
+            await mock_pipeline.process_episode(ep)
+
+        # 不应调用 transcriber
+        mock_pipeline._transcriber.transcribe.assert_not_called()

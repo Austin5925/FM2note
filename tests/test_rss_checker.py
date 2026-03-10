@@ -126,3 +126,39 @@ class TestRSSChecker:
 
         # 只返回正常 feed 的剧集
         assert len(episodes) == 1
+
+    def test_detect_subtitle_none(self, subscriptions, mock_state):
+        checker = RSSChecker(subscriptions, mock_state)
+        entry = _make_entry()
+        # 默认 MagicMock 的 podcast_transcript 为 MagicMock，需显式设为 None
+        entry.podcast_transcript = None
+        entry.transcript_url = None
+        entry.subtitle_url = None
+        assert checker._detect_subtitle(entry) is None
+
+    def test_detect_subtitle_from_podcast_transcript(self, subscriptions, mock_state):
+        checker = RSSChecker(subscriptions, mock_state)
+        entry = _make_entry()
+        entry.podcast_transcript = [{"url": "https://example.com/sub.srt", "type": "text/srt"}]
+        entry.transcript_url = None
+        entry.subtitle_url = None
+        result = checker._detect_subtitle(entry)
+        assert result == "https://example.com/sub.srt"
+
+    def test_detect_subtitle_from_transcript_url(self, subscriptions, mock_state):
+        checker = RSSChecker(subscriptions, mock_state)
+        entry = _make_entry()
+        entry.podcast_transcript = None
+        entry.transcript_url = "https://example.com/transcript.vtt"
+        entry.subtitle_url = None
+        result = checker._detect_subtitle(entry)
+        assert result == "https://example.com/transcript.vtt"
+
+    def test_parse_episode_with_subtitle(self, subscriptions, mock_state):
+        checker = RSSChecker(subscriptions, mock_state)
+        entry = _make_entry()
+        entry.podcast_transcript = [{"url": "https://example.com/sub.srt"}]
+        entry.transcript_url = None
+        entry.subtitle_url = None
+        ep = checker._parse_episode(entry, "播客", [])
+        assert ep.subtitle_url == "https://example.com/sub.srt"

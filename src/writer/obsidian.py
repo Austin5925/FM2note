@@ -45,8 +45,33 @@ class ObsidianWriter:
         return note_path
 
     def note_exists(self, episode: Episode) -> bool:
-        """检查笔记文件是否已存在"""
+        """检查笔记文件是否已存在（文件系统层去重）"""
         return self._build_path(episode).exists()
+
+    async def search_existing_mcp(self, title: str) -> bool:
+        """通过 Obsidian MCP 搜索是否已有同名笔记（第三层去重）。
+
+        这是可选的去重机制，MCP 不可用时降级为 False。
+
+        Args:
+            title: 笔记标题
+
+        Returns:
+            是否找到同名笔记
+        """
+        try:
+            # 延迟导入，MCP 不可用时不影响核心功能
+            from src.writer.mcp_client import search_notes
+
+            results = await search_notes(title)
+            if results:
+                logger.info("MCP 搜索发现同名笔记: {}", title)
+                return True
+        except ImportError:
+            logger.debug("Obsidian MCP 客户端不可用，跳过 MCP 去重")
+        except Exception as e:
+            logger.warning("MCP 搜索失败，降级跳过: {}", e)
+        return False
 
     def _build_path(self, episode: Episode) -> Path:
         """构建笔记文件路径"""

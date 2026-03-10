@@ -84,3 +84,10 @@ class TestObsidianWriter:
         assert path.exists()
         assert '"' not in path.name
         assert "/" not in path.name
+
+    @pytest.mark.asyncio
+    async def test_search_existing_mcp_no_module(self, tmp_path):
+        """MCP 模块不存在时降级返回 False"""
+        writer = ObsidianWriter(str(tmp_path))
+        result = await writer.search_existing_mcp("任意标题")
+        assert result is False

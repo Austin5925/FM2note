@@ -39,3 +39,10 @@ htmlcov/
 
 # ruff
 .ruff_cache/
+
+# Dev docs (not for production)
+research.md
+plan.md
+test.md
+docs/
+transcripts/

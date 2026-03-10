@@ -146,6 +146,6 @@ make format
 
 ## 版本
 
-当前版本：v0.5.1
+当前版本：v1.0.0
 
 详见 [CLAUDE.md](CLAUDE.md) 的 Version History。

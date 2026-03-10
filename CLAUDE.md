@@ -138,7 +138,9 @@ make deploy      # ssh server + docker compose rebuild
 - **v0.4.0** — Phase 2 自动化与可靠性：APScheduler 定时调度、SIGTERM 优雅关闭、serve 命令接入、Docker 部署就绪、77 个测试用例通过
 - **v0.5.0** — Phase 3 AI 增强：字幕检测（跳过 ASR）、Show Notes HTML 清洗、关键词渲染、Obsidian MCP 搜索去重、Pipeline 字幕/ASR 双路径、105 个测试用例通过
 - **v0.5.1** — 通义听悟 DashScope SDK 迁移 + 实测修复：切换到 `dashscope.multimodal.tingwu.TingWu`，单一 API Key 认证，修复轮询状态码（数字 0/1/2 非字符串）、OSS 响应格式（camelCase `paragraphs/words/text`、`paragraphSummary`、autoChapters 直接返回 list），本地 ASR 实测通过（3798 字/19 段/5 章节），107 个测试用例通过
+- **v0.5.2** — 上线前加固：文档对齐（CLAUDE.md/README/.env.example）、config 重置为 Docker 默认、docker-compose 增加 config 卷挂载并去掉 RSSHub 公网端口、.gitignore 排除开发文档、从 git 移除 research/plan/test/docs
+- **v1.0.0** — 生产就绪：5 集实测全部通过（2682-3798 字，0 失败），完整部署文档，Docker 三容器编排（fm2note + RSSHub + Redis），107 个测试用例通过
 
 ## Current Version
 
-v0.5.1 — 通义听悟 DashScope SDK 迁移
+v1.0.0 — 生产就绪

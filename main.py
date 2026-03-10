@@ -22,10 +22,12 @@ def run_once(config_path: str, subs_path: str):
 
 
 @cli.command()
-def serve():
+@click.option("--config", "config_path", default="config/config.yaml", help="配置文件路径")
+@click.option("--subs", "subs_path", default="config/subscriptions.yaml", help="订阅配置路径")
+def serve(config_path: str, subs_path: str):
     """启动定时调度服务"""
     logger.info("FM2note v{} — serve 模式", VERSION)
-    asyncio.run(_serve())
+    asyncio.run(_serve(config_path, subs_path))
 
 
 @cli.command()
@@ -76,8 +78,44 @@ async def _run_once(config_path: str, subs_path: str):
         await state.close()
 
 
-async def _serve():
-    logger.info("serve 尚未实现，将在 Phase 2 完成")
+async def _serve(config_path: str, subs_path: str):
+    from src.config import load_config, load_subscriptions
+    from src.downloader.audio import AudioDownloader
+    from src.monitor.rss_checker import RSSChecker
+    from src.monitor.state import StateManager
+    from src.pipeline import Pipeline
+    from src.scheduler import FM2noteScheduler
+    from src.transcriber.factory import create_transcriber
+    from src.writer.markdown import MarkdownGenerator
+    from src.writer.obsidian import ObsidianWriter
+
+    config = load_config(config_path)
+    subscriptions = load_subscriptions(subs_path)
+
+    state = StateManager(config.db_path)
+    await state.init()
+
+    try:
+        rss_checker = RSSChecker(subscriptions, state)
+        downloader = AudioDownloader(config.temp_dir)
+        transcriber = create_transcriber(config)
+        md_generator = MarkdownGenerator()
+        writer = ObsidianWriter(config.vault_path, config.podcast_dir)
+
+        pipeline = Pipeline(
+            config=config,
+            rss_checker=rss_checker,
+            downloader=downloader,
+            transcriber=transcriber,
+            md_generator=md_generator,
+            writer=writer,
+            state=state,
+        )
+
+        scheduler = FM2noteScheduler(pipeline, config)
+        await scheduler.run_forever()
+    finally:
+        await state.close()
 
 
 async def _transcribe(audio_url: str, config_path: str):

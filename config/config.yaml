@@ -1,8 +1,8 @@
-vault_path: "/path/to/obsidian/vault"
+vault_path: "/Users/ausdin/Library/Mobile Documents/iCloud~md~obsidian/Documents/aus"
 podcast_dir: "Podcasts"
 poll_interval_hours: 3
-asr_engine: "tingwu"  # tingwu | bailian | whisper_api
+asr_engine: "tingwu"
 temp_dir: "./data/tmp"
 db_path: "./data/state.db"
 max_retries: 3
-log_level: "INFO"
+log_level: "DEBUG"

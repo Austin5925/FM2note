@@ -137,7 +137,7 @@ make deploy      # ssh server + docker compose rebuild
 - **v0.3.0** — Phase 1 MVP 核心管线：RSS 检测、SQLite 状态管理、音频下载、Markdown 生成、Obsidian 写入、Pipeline 编排、CLI 接入、72 个测试用例通过
 - **v0.4.0** — Phase 2 自动化与可靠性：APScheduler 定时调度、SIGTERM 优雅关闭、serve 命令接入、Docker 部署就绪、77 个测试用例通过
 - **v0.5.0** — Phase 3 AI 增强：字幕检测（跳过 ASR）、Show Notes HTML 清洗、关键词渲染、Obsidian MCP 搜索去重、Pipeline 字幕/ASR 双路径、105 个测试用例通过
-- **v0.5.1** — 通义听悟 SDK 迁移：从 alibabacloud ROA SDK 切换到 DashScope SDK（`dashscope.multimodal.tingwu.TingWu`），单一 API Key 认证，去除 AccessKey 对依赖，config 字段简化（`dashscope_api_key` + `tingwu_app_id`），108 个测试用例通过
+- **v0.5.1** — 通义听悟 DashScope SDK 迁移 + 实测修复：切换到 `dashscope.multimodal.tingwu.TingWu`，单一 API Key 认证，修复轮询状态码（数字 0/1/2 非字符串）、OSS 响应格式（camelCase `paragraphs/words/text`、`paragraphSummary`、autoChapters 直接返回 list），本地 ASR 实测通过（3798 字/19 段/5 章节），107 个测试用例通过
 
 ## Current Version
 

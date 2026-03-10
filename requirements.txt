@@ -8,3 +8,4 @@ loguru>=0.7
 click>=8.1
 python-dateutil>=2.9
 markdownify>=0.13
+dashscope>=1.20

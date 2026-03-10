@@ -19,17 +19,16 @@ def create_transcriber(config: AppConfig) -> Transcriber:
     engine = config.asr_engine
 
     if engine == "tingwu":
-        if not config.alibaba_cloud_access_key_id or not config.alibaba_cloud_access_key_secret:
-            raise TranscriptionError("通义听悟需要配置 ALIBABA_CLOUD_ACCESS_KEY_ID/SECRET")
-        if not config.tingwu_app_key:
-            raise TranscriptionError("通义听悟需要配置 TINGWU_APP_KEY")
+        if not config.dashscope_api_key:
+            raise TranscriptionError("通义听悟需要配置 DASHSCOPE_API_KEY")
+        if not config.tingwu_app_id:
+            raise TranscriptionError("通义听悟需要配置 TINGWU_APP_ID")
 
         from src.transcriber.tingwu import TingwuTranscriber
 
         return TingwuTranscriber(
-            access_key_id=config.alibaba_cloud_access_key_id,
-            access_key_secret=config.alibaba_cloud_access_key_secret,
-            app_key=config.tingwu_app_key,
+            api_key=config.dashscope_api_key,
+            app_id=config.tingwu_app_id,
         )
 
     elif engine == "bailian":

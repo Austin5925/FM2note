@@ -6,6 +6,7 @@
 
 from __future__ import annotations
 
+import sys
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -18,12 +19,24 @@ from src.transcriber.factory import create_transcriber
 from src.transcriber.tingwu import TingwuTranscriber
 from src.transcriber.whisper_api import WhisperTranscriber
 
+
+def _mock_dashscope_modules():
+    """注入 dashscope mock 模块到 sys.modules，避免实际安装依赖"""
+    mock_tingwu = MagicMock()
+    modules = {
+        "dashscope": MagicMock(),
+        "dashscope.multimodal": MagicMock(),
+        "dashscope.multimodal.tingwu": MagicMock(),
+        "dashscope.multimodal.tingwu.tingwu": mock_tingwu,
+    }
+    return modules, mock_tingwu.TingWu
+
 # ==================== Base Protocol ====================
 
 
 class TestTranscriberProtocol:
     def test_tingwu_has_name(self):
-        t = TingwuTranscriber("key_id", "key_secret", "app_key")
+        t = TingwuTranscriber("api_key", "app_id")
         assert t.name == "tingwu"
 
     def test_bailian_has_name(self):
@@ -40,17 +53,32 @@ class TestTranscriberProtocol:
 
 class TestTingwuTranscriber:
     def setup_method(self):
-        self.transcriber = TingwuTranscriber("test_id", "test_secret", "test_app")
+        self.transcriber = TingwuTranscriber("test_api_key", "test_app_id")
 
-    def test_build_task_body(self):
-        body = self.transcriber._build_task_body("https://example.com/audio.mp3", "cn")
-        assert body["AppKey"] == "test_app"
-        assert body["Input"]["FileUrl"] == "https://example.com/audio.mp3"
-        assert body["Input"]["SourceLanguage"] == "cn"
-        assert "TaskKey" in body["Input"]
-        assert body["Parameters"]["Transcription"]["DiarizationEnabled"] is True
-        assert body["Parameters"]["Summarization"]["Enabled"] is True
-        assert body["Parameters"]["AutoChapters"]["Enabled"] is True
+    @pytest.mark.asyncio
+    async def test_create_task_success(self):
+        mock_response = {"output": {"dataId": "data-123"}}
+        modules, mock_tingwu_cls = _mock_dashscope_modules()
+        mock_tingwu_cls.call = MagicMock(return_value=mock_response)
+
+        with patch.dict(sys.modules, modules):
+            data_id = await self.transcriber._create_task("https://example.com/audio.mp3")
+
+        assert data_id == "data-123"
+        call_args = mock_tingwu_cls.call.call_args
+        assert call_args.kwargs["model"] == "tingwu-meeting"
+        assert call_args.kwargs["user_defined_input"]["appId"] == "test_app_id"
+        assert call_args.kwargs["user_defined_input"]["fileUrl"] == "https://example.com/audio.mp3"
+
+    @pytest.mark.asyncio
+    async def test_create_task_failure(self):
+        mock_response = {"output": {}}
+        modules, mock_tingwu_cls = _mock_dashscope_modules()
+        mock_tingwu_cls.call = MagicMock(return_value=mock_response)
+
+        with patch.dict(sys.modules, modules):
+            with pytest.raises(TranscriptionError, match="创建任务失败"):
+                await self.transcriber._create_task("https://example.com/audio.mp3")
 
     @pytest.mark.asyncio
     async def test_fetch_oss_result_success(self):
@@ -71,10 +99,10 @@ class TestTingwuTranscriber:
     @pytest.mark.asyncio
     async def test_parse_result_with_all_fields(self):
         raw_result = {
-            "Result": {
-                "Transcription": "https://oss.example.com/trans.json",
-                "Summarization": "https://oss.example.com/summary.json",
-                "AutoChapters": "https://oss.example.com/chapters.json",
+            "result": {
+                "transcription": "https://oss.example.com/trans.json",
+                "summarization": "https://oss.example.com/summary.json",
+                "autoChapters": "https://oss.example.com/chapters.json",
             }
         }
 
@@ -113,8 +141,29 @@ class TestTingwuTranscriber:
         assert result.chapters[0]["title"] == "第一章"
 
     @pytest.mark.asyncio
+    async def test_parse_result_pascal_case(self):
+        """兼容 PascalCase 字段名"""
+        raw_result = {
+            "Result": {
+                "Transcription": "https://oss.example.com/trans.json",
+            }
+        }
+
+        trans_json = {
+            "Transcription": {
+                "Paragraphs": [
+                    {"Words": [{"Text": "段落内容"}]},
+                ]
+            }
+        }
+
+        self.transcriber._fetch_oss_result = AsyncMock(return_value=trans_json)
+        result = await self.transcriber._parse_result(raw_result)
+        assert result.paragraphs[0] == "段落内容"
+
+    @pytest.mark.asyncio
     async def test_parse_result_empty(self):
-        raw_result = {"Result": {}}
+        raw_result = {"result": {}}
         result = await self.transcriber._parse_result(raw_result)
         assert result.text == ""
         assert result.paragraphs == []
@@ -198,10 +247,8 @@ class TestTranscriberFactory:
         defaults = {
             "vault_path": "/tmp/vault",
             "asr_engine": "tingwu",
-            "alibaba_cloud_access_key_id": "test_id",
-            "alibaba_cloud_access_key_secret": "test_secret",
-            "tingwu_app_key": "test_app",
             "dashscope_api_key": "test_ds_key",
+            "tingwu_app_id": "test_app_id",
             "openai_api_key": "test_oai_key",
         }
         defaults.update(overrides)
@@ -230,12 +277,14 @@ class TestTranscriberFactory:
         with pytest.raises(TranscriptionError, match="不支持"):
             create_transcriber(config)
 
-    def test_missing_tingwu_keys_raises(self):
-        config = self._make_config(
-            asr_engine="tingwu",
-            alibaba_cloud_access_key_id="",
-        )
-        with pytest.raises(TranscriptionError, match="ALIBABA_CLOUD_ACCESS_KEY"):
+    def test_missing_dashscope_key_for_tingwu_raises(self):
+        config = self._make_config(asr_engine="tingwu", dashscope_api_key="")
+        with pytest.raises(TranscriptionError, match="DASHSCOPE_API_KEY"):
+            create_transcriber(config)
+
+    def test_missing_tingwu_app_id_raises(self):
+        config = self._make_config(asr_engine="tingwu", tingwu_app_id="")
+        with pytest.raises(TranscriptionError, match="TINGWU_APP_ID"):
             create_transcriber(config)
 
     def test_missing_bailian_key_raises(self):

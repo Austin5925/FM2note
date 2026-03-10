@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import asyncio
 import time
-import uuid
 
 import httpx
 from loguru import logger
@@ -12,25 +11,21 @@ from src.transcriber.base import TranscriptionError
 
 
 class TingwuTranscriber:
-    """通义听悟 API 转写实现
+    """通义听悟 API 转写实现（DashScope SDK）
 
-    API 版本：2023-09-30
-    域名：tingwu.cn-beijing.aliyuncs.com
-    认证：阿里云 AccessKey + AppKey
+    通过 dashscope.multimodal.tingwu.TingWu 调用听悟服务。
+    认证：DashScope API Key + AppId
     """
 
-    ENDPOINT = "https://tingwu.cn-beijing.aliyuncs.com"
-    API_VERSION = "2023-09-30"
+    BASE_URL = (
+        "https://dashscope.aliyuncs.com/api/v1/services/aigc/"
+        "multimodal-generation/generation"
+    )
+    MODEL = "tingwu-meeting"
 
-    def __init__(
-        self,
-        access_key_id: str,
-        access_key_secret: str,
-        app_key: str,
-    ):
-        self._access_key_id = access_key_id
-        self._access_key_secret = access_key_secret
-        self._app_key = app_key
+    def __init__(self, api_key: str, app_id: str):
+        self._api_key = api_key
+        self._app_id = app_id
 
     @property
     def name(self) -> str:
@@ -58,92 +53,64 @@ class TingwuTranscriber:
         Raises:
             TranscriptionError: 转写失败
         """
-        task_body = self._build_task_body(audio_url, language)
-        task_id = await self._create_task(task_body)
-        logger.info("通义听悟任务已创建: task_id={}", task_id)
+        data_id = await self._create_task(audio_url)
+        logger.info("通义听悟任务已创建: data_id={}", data_id)
 
-        raw_result = await self._poll_task(task_id, timeout_minutes, poll_interval)
+        raw_result = await self._poll_task(data_id, timeout_minutes, poll_interval)
         return await self._parse_result(raw_result)
 
-    def _build_task_body(self, audio_url: str, language: str) -> dict:
-        """构建 CreateTask 请求体"""
-        task_key = f"fm2note-{uuid.uuid4().hex[:12]}"
-        return {
-            "AppKey": self._app_key,
-            "Input": {
-                "FileUrl": audio_url,
-                "SourceLanguage": language,
-                "TaskKey": task_key,
-            },
-            "Parameters": {
-                "Transcription": {
-                    "DiarizationEnabled": True,
-                },
-                "Summarization": {
-                    "Enabled": True,
-                    "Types": ["Paragraph", "QuestionsAnswering", "MindMap"],
-                },
-                "AutoChapters": {
-                    "Enabled": True,
-                },
-            },
+    async def _create_task(self, audio_url: str) -> str:
+        """提交转写任务，返回 dataId"""
+        from dashscope.multimodal.tingwu.tingwu import TingWu
+
+        create_input = {
+            "task": "createTask",
+            "type": "offline",
+            "appId": self._app_id,
+            "fileUrl": audio_url,
+            "phraseId": "",
         }
 
-    async def _create_task(self, body: dict) -> str:
-        """提交转写任务，返回 TaskId"""
-        from alibabacloud_tea_openapi.models import Config
-        from alibabacloud_tingwu20230930.client import Client
-        from alibabacloud_tingwu20230930.models import CreateTaskRequest
-
-        config = Config(
-            access_key_id=self._access_key_id,
-            access_key_secret=self._access_key_secret,
-            endpoint=self.ENDPOINT,
-        )
-        client = Client(config)
-
-        request = CreateTaskRequest(
-            type="offline",
-            body=body,
+        response = TingWu.call(
+            model=self.MODEL,
+            user_defined_input=create_input,
+            api_key=self._api_key,
+            base_address=self.BASE_URL,
+            parameters={},
         )
 
-        response = client.create_task(request)
-        result = response.body
+        output = response.get("output", {}) if isinstance(response, dict) else {}
+        data_id = output.get("dataId")
+        if not data_id:
+            raise TranscriptionError(f"创建任务失败: {response}")
 
-        if not result or not result.get("Data", {}).get("TaskId"):
-            raise TranscriptionError(f"创建任务失败: {result}")
-
-        return result["Data"]["TaskId"]
+        return data_id
 
     async def _poll_task(
-        self, task_id: str, timeout_minutes: int, interval: int
+        self, data_id: str, timeout_minutes: int, interval: int
     ) -> dict:
         """轮询任务状态直到完成或超时"""
-        from alibabacloud_tea_openapi.models import Config
-        from alibabacloud_tingwu20230930.client import Client
-        from alibabacloud_tingwu20230930.models import GetTaskInfoRequest
-
-        config = Config(
-            access_key_id=self._access_key_id,
-            access_key_secret=self._access_key_secret,
-            endpoint=self.ENDPOINT,
-        )
-        client = Client(config)
+        from dashscope.multimodal.tingwu.tingwu import TingWu
 
         deadline = time.time() + timeout_minutes * 60
 
         while time.time() < deadline:
-            request = GetTaskInfoRequest(task_id=task_id)
-            response = client.get_task_info(request)
-            result = response.body
+            get_input = {"task": "getTask", "dataId": data_id}
+            response = TingWu.call(
+                model=self.MODEL,
+                user_defined_input=get_input,
+                api_key=self._api_key,
+                base_address=self.BASE_URL,
+            )
 
-            status = result.get("Data", {}).get("TaskStatus", "")
-            logger.debug("通义听悟任务 {} 状态: {}", task_id, status)
+            output = response.get("output", {}) if isinstance(response, dict) else {}
+            status = output.get("taskStatus", "")
+            logger.debug("通义听悟任务 {} 状态: {}", data_id, status)
 
             if status == "COMPLETED":
-                return result["Data"]
+                return output
             elif status == "FAILED":
-                error = result.get("Data", {}).get("ErrorMessage", "未知错误")
+                error = output.get("errorMessage", "未知错误")
                 raise TranscriptionError(f"通义听悟转写失败: {error}")
 
             await asyncio.sleep(interval)
@@ -165,13 +132,16 @@ class TingwuTranscriber:
         return {}
 
     async def _parse_result(self, raw_result: dict) -> TranscriptResult:
-        """将通义听悟原始响应解析为 TranscriptResult"""
-        result = raw_result.get("Result", {})
+        """将通义听悟原始响应解析为 TranscriptResult
+
+        DashScope 返回 camelCase 字段名，同时兼容 PascalCase。
+        """
+        result = raw_result.get("result", raw_result.get("Result", {}))
 
         # 获取转写结果
         text = ""
         paragraphs = []
-        transcription_url = result.get("Transcription")
+        transcription_url = result.get("transcription", result.get("Transcription"))
         if transcription_url:
             trans_data = await self._fetch_oss_result(transcription_url)
             paragraphs_raw = trans_data.get("Transcription", {}).get("Paragraphs", [])
@@ -184,7 +154,7 @@ class TingwuTranscriber:
 
         # 获取摘要
         summary = None
-        summarization_url = result.get("Summarization")
+        summarization_url = result.get("summarization", result.get("Summarization"))
         if summarization_url:
             sum_data = await self._fetch_oss_result(summarization_url)
             paragraph_sum = sum_data.get("Summarization", {}).get("Paragraph", "")
@@ -193,7 +163,7 @@ class TingwuTranscriber:
 
         # 获取章节
         chapters = None
-        chapters_url = result.get("AutoChapters")
+        chapters_url = result.get("autoChapters", result.get("AutoChapters"))
         if chapters_url:
             chap_data = await self._fetch_oss_result(chapters_url)
             raw_chapters = chap_data.get("AutoChapters", [])

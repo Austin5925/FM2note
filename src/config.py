@@ -29,13 +29,11 @@ class AppConfig:
     log_level: str = "INFO"
     db_path: str = "./data/state.db"
 
-    # 通义听悟
-    alibaba_cloud_access_key_id: str = ""
-    alibaba_cloud_access_key_secret: str = ""
-    tingwu_app_key: str = ""
-
-    # 阿里云百炼
+    # DashScope API Key（通义听悟 + 百炼共用）
     dashscope_api_key: str = ""
+
+    # 通义听悟 AppId
+    tingwu_app_id: str = ""
 
     # OpenAI Whisper
     openai_api_key: str = ""
@@ -82,10 +80,8 @@ def load_config(path: str | Path = "config/config.yaml") -> AppConfig:
         max_retries=raw.get("max_retries", 3),
         log_level=os.environ.get("LOG_LEVEL", raw.get("log_level", "INFO")),
         db_path=raw.get("db_path", "./data/state.db"),
-        alibaba_cloud_access_key_id=os.environ.get("ALIBABA_CLOUD_ACCESS_KEY_ID", ""),
-        alibaba_cloud_access_key_secret=os.environ.get("ALIBABA_CLOUD_ACCESS_KEY_SECRET", ""),
-        tingwu_app_key=os.environ.get("TINGWU_APP_KEY", ""),
         dashscope_api_key=os.environ.get("DASHSCOPE_API_KEY", ""),
+        tingwu_app_id=os.environ.get("TINGWU_APP_ID", ""),
         openai_api_key=os.environ.get("OPENAI_API_KEY", ""),
     )
 

@@ -126,7 +126,7 @@ make deploy      # ssh server + docker compose rebuild
 
 | 服务 | 端点 | 鉴权 |
 |---|---|---|
-| 通义听悟 | `tingwu.cn-beijing.aliyuncs.com` | AccessKey ID + Secret |
+| 通义听悟 | `dashscope.aliyuncs.com` (DashScope SDK) | DashScope API Key + AppId |
 | RSSHub（自建） | `http://localhost:1200` | 无 |
 | Obsidian MCP | 本地 MCP Server | 本地连接 |
 
@@ -137,7 +137,8 @@ make deploy      # ssh server + docker compose rebuild
 - **v0.3.0** — Phase 1 MVP 核心管线：RSS 检测、SQLite 状态管理、音频下载、Markdown 生成、Obsidian 写入、Pipeline 编排、CLI 接入、72 个测试用例通过
 - **v0.4.0** — Phase 2 自动化与可靠性：APScheduler 定时调度、SIGTERM 优雅关闭、serve 命令接入、Docker 部署就绪、77 个测试用例通过
 - **v0.5.0** — Phase 3 AI 增强：字幕检测（跳过 ASR）、Show Notes HTML 清洗、关键词渲染、Obsidian MCP 搜索去重、Pipeline 字幕/ASR 双路径、105 个测试用例通过
+- **v0.5.1** — 通义听悟 SDK 迁移：从 alibabacloud ROA SDK 切换到 DashScope SDK（`dashscope.multimodal.tingwu.TingWu`），单一 API Key 认证，去除 AccessKey 对依赖，config 字段简化（`dashscope_api_key` + `tingwu_app_id`），108 个测试用例通过
 
 ## Current Version
 
-v0.5.0 — Phase 3 AI 增强完成
+v0.5.1 — 通义听悟 DashScope SDK 迁移

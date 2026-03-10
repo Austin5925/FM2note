@@ -40,13 +40,11 @@ class TestLoadConfig:
         assert config.log_level == "WARNING"
 
     def test_env_override_api_keys(self, tmp_config, monkeypatch):
-        monkeypatch.setenv("ALIBABA_CLOUD_ACCESS_KEY_ID", "test-key-id")
-        monkeypatch.setenv("ALIBABA_CLOUD_ACCESS_KEY_SECRET", "test-key-secret")
-        monkeypatch.setenv("TINGWU_APP_KEY", "test-app-key")
+        monkeypatch.setenv("DASHSCOPE_API_KEY", "test-ds-key")
+        monkeypatch.setenv("TINGWU_APP_ID", "test-app-id")
         config = load_config(tmp_config)
-        assert config.alibaba_cloud_access_key_id == "test-key-id"
-        assert config.alibaba_cloud_access_key_secret == "test-key-secret"
-        assert config.tingwu_app_key == "test-app-key"
+        assert config.dashscope_api_key == "test-ds-key"
+        assert config.tingwu_app_id == "test-app-id"
 
     def test_default_values(self, tmp_path):
         minimal = tmp_path / "minimal.yaml"

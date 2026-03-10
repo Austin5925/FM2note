@@ -1,0 +1,54 @@
+---
+title: "{{ episode.title }}"
+podcast: "{{ episode.podcast_name }}"
+date: {{ episode.pub_date.strftime('%Y-%m-%d') }}
+duration: "{{ episode.duration }}"
+source: "{{ episode.link }}"
+tags:
+  - podcast
+  - {{ episode.podcast_name | replace(' ', '-') | lower }}
+{% for tag in episode.tags %}
+  - {{ tag }}
+{% endfor %}
+status: unread
+created: {{ now.strftime('%Y-%m-%dT%H:%M:%S') }}
+asr_engine: "{{ asr_engine }}"
+---
+
+# {{ episode.title }}
+
+> **播客**：{{ episode.podcast_name }}
+> **日期**：{{ episode.pub_date.strftime('%Y-%m-%d') }}
+> **时长**：{{ episode.duration }}
+> **链接**：[小宇宙]({{ episode.link }})
+
+{% if transcript.summary %}
+## AI 摘要
+
+{{ transcript.summary }}
+
+{% endif %}
+{% if transcript.chapters %}
+## 章节速览
+
+{% for ch in transcript.chapters %}
+### {{ ch.title }}
+
+{{ ch.summary }}
+
+{% endfor %}
+{% endif %}
+## Show Notes
+
+{{ episode.show_notes }}
+
+## 全文转写
+
+{% for para in transcript.paragraphs %}
+{{ para }}
+
+{% endfor %}
+
+---
+
+_由 FM2note v{{ version }} 自动生成_

@@ -1,0 +1,4 @@
+podcasts:
+  - name: "示例播客"
+    rss_url: "http://rsshub:1200/xiaoyuzhou/podcast/PODCAST_ID"
+    tags: ["example"]

@@ -1,0 +1,62 @@
+services:
+  fm2note:
+    build: .
+    restart: unless-stopped
+    env_file: .env
+    volumes:
+      - ${OBSIDIAN_VAULT_PATH:-./data/vault}:/vault
+      - ./data:/app/data
+      - ./logs:/app/logs
+    networks:
+      - fm2note-net
+    depends_on:
+      - rsshub
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: "0.5"
+
+  rsshub:
+    image: diygod/rsshub:latest
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:1200:1200"
+    environment:
+      NODE_ENV: production
+      CACHE_TYPE: redis
+      REDIS_URL: "redis://redis:6379/"
+      CACHE_EXPIRE: 1800
+    networks:
+      - fm2note-net
+    depends_on:
+      - redis
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: "0.5"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:1200/healthz"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  redis:
+    image: redis:alpine
+    restart: unless-stopped
+    volumes:
+      - redis-data:/data
+    networks:
+      - fm2note-net
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+
+volumes:
+  redis-data:
+
+networks:
+  fm2note-net:
+    driver: bridge

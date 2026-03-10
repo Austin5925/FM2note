@@ -15,6 +15,8 @@ class TingwuTranscriber:
 
     通过 dashscope.multimodal.tingwu.TingWu 调用听悟服务。
     认证：DashScope API Key + AppId
+
+    任务状态码：0=完成, 1=运行中, 2=失败
     """
 
     BASE_URL = (
@@ -22,6 +24,11 @@ class TingwuTranscriber:
         "multimodal-generation/generation"
     )
     MODEL = "tingwu-meeting"
+
+    # 任务状态码
+    STATUS_COMPLETED = 0
+    STATUS_RUNNING = 1
+    STATUS_FAILED = 2
 
     def __init__(self, api_key: str, app_id: str):
         self._api_key = api_key
@@ -79,8 +86,8 @@ class TingwuTranscriber:
             parameters={},
         )
 
-        output = response.get("output", {}) if isinstance(response, dict) else {}
-        data_id = output.get("dataId")
+        output = response.output if hasattr(response, "output") else {}
+        data_id = output.get("dataId") if isinstance(output, dict) else None
         if not data_id:
             raise TranscriptionError(f"创建任务失败: {response}")
 
@@ -89,7 +96,10 @@ class TingwuTranscriber:
     async def _poll_task(
         self, data_id: str, timeout_minutes: int, interval: int
     ) -> dict:
-        """轮询任务状态直到完成或超时"""
+        """轮询任务状态直到完成或超时
+
+        DashScope 返回 output.status 为数字：0=完成, 1=运行中, 2=失败
+        """
         from dashscope.multimodal.tingwu.tingwu import TingWu
 
         deadline = time.time() + timeout_minutes * 60
@@ -103,14 +113,17 @@ class TingwuTranscriber:
                 base_address=self.BASE_URL,
             )
 
-            output = response.get("output", {}) if isinstance(response, dict) else {}
-            status = output.get("taskStatus", "")
-            logger.debug("通义听悟任务 {} 状态: {}", data_id, status)
+            output = response.output if hasattr(response, "output") else {}
+            if not isinstance(output, dict):
+                output = {}
 
-            if status == "COMPLETED":
+            status = output.get("status")
+            logger.debug("通义听悟任务 {} 状态: {} (0=完成,1=运行中)", data_id, status)
+
+            if status == self.STATUS_COMPLETED:
                 return output
-            elif status == "FAILED":
-                error = output.get("errorMessage", "未知错误")
+            elif status == self.STATUS_FAILED:
+                error = output.get("message", "未知错误")
                 raise TranscriptionError(f"通义听悟转写失败: {error}")
 
             await asyncio.sleep(interval)
@@ -134,44 +147,44 @@ class TingwuTranscriber:
     async def _parse_result(self, raw_result: dict) -> TranscriptResult:
         """将通义听悟原始响应解析为 TranscriptResult
 
-        DashScope 返回 camelCase 字段名，同时兼容 PascalCase。
+        DashScope output 顶层字段：
+        - transcriptionPath → OSS JSON: {paragraphs: [{words: [{text}]}]}
+        - summarizationPath → OSS JSON: {paragraphSummary: "..."}
+        - autoChaptersPath  → OSS JSON: [{headline, summary}]（直接是 list）
         """
-        result = raw_result.get("result", raw_result.get("Result", {}))
-
         # 获取转写结果
         text = ""
         paragraphs = []
-        transcription_url = result.get("transcription", result.get("Transcription"))
+        transcription_url = raw_result.get("transcriptionPath")
         if transcription_url:
             trans_data = await self._fetch_oss_result(transcription_url)
-            paragraphs_raw = trans_data.get("Transcription", {}).get("Paragraphs", [])
-            for para in paragraphs_raw:
-                words = para.get("Words", [])
-                para_text = "".join(w.get("Text", "") for w in words)
+            for para in trans_data.get("paragraphs", []):
+                words = para.get("words", [])
+                para_text = "".join(w.get("text", "") for w in words)
                 if para_text.strip():
                     paragraphs.append(para_text.strip())
             text = "\n\n".join(paragraphs)
 
         # 获取摘要
         summary = None
-        summarization_url = result.get("summarization", result.get("Summarization"))
+        summarization_url = raw_result.get("summarizationPath")
         if summarization_url:
             sum_data = await self._fetch_oss_result(summarization_url)
-            paragraph_sum = sum_data.get("Summarization", {}).get("Paragraph", "")
+            paragraph_sum = sum_data.get("paragraphSummary", "")
             if paragraph_sum:
                 summary = paragraph_sum
 
-        # 获取章节
+        # 获取章节（OSS 返回直接是 list，不是 dict）
         chapters = None
-        chapters_url = result.get("autoChapters", result.get("AutoChapters"))
+        chapters_url = raw_result.get("autoChaptersPath")
         if chapters_url:
             chap_data = await self._fetch_oss_result(chapters_url)
-            raw_chapters = chap_data.get("AutoChapters", [])
+            raw_chapters = chap_data if isinstance(chap_data, list) else []
             if raw_chapters:
                 chapters = [
                     {
-                        "title": ch.get("Title", ""),
-                        "summary": ch.get("Summary", ""),
+                        "title": ch.get("headline", ""),
+                        "summary": ch.get("summary", ""),
                     }
                     for ch in raw_chapters
                 ]

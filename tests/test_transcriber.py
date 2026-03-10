@@ -57,9 +57,10 @@ class TestTingwuTranscriber:
 
     @pytest.mark.asyncio
     async def test_create_task_success(self):
-        mock_response = {"output": {"dataId": "data-123"}}
+        mock_resp = MagicMock()
+        mock_resp.output = {"dataId": "data-123"}
         modules, mock_tingwu_cls = _mock_dashscope_modules()
-        mock_tingwu_cls.call = MagicMock(return_value=mock_response)
+        mock_tingwu_cls.call = MagicMock(return_value=mock_resp)
 
         with patch.dict(sys.modules, modules):
             data_id = await self.transcriber._create_task("https://example.com/audio.mp3")
@@ -72,13 +73,15 @@ class TestTingwuTranscriber:
 
     @pytest.mark.asyncio
     async def test_create_task_failure(self):
-        mock_response = {"output": {}}
+        mock_resp = MagicMock()
+        mock_resp.output = {}
         modules, mock_tingwu_cls = _mock_dashscope_modules()
-        mock_tingwu_cls.call = MagicMock(return_value=mock_response)
+        mock_tingwu_cls.call = MagicMock(return_value=mock_resp)
 
-        with patch.dict(sys.modules, modules):
-            with pytest.raises(TranscriptionError, match="创建任务失败"):
-                await self.transcriber._create_task("https://example.com/audio.mp3")
+        with patch.dict(sys.modules, modules), pytest.raises(
+            TranscriptionError, match="创建任务失败"
+        ):
+            await self.transcriber._create_task("https://example.com/audio.mp3")
 
     @pytest.mark.asyncio
     async def test_fetch_oss_result_success(self):
@@ -98,28 +101,25 @@ class TestTingwuTranscriber:
 
     @pytest.mark.asyncio
     async def test_parse_result_with_all_fields(self):
+        """模拟 DashScope 实际 OSS 返回格式"""
         raw_result = {
-            "result": {
-                "transcription": "https://oss.example.com/trans.json",
-                "summarization": "https://oss.example.com/summary.json",
-                "autoChapters": "https://oss.example.com/chapters.json",
-            }
+            "status": 0,
+            "transcriptionPath": "https://oss.example.com/trans.json",
+            "summarizationPath": "https://oss.example.com/summary.json",
+            "autoChaptersPath": "https://oss.example.com/chapters.json",
         }
 
         trans_json = {
-            "Transcription": {
-                "Paragraphs": [
-                    {"Words": [{"Text": "第一段文本"}]},
-                    {"Words": [{"Text": "第二段文本"}]},
-                ]
-            }
-        }
-        summary_json = {"Summarization": {"Paragraph": "这是摘要"}}
-        chapters_json = {
-            "AutoChapters": [
-                {"Title": "第一章", "Summary": "章节摘要"}
+            "paragraphs": [
+                {"words": [{"text": "第一段文本"}]},
+                {"words": [{"text": "第二段文本"}]},
             ]
         }
+        summary_json = {"paragraphSummary": "这是摘要"}
+        # autoChapters OSS 直接返回 list
+        chapters_json = [
+            {"headline": "第一章", "summary": "章节摘要", "start": 0, "end": 100}
+        ]
 
         async def mock_fetch(url):
             if "trans" in url:
@@ -141,29 +141,8 @@ class TestTingwuTranscriber:
         assert result.chapters[0]["title"] == "第一章"
 
     @pytest.mark.asyncio
-    async def test_parse_result_pascal_case(self):
-        """兼容 PascalCase 字段名"""
-        raw_result = {
-            "Result": {
-                "Transcription": "https://oss.example.com/trans.json",
-            }
-        }
-
-        trans_json = {
-            "Transcription": {
-                "Paragraphs": [
-                    {"Words": [{"Text": "段落内容"}]},
-                ]
-            }
-        }
-
-        self.transcriber._fetch_oss_result = AsyncMock(return_value=trans_json)
-        result = await self.transcriber._parse_result(raw_result)
-        assert result.paragraphs[0] == "段落内容"
-
-    @pytest.mark.asyncio
     async def test_parse_result_empty(self):
-        raw_result = {"result": {}}
+        raw_result = {"status": 0}
         result = await self.transcriber._parse_result(raw_result)
         assert result.text == ""
         assert result.paragraphs == []

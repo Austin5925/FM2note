@@ -170,3 +170,54 @@ class TestPipeline:
 
         # 不应调用 transcriber
         mock_pipeline._transcriber.transcribe.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_process_episode_saves_pending_on_summary_failure(
+        self, mock_config, tmp_path
+    ):
+        """摘要失败时应缓存转录结果到 pending"""
+        # 构建带 summarizer 的 pipeline
+        transcript_no_summary = TranscriptResult(
+            text="转写文本内容",
+            paragraphs=["段落1"],
+        )
+        transcriber = AsyncMock()
+        transcriber.transcribe = AsyncMock(return_value=transcript_no_summary)
+
+        md_generator = MagicMock()
+        md_generator.render = MagicMock(return_value="# Note")
+
+        note_path = tmp_path / "note.md"
+        note_path.write_text("# Note")
+        writer = MagicMock()
+        writer.search_existing_mcp = AsyncMock(return_value=False)
+        writer.write_note = MagicMock(return_value=note_path)
+
+        state = AsyncMock()
+        state.get_failed = AsyncMock(return_value=[])
+
+        summarizer = AsyncMock()
+        summarizer.summarize = AsyncMock(side_effect=Exception("Poe API 连接失败"))
+
+        pipeline = Pipeline(
+            config=mock_config,
+            rss_checker=AsyncMock(),
+            downloader=AsyncMock(),
+            transcriber=transcriber,
+            md_generator=md_generator,
+            writer=writer,
+            state=state,
+            summarizer=summarizer,
+        )
+
+        pending_dir = tmp_path / "pending"
+        with patch("src.summarizer.pending.PENDING_DIR", pending_dir):
+            ep = _make_episode()
+            path = await pipeline.process_episode(ep)
+
+        # 笔记仍应写入成功
+        assert path.exists()
+        # pending 目录应有缓存文件
+        assert pending_dir.exists()
+        pending_files = list(pending_dir.glob("*.json"))
+        assert len(pending_files) == 1

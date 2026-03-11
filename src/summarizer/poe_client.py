@@ -32,10 +32,13 @@ class PoeSummarizer:
         api_key: str,
         model: str = "GPT-5.4",
         reasoning_effort: str = "medium",
+        cooldown: float = 60.0,
     ):
         self._api_key = api_key
         self._model = model
         self._reasoning_effort = reasoning_effort
+        self._cooldown = cooldown
+        self._last_call_time: float = 0
 
     async def summarize(
         self, text: str, title: str, *, max_retries: int = 3
@@ -54,6 +57,15 @@ class PoeSummarizer:
             Exception: 重试耗尽后仍失败
         """
         import asyncio
+        import time
+
+        # 限速：距上次调用不足 cooldown 时等待
+        if self._last_call_time > 0 and self._cooldown > 0:
+            elapsed = time.monotonic() - self._last_call_time
+            if elapsed < self._cooldown:
+                wait_time = self._cooldown - elapsed
+                logger.info("Poe API 限速等待: {:.0f}s", wait_time)
+                await asyncio.sleep(wait_time)
 
         user_content = f"播客标题：{title}\n\n转写文本：\n{text}"
 
@@ -97,6 +109,7 @@ class PoeSummarizer:
                 if not content:
                     raise ValueError("Poe API 返回空内容")
 
+                self._last_call_time = time.monotonic()
                 return self._parse_response(content)
 
             except Exception as e:
@@ -112,6 +125,7 @@ class PoeSummarizer:
                     )
                     await asyncio.sleep(wait)
 
+        self._last_call_time = time.monotonic()
         raise last_error  # type: ignore[misc]
 
     def _parse_response(self, content: str) -> SummaryResult:

@@ -38,6 +38,7 @@ class AppConfig:
     # Poe API（AI 摘要）
     poe_api_key: str = ""
     summary_model: str = "GPT-5.4"
+    summary_cooldown: int = 60  # Poe API 调用间隔（秒）
 
     # OpenAI Whisper
     openai_api_key: str = ""
@@ -88,6 +89,7 @@ def load_config(path: str | Path = "config/config.yaml") -> AppConfig:
         tingwu_app_id=os.environ.get("TINGWU_APP_ID", ""),
         poe_api_key=os.environ.get("POE_API_KEY", ""),
         summary_model=os.environ.get("SUMMARY_MODEL", "GPT-5.4"),
+        summary_cooldown=int(os.environ.get("SUMMARY_COOLDOWN", raw.get("summary_cooldown", 30))),
         openai_api_key=os.environ.get("OPENAI_API_KEY", ""),
     )
 

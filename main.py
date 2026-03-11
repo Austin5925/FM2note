@@ -41,15 +41,24 @@ def transcribe(audio_url: str, title: str | None, podcast_name: str, config_path
     asyncio.run(_transcribe(audio_url, title, podcast_name, config_path))
 
 
+@cli.command("retry-summaries")
+@click.option("--config", "config_path", default="config/config.yaml", help="配置文件路径")
+def retry_summaries(config_path: str):
+    """重试之前失败的 AI 摘要，补充到已有笔记"""
+    logger.info("FM2note v{} — retry-summaries 模式", VERSION)
+    asyncio.run(_retry_summaries(config_path))
+
+
 def _create_summarizer(config):
     """创建 Poe 摘要器（如配置了 POE_API_KEY）"""
     if config.poe_api_key:
         from src.summarizer.poe_client import PoeSummarizer
 
-        logger.info("已配置 Poe 摘要: model={}", config.summary_model)
+        logger.info("已配置 Poe 摘要: model={}, cooldown={}s", config.summary_model, config.summary_cooldown)
         return PoeSummarizer(
             api_key=config.poe_api_key,
             model=config.summary_model,
+            cooldown=float(config.summary_cooldown),
         )
     logger.info("未配置 POE_API_KEY，跳过 AI 摘要")
     return None
@@ -221,6 +230,7 @@ async def _transcribe(
     logger.info("转写完成: {} 字, {} 段", len(result.text), len(result.paragraphs))
 
     # AI 摘要
+    summary_failed = False
     summarizer = _create_summarizer(config)
     if summarizer and result.text and not result.summary:
         try:
@@ -230,7 +240,8 @@ async def _transcribe(
             result.chapters = summary.chapters
             result.keywords = summary.keywords
         except Exception as e:
-            logger.warning("AI 摘要失败（3 次重试后），降级为无摘要: {}: {}", type(e).__name__, e)
+            logger.warning("AI 摘要失败（重试耗尽），降级为无摘要: {}: {}", type(e).__name__, e)
+            summary_failed = True
 
     # 构建 Episode 元数据
     if not title:
@@ -255,6 +266,55 @@ async def _transcribe(
     note_path = writer.write_note(episode, content)
 
     logger.success("笔记已写入: {}", note_path)
+
+    # 摘要失败时缓存转录结果
+    if summary_failed:
+        from src.summarizer.pending import save_pending
+
+        save_pending(
+            guid=resolved_url,
+            title=title,
+            text=result.text,
+            note_path=str(note_path),
+            podcast_name=podcast_name,
+        )
+
+
+async def _retry_summaries(config_path: str):
+    from src.config import load_config
+    from src.summarizer.pending import insert_summary_into_note, load_all_pending, remove_pending
+
+    config = load_config(config_path)
+    summarizer = _create_summarizer(config)
+    if not summarizer:
+        logger.error("未配置 POE_API_KEY，无法重试摘要")
+        return
+
+    pending = load_all_pending()
+    if not pending:
+        logger.info("没有待补摘要的任务")
+        return
+
+    logger.info("发现 {} 个待补摘要", len(pending))
+    success_count = 0
+    fail_count = 0
+
+    for item in pending:
+        try:
+            logger.info("重试摘要: {}", item["title"])
+            result = await summarizer.summarize(item["text"], item["title"])
+            if insert_summary_into_note(item["note_path"], result):
+                remove_pending(item["_filepath"])
+                success_count += 1
+                logger.success("摘要补充完成: {}", item["title"])
+            else:
+                fail_count += 1
+                logger.warning("摘要插入失败（笔记文件问题）: {}", item["title"])
+        except Exception as e:
+            fail_count += 1
+            logger.warning("摘要重试失败: {} - {}: {}", item["title"], type(e).__name__, e)
+
+    logger.info("重试完成: 共 {} 个, 成功 {}, 失败 {}", len(pending), success_count, fail_count)
 
 
 if __name__ == "__main__":

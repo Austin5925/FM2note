@@ -5,144 +5,166 @@
 ## 架构
 
 ```
-RSSHub (自建)          通义听悟 (DashScope)       Obsidian Vault
-    │                        │                        │
-    ▼                        ▼                        ▼
-RSS 轮询 ──→ 新剧集检测 ──→ ASR 转写 ──→ Markdown 生成 ──→ .md 写入
-                │                           │
-                ▼                           ▼
-           SQLite 状态管理            AI 摘要 + 章节速览
+macroclaw.app (服务器)              本地 Mac
+┌─────────────────────┐      ┌──────────────────────────────┐
+│  RSSHub + Redis     │      │  fm2note (Python 原生进程)    │
+│  (Docker, 7x24)     │◄────│  launchd 自启，每 3h 轮询     │
+│  :1200              │      │          │                    │
+└─────────────────────┘      │          ▼                    │
+                             │  通义听悟 ASR → .md 写入      │
+                             │          │                    │
+                             │          ▼                    │
+                             │  Obsidian vault (iCloud)      │
+                             └──────────────────────────────┘
 ```
 
-**三个容器**：fm2note（Python 主服务）+ RSSHub + Redis（缓存）
+- **服务器**：仅运行 RSSHub + Redis（RSS 抓取代理，7x24 在线）
+- **本地 Mac**：运行 fm2note 主进程（ASR 转写 + 笔记生成，直接写入本地 vault）
 
-## 快速部署
+## 部署
 
-### 1. 克隆仓库
+### 服务器端（macroclaw.app）
 
 ```bash
-ssh your-server
+ssh macroclaw.app
 cd /opt
-git clone https://github.com/YOUR_USER/FM2note.git
+git clone https://github.com/Austin5925/FM2note.git
 cd FM2note
+docker compose up -d
 ```
 
-### 2. 配置环境变量
+验证 RSSHub：
+
+```bash
+curl http://localhost:1200/xiaoyuzhou/podcast/6978a31df828d4e9f2787d3d | head -5
+```
+
+服务器防火墙需开放 1200 端口（或通过 Nginx 反代）。
+
+### 本地 Mac
+
+#### 1. 安装依赖
+
+```bash
+cd ~/Desktop/gitRepo/FM2note
+pip3.11 install -r requirements.txt
+```
+
+#### 2. 配置环境变量
 
 ```bash
 cp .env.example .env
 vim .env
 ```
 
-必填项：
-
-| 变量 | 说明 | 获取方式 |
-|---|---|---|
-| `DASHSCOPE_API_KEY` | 通义听悟 API Key | [DashScope 控制台](https://dashscope.console.aliyun.com/) |
-| `TINGWU_APP_ID` | 听悟应用 ID | [通义听悟控制台](https://tingwu.console.aliyun.com/) → 创建项目 |
-| `OBSIDIAN_VAULT_PATH` | Obsidian vault 绝对路径 | 服务器上 vault 目录 |
-
-### 3. 配置订阅
-
-编辑 `config/subscriptions.yaml`，添加播客：
-
-```yaml
-podcasts:
-  - name: "播客名称"
-    rss_url: "http://rsshub:1200/xiaoyuzhou/podcast/PODCAST_ID"
-    tags: ["tag1", "tag2"]
+```bash
+DASHSCOPE_API_KEY=sk-xxx
+TINGWU_APP_ID=tw_xxx
+OBSIDIAN_VAULT_PATH="/path/to/obsidian/vault"
+LOG_LEVEL=INFO
 ```
 
-播客 ID 从小宇宙链接获取：`xiaoyuzhoufm.com/podcast/PODCAST_ID`
-
-### 4. 启动
+#### 3. 验证 RSSHub 连通
 
 ```bash
-docker compose up -d --build
+curl http://macroclaw.app:1200/xiaoyuzhou/podcast/6978a31df828d4e9f2787d3d | head -5
 ```
 
-验证：
+#### 4. 手动测试一次
 
 ```bash
-# 检查容器状态
-docker compose ps
-
-# 查看 fm2note 日志
-docker compose logs -f fm2note
-
-# 验证 RSSHub
-docker compose exec fm2note curl -s http://rsshub:1200/xiaoyuzhou/podcast/YOUR_ID | head -20
+source .env && python3.11 main.py run-once
 ```
 
-### 5. 手动触发一次（可选）
+#### 5. 安装自启服务
 
 ```bash
-docker compose exec fm2note python main.py run-once
+make install-service
 ```
+
+fm2note 将在每次登录时自动启动，每 3 小时检查播客更新。
 
 ## 运行模式
 
 | 命令 | 说明 |
 |---|---|
-| `python main.py serve` | 定时调度模式（默认，每 3 小时检查一次） |
-| `python main.py run-once` | 手动执行一次检查和处理 |
-| `python main.py transcribe <audio_url>` | 单独转写一个音频 URL（调试用） |
+| `python3.11 main.py serve` | 定时调度模式（默认，每 3h 检查） |
+| `python3.11 main.py run-once` | 手动执行一次 |
+| `python3.11 main.py transcribe <url>` | 单独转写音频 URL（调试） |
 
-## 配置说明
+## 服务管理
+
+```bash
+# 查看服务状态
+launchctl list | grep fm2note
+
+# 停止服务
+launchctl unload ~/Library/LaunchAgents/com.fm2note.serve.plist
+
+# 启动服务
+launchctl load ~/Library/LaunchAgents/com.fm2note.serve.plist
+
+# 卸载服务
+make uninstall-service
+
+# 查看日志
+tail -f logs/fm2note-stderr.log
+
+# 更新服务器 RSSHub
+make deploy
+```
+
+## 配置
 
 ### config/config.yaml
 
 | 字段 | 默认值 | 说明 |
 |---|---|---|
-| `vault_path` | `/vault` | Obsidian vault 路径（Docker 内） |
+| `vault_path` | `/vault` | 可被 `OBSIDIAN_VAULT_PATH` 环境变量覆盖 |
 | `podcast_dir` | `Podcasts` | vault 内子目录 |
 | `poll_interval_hours` | `3` | RSS 轮询间隔（小时） |
-| `asr_engine` | `tingwu` | ASR 引擎（tingwu / bailian / whisper_api） |
+| `asr_engine` | `tingwu` | ASR 引擎 |
 | `max_retries` | `3` | 失败重试次数 |
-| `log_level` | `INFO` | 日志级别 |
 
-### Docker 挂载卷
+### config/subscriptions.yaml
 
-| 容器路径 | 宿主机路径 | 用途 |
+```yaml
+podcasts:
+  - name: "非共识的20分钟"
+    rss_url: "http://macroclaw.app:1200/xiaoyuzhou/podcast/6978a31df828d4e9f2787d3d"
+    tags: ["finance", "macro"]
+```
+
+播客 ID 从小宇宙链接获取：`xiaoyuzhoufm.com/podcast/PODCAST_ID`
+
+## 资源消耗
+
+### 服务器（macroclaw.app）
+
+| 容器 | 内存 | CPU |
 |---|---|---|
-| `/vault` | `$OBSIDIAN_VAULT_PATH` | Obsidian vault（笔记输出） |
-| `/app/data` | `./data` | SQLite 状态数据库 + 临时文件 |
-| `/app/logs` | `./logs` | 日志文件 |
-| `/app/config` | `./config` | 配置文件（可热编辑订阅） |
+| RSSHub | ~200MB | 极低 |
+| Redis | ~10MB | 极低 |
+| **合计** | **~210MB** | **<0.2 核** |
 
-## 技术栈
+### 本地 Mac
 
-| 层 | 技术 |
-|---|---|
-| 语言 | Python 3.11 |
-| RSS 解析 | feedparser |
-| HTTP | httpx (async) |
-| ASR | 通义听悟 (dashscope SDK) |
-| 模板 | Jinja2 |
-| 状态 | SQLite (aiosqlite) |
-| 调度 | APScheduler |
-| 日志 | loguru |
-| 容器 | Docker + docker-compose |
+| 进程 | 内存 | CPU |
+|---|---|---|
+| fm2note (idle) | ~40MB | 接近 0 |
+| fm2note (转写中) | ~80MB | 极低 |
 
 ## 开发
 
 ```bash
-# 安装依赖
-pip install -r requirements.txt -r requirements-dev.txt
-
-# 代码检查
-make lint
-
-# 运行测试
-make test
-
-# 格式化
-make format
+make lint      # 代码检查
+make test      # 运行测试（107 passed）
+make format    # 格式化
 ```
 
 ## 成本
 
-通义听悟：转写 0.6 元/小时 + AI 功能 0.064 元/小时。20 集/月（每集 1 小时）约 14.56 元。新用户 90 天免费。
+通义听悟：~15 元/月（20 集 x 1 小时）。新用户 90 天免费。
 
 ## 版本
 

@@ -2,8 +2,9 @@
 
 ## 项目概述
 
-FM2note — 小宇宙播客 → Obsidian 笔记自动化管线。Python 后端，Docker 容器化部署。
-通过 RSSHub 监听播客更新，通义听悟 API 做语音转写 + AI 摘要，直接写 .md 文件到 Obsidian vault。
+FM2note — 小宇宙播客 → Obsidian 笔记自动化管线。
+混合部署：服务器（macroclaw.app）运行 RSSHub + Redis，本地 Mac 运行 fm2note 主进程。
+通过 RSSHub 监听播客更新，通义听悟 API 做语音转写 + AI 摘要，直接写 .md 文件到本地 Obsidian vault。
 
 ## 技术栈
 
@@ -53,7 +54,9 @@ make test-cov    # pytest tests/ --cov=src --cov-report=term-missing
 make test-integ  # pytest tests/ -v -m integration
 make run         # python main.py run-once
 make serve       # python main.py serve
-make deploy      # ssh server + docker compose rebuild
+make deploy      # ssh macroclaw.app 更新 RSSHub
+make install-service   # 本地 Mac 安装 launchd 自启
+make uninstall-service # 本地 Mac 卸载 launchd 服务
 ```
 
 ## 代码规范
@@ -127,7 +130,7 @@ make deploy      # ssh server + docker compose rebuild
 | 服务 | 端点 | 鉴权 |
 |---|---|---|
 | 通义听悟 | `dashscope.aliyuncs.com` (DashScope SDK) | DashScope API Key + AppId |
-| RSSHub（自建） | `http://localhost:1200` | 无 |
+| RSSHub（自建） | `http://macroclaw.app:1200` | 无（服务器 Docker） |
 | Obsidian MCP | 本地 MCP Server | 本地连接 |
 
 ## Version History

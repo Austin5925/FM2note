@@ -1,3 +1,4 @@
+# vault_path 可被环境变量 OBSIDIAN_VAULT_PATH 覆盖
 vault_path: "/vault"
 podcast_dir: "Podcasts"
 poll_interval_hours: 3

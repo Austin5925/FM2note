@@ -1,26 +1,12 @@
-services:
-  fm2note:
-    build: .
-    restart: unless-stopped
-    env_file: .env
-    volumes:
-      - ${OBSIDIAN_VAULT_PATH:-./data/vault}:/vault
-      - ./data:/app/data
-      - ./logs:/app/logs
-      - ./config:/app/config
-    networks:
-      - fm2note-net
-    depends_on:
-      - rsshub
-    deploy:
-      resources:
-        limits:
-          memory: 512M
-          cpus: "0.5"
+# 服务器端部署：仅 RSSHub + Redis
+# fm2note 在本地 Mac 运行，通过 http://macroclaw.app:1200 访问 RSSHub
 
+services:
   rsshub:
     image: diygod/rsshub:latest
     restart: unless-stopped
+    ports:
+      - "1200:1200"
     environment:
       NODE_ENV: production
       CACHE_TYPE: redis

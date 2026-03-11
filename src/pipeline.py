@@ -105,6 +105,7 @@ class Pipeline:
                 transcript = await self._transcriber.transcribe(episode.audio_url)
 
             # AI 摘要（如果配置了 Poe summarizer 且转写无自带摘要）
+            summary_failed = False
             if self._summarizer and transcript.text and not transcript.summary:
                 try:
                     logger.info("调用 Poe AI 摘要: {}", episode.title)
@@ -118,6 +119,7 @@ class Pipeline:
                         type(e).__name__,
                         e,
                     )
+                    summary_failed = True
 
             # 生成 Markdown
             await self._state.mark_status(guid, "writing")
@@ -126,6 +128,18 @@ class Pipeline:
             # 写入 Obsidian
             note_path = self._writer.write_note(episode, content)
             await self._state.mark_status(guid, "done", note_path=str(note_path))
+
+            # 摘要失败时缓存转录结果，后续可用 retry-summaries 补摘要
+            if summary_failed:
+                from src.summarizer.pending import save_pending
+
+                save_pending(
+                    guid=guid,
+                    title=episode.title,
+                    text=transcript.text,
+                    note_path=str(note_path),
+                    podcast_name=episode.podcast_name,
+                )
 
             logger.success("处理完成: {} → {}", episode.title, note_path)
             return note_path

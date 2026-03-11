@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import time
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -12,11 +13,15 @@ class TestPoeSummarizer:
         s = PoeSummarizer(api_key="pk-test")
         assert s._model == "GPT-5.4"
         assert s._reasoning_effort == "medium"
+        assert s._cooldown == 60.0
 
     def test_init_custom(self):
-        s = PoeSummarizer(api_key="pk-test", model="GPT-5.2", reasoning_effort="high")
+        s = PoeSummarizer(
+            api_key="pk-test", model="GPT-5.2", reasoning_effort="high", cooldown=90.0
+        )
         assert s._model == "GPT-5.2"
         assert s._reasoning_effort == "high"
+        assert s._cooldown == 90.0
 
     def test_parse_response_valid_json(self):
         s = PoeSummarizer(api_key="pk-test")
@@ -93,6 +98,36 @@ class TestPoeSummarizer:
         assert result.summary == "这是摘要"
         assert len(result.chapters) == 1
         assert result.keywords == ["测试"]
+
+    @pytest.mark.asyncio
+    async def test_summarize_respects_cooldown(self):
+        """验证两次调用之间会等待 cooldown 间隔。"""
+        s = PoeSummarizer(api_key="pk-test", cooldown=0.5)
+
+        api_response = {
+            "choices": [{"message": {"content": '{"summary": "摘要"}'}}]
+        }
+        mock_resp = MagicMock()
+        mock_resp.json.return_value = api_response
+        mock_resp.raise_for_status = MagicMock()
+
+        with patch("src.summarizer.poe_client.httpx.AsyncClient") as mock_client:
+            instance = AsyncMock()
+            instance.post.return_value = mock_resp
+            instance.__aenter__ = AsyncMock(return_value=instance)
+            instance.__aexit__ = AsyncMock(return_value=False)
+            mock_client.return_value = instance
+
+            # 第一次调用
+            await s.summarize("文本1", "标题1")
+            t1 = time.monotonic()
+
+            # 第二次调用应等待 cooldown
+            await s.summarize("文本2", "标题2")
+            t2 = time.monotonic()
+
+            # 两次调用间隔应 >= cooldown（0.5s）
+            assert t2 - t1 >= 0.4  # 留少许误差
 
     @pytest.mark.asyncio
     async def test_summarize_empty_response(self):

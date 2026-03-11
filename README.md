@@ -67,7 +67,7 @@ LOG_LEVEL=INFO
 #### 3. 验证 RSSHub 连通
 
 ```bash
-curl http://macroclaw.app:1200/xiaoyuzhou/podcast/6978a31df828d4e9f2787d3d | head -5
+curl http://<REDACTED_IP>:1200/xiaoyuzhou/podcast/6978a31df828d4e9f2787d3d | head -5
 ```
 
 #### 4. 手动测试一次
@@ -131,7 +131,7 @@ make deploy
 ```yaml
 podcasts:
   - name: "非共识的20分钟"
-    rss_url: "http://macroclaw.app:1200/xiaoyuzhou/podcast/6978a31df828d4e9f2787d3d"
+    rss_url: "http://<REDACTED_IP>:1200/xiaoyuzhou/podcast/6978a31df828d4e9f2787d3d"
     tags: ["finance", "macro"]
 ```
 

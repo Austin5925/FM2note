@@ -130,7 +130,7 @@ make uninstall-service # 本地 Mac 卸载 launchd 服务
 | 服务 | 端点 | 鉴权 |
 |---|---|---|
 | 通义听悟 | `dashscope.aliyuncs.com` (DashScope SDK) | DashScope API Key + AppId |
-| RSSHub（自建） | `http://macroclaw.app:1200` | 无（服务器 Docker） |
+| RSSHub（自建） | `http://<REDACTED_IP>:1200` | 无（服务器 Docker） |
 | Obsidian MCP | 本地 MCP Server | 本地连接 |
 
 ## Version History

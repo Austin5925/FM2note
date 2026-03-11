@@ -41,12 +41,13 @@ class StateManager:
         if self._db:
             await self._db.close()
 
-    async def is_processed(self, guid: str) -> bool:
-        """检查剧集是否已成功处理"""
+    async def is_processed(self, guid: str, max_retries: int = 3) -> bool:
+        """检查剧集是否已完成处理或已超过最大重试次数"""
         assert self._db is not None
         cursor = await self._db.execute(
-            "SELECT 1 FROM processed_episodes WHERE guid=? AND status='done'",
-            (guid,),
+            """SELECT 1 FROM processed_episodes
+               WHERE guid=? AND (status='done' OR (status='failed' AND retry_count >= ?))""",
+            (guid, max_retries),
         )
         row = await cursor.fetchone()
         return row is not None

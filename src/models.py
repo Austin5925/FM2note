@@ -32,6 +32,15 @@ class TranscriptResult:
 
 
 @dataclass
+class SummaryResult:
+    """AI 摘要结果（Poe LLM 生成）"""
+
+    summary: str
+    chapters: list[dict] | None = None
+    keywords: list[str] | None = None
+
+
+@dataclass
 class ProcessedEpisode:
     """已处理剧集的状态记录"""
 

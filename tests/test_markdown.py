@@ -110,9 +110,10 @@ class TestMarkdownGenerator:
         tr = _make_transcript(keywords=["人工智能", "播客"])
         result = self.gen.render(ep, tr)
 
-        assert "## 关键词" in result
-        assert "`人工智能`" in result
-        assert "`播客`" in result
+        # 关键词只出现在 frontmatter tags 中，不再单独渲染章节
+        assert "  - 人工智能" in result
+        assert "  - 播客" in result
+        assert "## 关键词" not in result
 
     def test_render_html_show_notes_cleaned(self):
         ep = _make_episode(show_notes="<p>这是 <b>HTML</b> 格式</p>")

@@ -4,7 +4,9 @@ from src.config import AppConfig, ConfigError, load_config, load_subscriptions
 
 
 class TestLoadConfig:
-    def test_load_valid_config(self, tmp_config):
+    def test_load_valid_config(self, tmp_config, monkeypatch):
+        monkeypatch.delenv("OBSIDIAN_VAULT_PATH", raising=False)
+        monkeypatch.delenv("LOG_LEVEL", raising=False)
         config = load_config(tmp_config)
         assert isinstance(config, AppConfig)
         assert config.vault_path == "/tmp/test-vault"
@@ -46,7 +48,9 @@ class TestLoadConfig:
         assert config.dashscope_api_key == "test-ds-key"
         assert config.tingwu_app_id == "test-app-id"
 
-    def test_default_values(self, tmp_path):
+    def test_default_values(self, tmp_path, monkeypatch):
+        monkeypatch.delenv("OBSIDIAN_VAULT_PATH", raising=False)
+        monkeypatch.delenv("LOG_LEVEL", raising=False)
         minimal = tmp_path / "minimal.yaml"
         minimal.write_text('vault_path: "/tmp/vault"\n', encoding="utf-8")
         config = load_config(minimal)

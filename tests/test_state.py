@@ -77,6 +77,23 @@ class TestStateManager:
         assert len(failed) == 0
 
     @pytest.mark.asyncio
+    async def test_failed_within_retries_not_processed(self, state):
+        """失败次数未超上限的任务不算 processed（允许重试）"""
+        await state.mark_status("g1", "pending", podcast_name="p1", title="t1")
+        await state.mark_status("g1", "failed", error_msg="err")
+        assert await state.is_processed("g1") is False  # retry_count=1 < 3
+
+    @pytest.mark.asyncio
+    async def test_failed_exceeding_retries_is_processed(self, state):
+        """失败次数超过上限的任务算 processed（不再重试）"""
+        await state.mark_status("g1", "pending", podcast_name="p1", title="t1")
+        await state.mark_status("g1", "failed", error_msg="err")
+        await state.mark_status("g1", "failed", error_msg="err")
+        await state.mark_status("g1", "failed", error_msg="err")
+        # retry_count=3 >= max_retries=3
+        assert await state.is_processed("g1") is True
+
+    @pytest.mark.asyncio
     async def test_get_all(self, state):
         await state.mark_status("g1", "done", podcast_name="p1", title="t1")
         await state.mark_status("g2", "failed", podcast_name="p2", title="t2", error_msg="err")

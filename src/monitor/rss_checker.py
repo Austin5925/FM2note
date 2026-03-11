@@ -65,7 +65,10 @@ class RSSChecker:
                 wait = 2 ** (attempt + 1)
                 logger.warning(
                     "RSS 获取失败 (重试 {}/{}): {} — {}",
-                    attempt + 1, max_retries, url, e,
+                    attempt + 1,
+                    max_retries,
+                    url,
+                    e,
                 )
                 await asyncio.sleep(wait)
         raise RuntimeError("unreachable")

@@ -2,3 +2,7 @@ podcasts:
   - name: "非共识的20分钟"
     rss_url: "http://<REDACTED_IP>:1200/xiaoyuzhou/podcast/6978a31df828d4e9f2787d3d"
     tags: ["finance", "macro"]
+
+  - name: "支无不言"
+    rss_url: "http://<REDACTED_IP>:1200/xiaoyuzhou/podcast/681b47122ad01a51a21cd515"
+    tags: ["finance", "crypto", "payfi"]

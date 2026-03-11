@@ -1,6 +1,6 @@
 # FM2note
 
-小宇宙播客自动转写笔记管线。监听播客更新，通义听悟 ASR 转写 + AI 摘要，直接写入 Obsidian vault。
+小宇宙播客自动转写笔记管线。监听播客更新，FunASR 转写 + Poe AI 摘要，直接写入 Obsidian vault。
 
 ## 架构
 
@@ -11,7 +11,7 @@ macroclaw.app (服务器)              本地 Mac
 │  (Docker, 7x24)     │◄────│  launchd 自启，每 3h 轮询     │
 │  :1200              │      │          │                    │
 └─────────────────────┘      │          ▼                    │
-                             │  通义听悟 ASR → .md 写入      │
+                             │  FunASR 转写 + Poe AI 摘要    │
                              │          │                    │
                              │          ▼                    │
                              │  Obsidian vault (iCloud)      │
@@ -19,7 +19,7 @@ macroclaw.app (服务器)              本地 Mac
 ```
 
 - **服务器**：仅运行 RSSHub + Redis（RSS 抓取代理，7x24 在线）
-- **本地 Mac**：运行 fm2note 主进程（ASR 转写 + 笔记生成，直接写入本地 vault）
+- **本地 Mac**：运行 fm2note 主进程（FunASR 转写 + Poe AI 摘要 + 笔记生成，直接写入本地 vault）
 
 ## 部署
 
@@ -58,10 +58,15 @@ vim .env
 ```
 
 ```bash
-DASHSCOPE_API_KEY=sk-xxx
-TINGWU_APP_ID=tw_xxx
-OBSIDIAN_VAULT_PATH="/path/to/obsidian/vault"
-LOG_LEVEL=INFO
+export DASHSCOPE_API_KEY=sk-xxx          # DashScope API Key（FunASR/通义听悟共用）
+export OBSIDIAN_VAULT_PATH="/path/to/obsidian/vault"
+export LOG_LEVEL=INFO
+
+# 可选：Poe AI 摘要
+export POE_API_KEY=pk-xxx                # 不配置则跳过 AI 摘要
+
+# 可选：通义听悟（仅 asr_engine=tingwu 时需要）
+export TINGWU_APP_ID=tw_xxx
 ```
 
 #### 3. 验证 RSSHub 连通
@@ -123,7 +128,7 @@ make deploy
 | `vault_path` | `/vault` | 可被 `OBSIDIAN_VAULT_PATH` 环境变量覆盖 |
 | `podcast_dir` | `Podcasts` | vault 内子目录 |
 | `poll_interval_hours` | `3` | RSS 轮询间隔（小时） |
-| `asr_engine` | `tingwu` | ASR 引擎 |
+| `asr_engine` | `funasr` | ASR 引擎（funasr / paraformer / tingwu / bailian / whisper_api） |
 | `max_retries` | `3` | 失败重试次数 |
 
 ### config/subscriptions.yaml
@@ -158,13 +163,19 @@ podcasts:
 
 ```bash
 make lint      # 代码检查
-make test      # 运行测试（107 passed）
+make test      # 运行测试（132 passed）
 make format    # 格式化
 ```
 
 ## 成本
 
-通义听悟：~15 元/月（20 集 x 1 小时）。新用户 90 天免费。
+| 引擎 | 单价 | 月费（20 集 x 1h） |
+|---|---|---|
+| FunASR（默认） | 0.79 元/小时 | ~16 元 |
+| Paraformer | 0.29 元/小时 | ~6 元 |
+| 通义听悟 | 2.75 元/小时 | ~55 元 |
+
+Poe AI 摘要免费（GPT-5.4 计入 Poe 订阅额度）。
 
 ## 版本
 

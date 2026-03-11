@@ -44,17 +44,17 @@ class AudioDownloader:
                 httpx.AsyncClient(timeout=600, follow_redirects=True) as client,
                 client.stream("GET", audio_url, headers=headers) as resp,
             ):
-                    if resp.status_code == 416:
-                        # Range 不满足，文件已完整
-                        logger.info("文件已完整: {}", filename)
-                        return filepath
+                if resp.status_code == 416:
+                    # Range 不满足，文件已完整
+                    logger.info("文件已完整: {}", filename)
+                    return filepath
 
-                    resp.raise_for_status()
+                resp.raise_for_status()
 
-                    mode = "ab" if initial_size > 0 and resp.status_code == 206 else "wb"
-                    with open(filepath, mode) as f:
-                        async for chunk in resp.aiter_bytes(chunk_size=1024 * 1024):
-                            f.write(chunk)
+                mode = "ab" if initial_size > 0 and resp.status_code == 206 else "wb"
+                with open(filepath, mode) as f:
+                    async for chunk in resp.aiter_bytes(chunk_size=1024 * 1024):
+                        f.write(chunk)
 
         except httpx.HTTPError as e:
             raise DownloadError(f"下载失败: {e}") from e

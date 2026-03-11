@@ -10,6 +10,7 @@ from src.models import Episode, TranscriptResult
 from src.monitor.rss_checker import RSSChecker
 from src.monitor.state import StateManager
 from src.monitor.subtitle import fetch_subtitle_from_url
+from src.summarizer.poe_client import PoeSummarizer
 from src.transcriber.base import Transcriber
 from src.writer.markdown import MarkdownGenerator
 from src.writer.obsidian import ObsidianWriter
@@ -27,6 +28,7 @@ class Pipeline:
         md_generator: MarkdownGenerator,
         writer: ObsidianWriter,
         state: StateManager,
+        summarizer: PoeSummarizer | None = None,
     ):
         self._config = config
         self._rss_checker = rss_checker
@@ -35,6 +37,7 @@ class Pipeline:
         self._md_generator = md_generator
         self._writer = writer
         self._state = state
+        self._summarizer = summarizer
 
     async def process_episode(self, episode: Episode) -> Path:
         """处理单集的完整流程。
@@ -61,7 +64,8 @@ class Pipeline:
             if await self._writer.search_existing_mcp(episode.title):
                 logger.info("MCP 发现同名笔记，跳过: {}", episode.title)
                 await self._state.mark_status(
-                    guid, "done",
+                    guid,
+                    "done",
                     podcast_name=episode.podcast_name,
                     title=episode.title,
                 )
@@ -72,7 +76,8 @@ class Pipeline:
             if episode.subtitle_url:
                 # 有内置字幕，直接下载文本，跳过 ASR
                 await self._state.mark_status(
-                    guid, "transcribing",
+                    guid,
+                    "transcribing",
                     podcast_name=episode.podcast_name,
                     title=episode.title,
                 )
@@ -91,12 +96,28 @@ class Pipeline:
             else:
                 # 正常 ASR 转写
                 await self._state.mark_status(
-                    guid, "transcribing",
+                    guid,
+                    "transcribing",
                     podcast_name=episode.podcast_name,
                     title=episode.title,
                 )
                 logger.info("开始转写: {}", episode.title)
                 transcript = await self._transcriber.transcribe(episode.audio_url)
+
+            # AI 摘要（如果配置了 Poe summarizer 且转写无自带摘要）
+            if self._summarizer and transcript.text and not transcript.summary:
+                try:
+                    logger.info("调用 Poe AI 摘要: {}", episode.title)
+                    summary = await self._summarizer.summarize(transcript.text, episode.title)
+                    transcript.summary = summary.summary
+                    transcript.chapters = summary.chapters
+                    transcript.keywords = summary.keywords
+                except Exception as e:
+                    logger.warning(
+                        "AI 摘要失败（重试耗尽），降级为无摘要: {}: {}",
+                        type(e).__name__,
+                        e,
+                    )
 
             # 生成 Markdown
             await self._state.mark_status(guid, "writing")
@@ -124,18 +145,10 @@ class Pipeline:
         """
         logger.info("开始检查新剧集...")
 
-        # 获取新剧集
+        # 获取新剧集（含失败重试：is_processed 会跳过 done 和超过 max_retries 的）
         new_episodes = await self._rss_checker.check_all()
 
-        # 获取可重试的失败任务
-        failed = await self._state.get_failed(max_retries=self._config.max_retries)
-        retry_episodes = []
-        for f in failed:
-            logger.info("重试失败任务: {} (第 {} 次)", f.title, f.retry_count + 1)
-
-        all_episodes = new_episodes + retry_episodes
-
-        if not all_episodes:
+        if not new_episodes:
             logger.info("没有新剧集需要处理")
             return []
 
@@ -144,7 +157,7 @@ class Pipeline:
         success_count = 0
         fail_count = 0
 
-        for episode in all_episodes:
+        for episode in new_episodes:
             try:
                 path = await self.process_episode(episode)
                 results.append(path)
@@ -154,7 +167,7 @@ class Pipeline:
 
         logger.info(
             "处理完成: 共 {} 集, 成功 {}, 失败 {}",
-            len(all_episodes),
+            len(new_episodes),
             success_count,
             fail_count,
         )

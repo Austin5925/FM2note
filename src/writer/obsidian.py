@@ -77,7 +77,7 @@ class ObsidianWriter:
         """构建笔记文件路径"""
         date_str = episode.pub_date.strftime("%Y-%m-%d")
         title = self._sanitize_filename(episode.title)
-        filename = f"{date_str} {title}.md"
+        filename = f"{date_str}-{title}.md"
 
         return self._vault_path / self._podcast_dir / episode.podcast_name / filename
 

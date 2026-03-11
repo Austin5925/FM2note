@@ -2,7 +2,7 @@
 vault_path: "/vault"
 podcast_dir: "Podcasts"
 poll_interval_hours: 3
-asr_engine: "tingwu"
+asr_engine: "funasr"
 temp_dir: "./data/tmp"
 db_path: "./data/state.db"
 max_retries: 3

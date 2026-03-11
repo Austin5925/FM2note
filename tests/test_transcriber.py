@@ -31,6 +31,7 @@ def _mock_dashscope_modules():
     }
     return modules, mock_tingwu.TingWu
 
+
 # ==================== Base Protocol ====================
 
 
@@ -78,8 +79,9 @@ class TestTingwuTranscriber:
         modules, mock_tingwu_cls = _mock_dashscope_modules()
         mock_tingwu_cls.call = MagicMock(return_value=mock_resp)
 
-        with patch.dict(sys.modules, modules), pytest.raises(
-            TranscriptionError, match="创建任务失败"
+        with (
+            patch.dict(sys.modules, modules),
+            pytest.raises(TranscriptionError, match="创建任务失败"),
         ):
             await self.transcriber._create_task("https://example.com/audio.mp3")
 
@@ -117,9 +119,7 @@ class TestTingwuTranscriber:
         }
         summary_json = {"paragraphSummary": "这是摘要"}
         # autoChapters OSS 直接返回 list
-        chapters_json = [
-            {"headline": "第一章", "summary": "章节摘要", "start": 0, "end": 100}
-        ]
+        chapters_json = [{"headline": "第一章", "summary": "章节摘要", "start": 0, "end": 100}]
 
         async def mock_fetch(url):
             if "trans" in url:
@@ -250,6 +250,32 @@ class TestTranscriberFactory:
         t = create_transcriber(config)
         assert isinstance(t, WhisperTranscriber)
         assert t.name == "whisper_api"
+
+    def test_create_funasr(self):
+        config = self._make_config(asr_engine="funasr")
+        t = create_transcriber(config)
+        from src.transcriber.funasr import FunASRTranscriber
+
+        assert isinstance(t, FunASRTranscriber)
+        assert t.name == "funasr"
+
+    def test_create_paraformer(self):
+        config = self._make_config(asr_engine="paraformer")
+        t = create_transcriber(config)
+        from src.transcriber.funasr import ParaformerTranscriber
+
+        assert isinstance(t, ParaformerTranscriber)
+        assert t.name == "paraformer"
+
+    def test_missing_dashscope_key_for_funasr_raises(self):
+        config = self._make_config(asr_engine="funasr", dashscope_api_key="")
+        with pytest.raises(TranscriptionError, match="DASHSCOPE_API_KEY"):
+            create_transcriber(config)
+
+    def test_missing_dashscope_key_for_paraformer_raises(self):
+        config = self._make_config(asr_engine="paraformer", dashscope_api_key="")
+        with pytest.raises(TranscriptionError, match="DASHSCOPE_API_KEY"):
+            create_transcriber(config)
 
     def test_unknown_engine_raises(self):
         config = self._make_config(asr_engine="unknown")

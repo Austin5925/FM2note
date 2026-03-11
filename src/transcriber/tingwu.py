@@ -20,8 +20,7 @@ class TingwuTranscriber:
     """
 
     BASE_URL = (
-        "https://dashscope.aliyuncs.com/api/v1/services/aigc/"
-        "multimodal-generation/generation"
+        "https://dashscope.aliyuncs.com/api/v1/services/aigc/multimodal-generation/generation"
     )
     MODEL = "tingwu-meeting"
 
@@ -93,9 +92,7 @@ class TingwuTranscriber:
 
         return data_id
 
-    async def _poll_task(
-        self, data_id: str, timeout_minutes: int, interval: int
-    ) -> dict:
+    async def _poll_task(self, data_id: str, timeout_minutes: int, interval: int) -> dict:
         """轮询任务状态直到完成或超时
 
         DashScope 返回 output.status 为数字：0=完成, 1=运行中, 2=失败

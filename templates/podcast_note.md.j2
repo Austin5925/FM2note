@@ -43,14 +43,6 @@ asr_engine: "{{ asr_engine }}"
 
 {% endfor %}
 {% endif %}
-{% if transcript.keywords %}
-## 关键词
-
-{% for kw in transcript.keywords %}
-`{{ kw }}`{% if not loop.last %} · {% endif %}
-{% endfor %}
-
-{% endif %}
 ## Show Notes
 
 {{ show_notes_cleaned }}

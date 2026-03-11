@@ -23,7 +23,7 @@ class AppConfig:
     vault_path: str
     podcast_dir: str = "Podcasts"
     poll_interval_hours: int = 3
-    asr_engine: str = "tingwu"
+    asr_engine: str = "funasr"
     temp_dir: str = "./data/tmp"
     max_retries: int = 3
     log_level: str = "INFO"
@@ -34,6 +34,10 @@ class AppConfig:
 
     # 通义听悟 AppId
     tingwu_app_id: str = ""
+
+    # Poe API（AI 摘要）
+    poe_api_key: str = ""
+    summary_model: str = "GPT-5.4"
 
     # OpenAI Whisper
     openai_api_key: str = ""
@@ -82,6 +86,8 @@ def load_config(path: str | Path = "config/config.yaml") -> AppConfig:
         db_path=raw.get("db_path", "./data/state.db"),
         dashscope_api_key=os.environ.get("DASHSCOPE_API_KEY", ""),
         tingwu_app_id=os.environ.get("TINGWU_APP_ID", ""),
+        poe_api_key=os.environ.get("POE_API_KEY", ""),
+        summary_model=os.environ.get("SUMMARY_MODEL", "GPT-5.4"),
         openai_api_key=os.environ.get("OPENAI_API_KEY", ""),
     )
 

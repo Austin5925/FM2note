@@ -31,6 +31,22 @@ def create_transcriber(config: AppConfig) -> Transcriber:
             app_id=config.tingwu_app_id,
         )
 
+    elif engine == "funasr":
+        if not config.dashscope_api_key:
+            raise TranscriptionError("FunASR 需要配置 DASHSCOPE_API_KEY")
+
+        from src.transcriber.funasr import FunASRTranscriber
+
+        return FunASRTranscriber(api_key=config.dashscope_api_key)
+
+    elif engine == "paraformer":
+        if not config.dashscope_api_key:
+            raise TranscriptionError("Paraformer 需要配置 DASHSCOPE_API_KEY")
+
+        from src.transcriber.funasr import ParaformerTranscriber
+
+        return ParaformerTranscriber(api_key=config.dashscope_api_key)
+
     elif engine == "bailian":
         if not config.dashscope_api_key:
             raise TranscriptionError("百炼 ASR 需要配置 DASHSCOPE_API_KEY")

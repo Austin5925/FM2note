@@ -18,6 +18,7 @@ env/
 # Data files
 data/state.db
 data/tmp/
+data/pending_summaries/
 
 # Logs
 logs/*.log

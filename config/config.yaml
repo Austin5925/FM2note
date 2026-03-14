@@ -1,6 +1,6 @@
 # vault_path 可被环境变量 OBSIDIAN_VAULT_PATH 覆盖
 vault_path: "/vault"
-podcast_dir: "Podcasts"
+podcast_dir: "10_Podcasts"
 poll_interval_hours: 3
 asr_engine: "funasr"
 temp_dir: "./data/tmp"

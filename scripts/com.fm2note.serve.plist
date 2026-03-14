@@ -19,6 +19,16 @@
     <dict>
         <key>PATH</key>
         <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
+        <key>DASHSCOPE_API_KEY</key>
+        <string>YOUR_DASHSCOPE_API_KEY</string>
+        <key>TINGWU_APP_ID</key>
+        <string>YOUR_TINGWU_APP_ID</string>
+        <key>POE_API_KEY</key>
+        <string>YOUR_POE_API_KEY</string>
+        <key>OBSIDIAN_VAULT_PATH</key>
+        <string>/path/to/obsidian/vault</string>
+        <key>LOG_LEVEL</key>
+        <string>INFO</string>
     </dict>
 
     <key>RunAtLoad</key>

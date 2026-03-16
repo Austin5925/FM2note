@@ -93,10 +93,11 @@ podcasts:
 ### Run
 
 ```bash
-source .env
 fm2note run-once     # Process once
 fm2note serve        # Continuous daemon (polls every 3 hours)
 ```
+
+> `.env` is auto-loaded from the working directory — no need to `source` manually.
 
 ## ASR Engines
 

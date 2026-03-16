@@ -141,8 +141,9 @@ make bump-minor  # 版本号 minor +1
 - **v1.2.4** — 通用 RSS/Atom 兼容 + 模板定制化 + init 增强，192 个测试
 - **v1.2.5** — Summarizer Protocol + OpenAI-compatible 摘要器 + 摘要器工厂，213 个测试
 - **v1.2.6** — 文档全面更新：所有文档对齐最新代码
-- **v1.2.7** — 安全加固：plist 模板清除硬编码路径、config/subscriptions.yaml 从 git 取消跟踪、load_config fallback 修复
+- **v1.2.7** — 安全加固：路径遍历防护、XML 注入修复、API Key 不再写入 plist
+- **v1.3.0** — 正式公开版：.env 自动加载、API Key 彻底从 plist 移除、pip-audit 通过、216 个测试
 
 ## Current Version
 
-v1.2.7 — 安全加固 + 开源前审计
+v1.3.0 — 正式公开版

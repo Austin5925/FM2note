@@ -93,10 +93,11 @@ podcasts:
 ### 运行
 
 ```bash
-source .env
 fm2note run-once     # 手动执行一次
 fm2note serve        # 持续轮询（每 3 小时）
 ```
+
+> `.env` 会从工作目录自动加载，无需手动 `source`。
 
 ## ASR 引擎
 

@@ -71,10 +71,25 @@ WantedBy=default.target
 """
 
 
+def _load_dotenv():
+    """Auto-load .env file from working directory into os.environ.
+
+    This ensures API keys are available even when launched by launchd/systemd
+    (which don't source shell profiles). Only sets vars that are not already set.
+    """
+    env_path = Path(".env")
+    if not env_path.exists():
+        return
+    for key, value in _parse_env_file(env_path).items():
+        if key not in os.environ:
+            os.environ[key] = value
+
+
 @click.group()
 @click.version_option(version=VERSION)
 def cli():
     """FM2note — Podcast RSS → Obsidian notes automation pipeline"""
+    _load_dotenv()
 
 
 @cli.command()
@@ -255,25 +270,9 @@ def _install_launchd(python_path: str, workdir: str, log_dir: str):
     plist_dir.mkdir(parents=True, exist_ok=True)
     plist_path = plist_dir / "com.fm2note.serve.plist"
 
-    # Load .env vars into the plist EnvironmentVariables
-    env_path = Path(workdir) / ".env"
-    env_vars = _parse_env_file(env_path) if env_path.exists() else {}
-
-    if env_vars:
-        from xml.sax.saxutils import escape as xml_escape
-
-        env_xml_lines = []
-        for key, value in env_vars.items():
-            env_xml_lines.append(f"        <key>{xml_escape(key)}</key>")
-            env_xml_lines.append(f"        <string>{xml_escape(value)}</string>")
-        env_xml = "\n".join(env_xml_lines)
-        plist_content = plist_content.replace(
-            "    </dict>\n\n    <key>RunAtLoad</key>",
-            f"{env_xml}\n    </dict>\n\n    <key>RunAtLoad</key>",
-        )
-
+    # API keys are NOT embedded in the plist — they stay in .env
+    # The CLI auto-loads .env at startup via _load_dotenv()
     plist_path.write_text(plist_content, encoding="utf-8")
-    plist_path.chmod(0o600)  # restrict read access (contains API keys)
     click.echo(f"  Wrote {plist_path}")
 
     import subprocess

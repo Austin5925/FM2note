@@ -1,5 +1,6 @@
 """Tests for CLI commands: init, install-service, uninstall-service."""
 
+import os
 from pathlib import Path
 from unittest.mock import patch
 
@@ -140,6 +141,10 @@ class TestInstallService:
         assert str(tmp_path) in content
         assert "com.fm2note.serve" in content
         assert "RunAtLoad" in content
+        # API keys must NOT be embedded in plist
+        assert "DASHSCOPE_API_KEY" not in content
+        assert "POE_API_KEY" not in content
+        assert "OPENAI_API_KEY" not in content
 
     def test_systemd_unit_generation(self, tmp_path, monkeypatch):
         """Test that systemd unit file is generated with correct dynamic paths."""
@@ -177,6 +182,38 @@ class TestUninstallService:
             result = runner.invoke(cli, ["uninstall-service"])
             assert result.exit_code == 0
             assert "not found" in result.output
+
+
+class TestLoadDotenv:
+    def test_load_dotenv_sets_env_vars(self, tmp_path, monkeypatch):
+        monkeypatch.chdir(tmp_path)
+        monkeypatch.delenv("TEST_FM2NOTE_KEY", raising=False)
+        env_file = tmp_path / ".env"
+        env_file.write_text("export TEST_FM2NOTE_KEY=test-value\n")
+
+        from main import _load_dotenv
+
+        _load_dotenv()
+        assert os.environ.get("TEST_FM2NOTE_KEY") == "test-value"
+        # Cleanup
+        monkeypatch.delenv("TEST_FM2NOTE_KEY", raising=False)
+
+    def test_load_dotenv_does_not_override_existing(self, tmp_path, monkeypatch):
+        monkeypatch.chdir(tmp_path)
+        monkeypatch.setenv("TEST_FM2NOTE_KEY", "original")
+        env_file = tmp_path / ".env"
+        env_file.write_text("export TEST_FM2NOTE_KEY=overridden\n")
+
+        from main import _load_dotenv
+
+        _load_dotenv()
+        assert os.environ["TEST_FM2NOTE_KEY"] == "original"
+
+    def test_load_dotenv_no_file(self, tmp_path, monkeypatch):
+        monkeypatch.chdir(tmp_path)
+        from main import _load_dotenv
+
+        _load_dotenv()  # should not raise
 
 
 class TestParseEnvFile:

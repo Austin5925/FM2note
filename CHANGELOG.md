@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.3.0] - 2025-06-16
+
+### Changed
+- API keys are no longer embedded in launchd plist files — `.env` is auto-loaded at CLI startup
+- `source .env` is no longer required before running commands
+- All documentation updated to reflect .env auto-loading
+
+### Added
+- `_load_dotenv()` auto-loads `.env` from working directory (only sets unset vars)
+- Tests for .env auto-loading and plist key exclusion
+- 216 tests passing
+- pip-audit verification passed (no CVEs in direct dependencies)
+
+### Security
+- Plist file no longer contains API keys (was world-readable at ~/Library/LaunchAgents/)
+- Path traversal guard on `podcast_name` in ObsidianWriter
+- XML escape for launchd plist environment values
+- Transcript text truncation (80K chars) before AI API calls
+- API response objects no longer logged in error messages (could leak auth headers)
+
 ## [1.2.6] - 2025-06-16
 
 ### Changed

@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Planned (v1.2.4)
+- Generic RSS/Atom feed support (not just Xiaoyuzhou via RSSHub)
+- Customizable note templates (configurable path and labels)
+- Enhanced `fm2note init` with RSSHub URL prompt and vault auto-detection
+
+### Planned (v1.2.5)
+- Summarizer Protocol abstraction (pluggable LLM backends)
+- OpenAI-compatible summarizer (GPT-4o, DeepSeek, Groq, Ollama)
+- Summarizer factory with auto-detection
+- PyPI publication
+
+## [1.2.2] - 2025-06-15
+
 ### Added
 - `fm2note init` interactive setup command
 - `fm2note install-service` / `uninstall-service` with dynamic path generation
@@ -29,6 +42,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Hardcoded `<USER_HOME>/...` paths in scripts
 - Hardcoded private RSSHub server IP in subscriptions
 - Private server `deploy` target from Makefile
+
+### Tests
+- 170 tests passing (up from 149), 82% coverage
 
 ## [1.2.1] - 2025-06-01
 

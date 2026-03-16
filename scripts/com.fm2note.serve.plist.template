@@ -1,30 +1,27 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
+<!-- Template only — use `fm2note install-service` to generate with correct paths -->
 <dict>
     <key>Label</key>
     <string>com.fm2note.serve</string>
 
     <key>ProgramArguments</key>
     <array>
-        <string>/opt/homebrew/bin/python3.11</string>
+        <string>/usr/bin/python3</string>
         <string>main.py</string>
         <string>serve</string>
     </array>
 
     <key>WorkingDirectory</key>
-    <string><USER_HOME>/Desktop/gitRepo/FM2note</string>
+    <string>/path/to/FM2note</string>
 
     <key>EnvironmentVariables</key>
     <dict>
         <key>PATH</key>
-        <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
+        <string>/usr/local/bin:/usr/bin:/bin</string>
         <key>DASHSCOPE_API_KEY</key>
         <string>YOUR_DASHSCOPE_API_KEY</string>
-        <key>TINGWU_APP_ID</key>
-        <string>YOUR_TINGWU_APP_ID</string>
-        <key>POE_API_KEY</key>
-        <string>YOUR_POE_API_KEY</string>
         <key>OBSIDIAN_VAULT_PATH</key>
         <string>/path/to/obsidian/vault</string>
         <key>LOG_LEVEL</key>
@@ -38,9 +35,9 @@
     <true/>
 
     <key>StandardOutPath</key>
-    <string><USER_HOME>/Desktop/gitRepo/FM2note/logs/fm2note-stdout.log</string>
+    <string>/path/to/FM2note/logs/fm2note-stdout.log</string>
 
     <key>StandardErrorPath</key>
-    <string><USER_HOME>/Desktop/gitRepo/FM2note/logs/fm2note-stderr.log</string>
+    <string>/path/to/FM2note/logs/fm2note-stderr.log</string>
 </dict>
 </plist>

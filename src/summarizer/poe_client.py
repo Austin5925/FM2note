@@ -40,9 +40,7 @@ class PoeSummarizer:
         self._cooldown = cooldown
         self._last_call_time: float = 0
 
-    async def summarize(
-        self, text: str, title: str, *, max_retries: int = 3
-    ) -> SummaryResult:
+    async def summarize(self, text: str, title: str, *, max_retries: int = 3) -> SummaryResult:
         """调用 Poe API 生成播客摘要，带重试。
 
         Args:

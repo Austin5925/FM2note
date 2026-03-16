@@ -15,6 +15,10 @@ env/
 # Environment variables
 .env
 
+# User config (use *.example.yaml as template)
+config/config.yaml
+config/subscriptions.yaml
+
 # Data files
 data/state.db
 data/tmp/

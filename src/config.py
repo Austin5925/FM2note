@@ -9,7 +9,7 @@ import yaml
 
 @dataclass
 class Subscription:
-    """播客订阅配置"""
+    """Podcast subscription entry."""
 
     name: str
     rss_url: str
@@ -18,7 +18,7 @@ class Subscription:
 
 @dataclass
 class AppConfig:
-    """应用全局配置"""
+    """Application configuration."""
 
     vault_path: str
     podcast_dir: str = "Podcasts"
@@ -29,51 +29,60 @@ class AppConfig:
     log_level: str = "INFO"
     db_path: str = "./data/state.db"
 
-    # DashScope API Key（通义听悟 + 百炼共用）
+    # DashScope API Key (shared by TingWu / FunASR / Bailian)
     dashscope_api_key: str = ""
 
-    # 通义听悟 AppId
+    # TingWu AppId
     tingwu_app_id: str = ""
 
-    # Poe API（AI 摘要）
+    # Poe API (AI summaries)
     poe_api_key: str = ""
     summary_model: str = "GPT-5.4"
-    summary_cooldown: int = 60  # Poe API 调用间隔（秒）
+    summary_cooldown: int = 60
 
-    # OpenAI Whisper
+    # OpenAI (Whisper API)
     openai_api_key: str = ""
 
 
 class ConfigError(Exception):
-    """配置加载错误"""
+    """Configuration loading error."""
+
+
+def _hint_example_file(path: Path) -> str:
+    """Return a hint message if an .example counterpart exists."""
+    example = path.with_suffix(".example.yaml") if path.suffix == ".yaml" else None
+    if example and example.exists():
+        return f"\n  Hint: copy the example file first:\n  cp {example} {path}"
+    return ""
 
 
 def load_config(path: str | Path = "config/config.yaml") -> AppConfig:
-    """从 YAML 文件加载配置，环境变量覆盖敏感字段。
+    """Load config from YAML, with env var overrides for sensitive fields.
 
     Args:
-        path: 配置文件路径
+        path: Path to config YAML file.
 
     Returns:
-        AppConfig 实例
+        AppConfig instance.
 
     Raises:
-        ConfigError: 配置文件不存在或缺少必填字段
+        ConfigError: If config file is missing, empty, or invalid.
     """
     path = Path(path)
     if not path.exists():
-        raise ConfigError(f"配置文件不存在: {path}")
+        hint = _hint_example_file(path)
+        raise ConfigError(f"Config file not found: {path}{hint}")
 
     with open(path, encoding="utf-8") as f:
         raw = yaml.safe_load(f)
 
     if not raw:
-        raise ConfigError("配置文件为空")
+        raise ConfigError(f"Config file is empty: {path}")
 
     if "vault_path" not in raw:
-        raise ConfigError("缺少必填字段: vault_path")
+        raise ConfigError("Missing required field in config: vault_path")
 
-    # 环境变量覆盖
+    # Environment variable overrides
     vault_path = os.environ.get("OBSIDIAN_VAULT_PATH", raw["vault_path"])
 
     config = AppConfig(
@@ -97,31 +106,32 @@ def load_config(path: str | Path = "config/config.yaml") -> AppConfig:
 
 
 def load_subscriptions(path: str | Path = "config/subscriptions.yaml") -> list[Subscription]:
-    """加载播客订阅列表。
+    """Load podcast subscription list.
 
     Args:
-        path: 订阅配置文件路径
+        path: Path to subscriptions YAML file.
 
     Returns:
-        Subscription 列表
+        List of Subscription objects.
 
     Raises:
-        ConfigError: 文件不存在或格式错误
+        ConfigError: If file is missing or malformed.
     """
     path = Path(path)
     if not path.exists():
-        raise ConfigError(f"订阅配置文件不存在: {path}")
+        hint = _hint_example_file(path)
+        raise ConfigError(f"Subscriptions file not found: {path}{hint}")
 
     with open(path, encoding="utf-8") as f:
         raw = yaml.safe_load(f)
 
     if not raw or "podcasts" not in raw:
-        raise ConfigError("订阅配置文件格式错误: 缺少 podcasts 字段")
+        raise ConfigError(f"Invalid subscriptions file (missing 'podcasts' key): {path}")
 
     subscriptions = []
     for item in raw["podcasts"]:
         if "name" not in item or "rss_url" not in item:
-            raise ConfigError(f"订阅条目缺少必填字段 (name/rss_url): {item}")
+            raise ConfigError(f"Subscription entry missing required fields (name/rss_url): {item}")
         subscriptions.append(
             Subscription(
                 name=item["name"],

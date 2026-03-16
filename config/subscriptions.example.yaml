@@ -1,0 +1,29 @@
+# FM2note Podcast Subscriptions
+# Copy this file to subscriptions.yaml and add your podcasts:
+#   cp config/subscriptions.example.yaml config/subscriptions.yaml
+#
+# RSS URL formats:
+#   - Self-hosted RSSHub: https://your-rsshub.example.com/xiaoyuzhou/podcast/PODCAST_ID
+#   - Standard RSS feed: https://example.com/podcast/feed.xml
+#   - Any valid RSS/Atom feed URL
+#
+# How to find Xiaoyuzhou podcast ID:
+#   Open the podcast page in browser, the URL looks like:
+#   https://www.xiaoyuzhoufm.com/podcast/PODCAST_ID
+#   Copy the PODCAST_ID part.
+#
+# RSSHub deployment:
+#   If using Xiaoyuzhou podcasts, you need a self-hosted RSSHub instance.
+#   See: https://docs.rsshub.app/deploy/
+#   Quick start: docker compose up -d (uses included docker-compose.yaml)
+
+podcasts:
+  # Example: Xiaoyuzhou podcast via RSSHub
+  # - name: "My Podcast"
+  #   rss_url: "https://your-rsshub.example.com/xiaoyuzhou/podcast/YOUR_PODCAST_ID"
+  #   tags: ["tech", "ai"]
+
+  # Example: Standard RSS feed (no RSSHub needed)
+  # - name: "Lex Fridman Podcast"
+  #   rss_url: "https://lexfridman.com/feed/podcast/"
+  #   tags: ["tech", "interviews"]

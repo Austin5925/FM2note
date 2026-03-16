@@ -1,0 +1,44 @@
+name: Bug Report
+description: Report a bug in FM2note
+labels: ["bug"]
+body:
+  - type: textarea
+    id: description
+    attributes:
+      label: Description
+      description: What happened? What did you expect?
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: FM2note Version
+      description: "Output of `fm2note --version`"
+    validations:
+      required: true
+  - type: dropdown
+    id: os
+    attributes:
+      label: Operating System
+      options:
+        - macOS
+        - Linux
+        - Windows
+        - Docker
+    validations:
+      required: true
+  - type: dropdown
+    id: asr-engine
+    attributes:
+      label: ASR Engine
+      options:
+        - funasr
+        - paraformer
+        - tingwu
+        - whisper_api
+        - subtitle
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant Logs
+      render: shell

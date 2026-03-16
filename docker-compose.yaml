@@ -1,12 +1,13 @@
-# 服务器端部署：仅 RSSHub + Redis
-# fm2note 在本地 Mac 运行，通过 http://macroclaw.app:1200 访问 RSSHub
+# Server-side: RSSHub + Redis only
+# fm2note runs locally on Mac, accessing RSSHub via your server's domain/IP
+# If using Cloudflare, set up Nginx reverse proxy (see README)
 
 services:
   rsshub:
     image: diygod/rsshub:latest
     restart: unless-stopped
     ports:
-      - "1200:1200"
+      - "127.0.0.1:1200:1200"  # localhost only; use Nginx to expose
     environment:
       NODE_ENV: production
       CACHE_TYPE: redis

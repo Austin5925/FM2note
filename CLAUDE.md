@@ -143,7 +143,11 @@ make uninstall-service # 本地 Mac 卸载 launchd 服务
 - **v0.5.1** — 通义听悟 DashScope SDK 迁移 + 实测修复：切换到 `dashscope.multimodal.tingwu.TingWu`，单一 API Key 认证，修复轮询状态码（数字 0/1/2 非字符串）、OSS 响应格式（camelCase `paragraphs/words/text`、`paragraphSummary`、autoChapters 直接返回 list），本地 ASR 实测通过（3798 字/19 段/5 章节），107 个测试用例通过
 - **v0.5.2** — 上线前加固：文档对齐（CLAUDE.md/README/.env.example）、config 重置为 Docker 默认、docker-compose 增加 config 卷挂载并去掉 RSSHub 公网端口、.gitignore 排除开发文档、从 git 移除 research/plan/test/docs
 - **v1.0.0** — 生产就绪：5 集实测全部通过（2682-3798 字，0 失败），完整部署文档，Docker 三容器编排（fm2note + RSSHub + Redis），107 个测试用例通过
+- **v1.1.0** — FunASR/Paraformer 引擎 + Poe AI 摘要 + 使用指南
+- **v1.2.0** — Poe API 限速 + 摘要失败缓存重试机制
+- **v1.2.1** — podcast_dir 改为 10_Podcasts + launchd 服务修复
+- **v1.2.2** — 开源化基础：pyproject.toml 完整 PEP 621 + pip install 支持、fm2note init 交互式配置、install-service 动态路径生成（消除硬编码）、systemd 支持、GitHub Actions CI、MIT LICENSE、CHANGELOG/CONTRIBUTING/CODE_OF_CONDUCT、CLI 帮助英文化、示例配置分离、RSSHub 端口绑定 localhost、170 个测试用例通过
 
 ## Current Version
 
-v1.0.0 — 生产就绪
+v1.2.2 — 开源化基础（pip install + init + CI + 文档）

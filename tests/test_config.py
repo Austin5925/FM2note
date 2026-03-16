@@ -16,13 +16,13 @@ class TestLoadConfig:
         assert config.max_retries == 3
 
     def test_missing_file_raises_error(self, tmp_path):
-        with pytest.raises(ConfigError, match="配置文件不存在"):
+        with pytest.raises(ConfigError, match="Config file not found"):
             load_config(tmp_path / "nonexistent.yaml")
 
     def test_empty_file_raises_error(self, tmp_path):
         empty = tmp_path / "empty.yaml"
         empty.write_text("", encoding="utf-8")
-        with pytest.raises(ConfigError, match="配置文件为空"):
+        with pytest.raises(ConfigError, match="Config file is empty"):
             load_config(empty)
 
     def test_missing_vault_path_raises_error(self, tmp_path):
@@ -60,6 +60,13 @@ class TestLoadConfig:
         assert config.max_retries == 3
         assert config.log_level == "INFO"
 
+    def test_hint_example_file(self, tmp_path):
+        """When config.yaml is missing but config.example.yaml exists, show hint."""
+        example = tmp_path / "config.example.yaml"
+        example.write_text("vault_path: /tmp\n", encoding="utf-8")
+        with pytest.raises(ConfigError, match="Hint: copy the example file"):
+            load_config(tmp_path / "config.yaml")
+
 
 class TestLoadSubscriptions:
     def test_load_valid_subscriptions(self, tmp_subscriptions):
@@ -71,13 +78,13 @@ class TestLoadSubscriptions:
         assert subs[1].name == "测试播客B"
 
     def test_missing_file_raises_error(self, tmp_path):
-        with pytest.raises(ConfigError, match="订阅配置文件不存在"):
+        with pytest.raises(ConfigError, match="Subscriptions file not found"):
             load_subscriptions(tmp_path / "nonexistent.yaml")
 
     def test_empty_file_raises_error(self, tmp_path):
         empty = tmp_path / "empty.yaml"
         empty.write_text("", encoding="utf-8")
-        with pytest.raises(ConfigError, match="格式错误"):
+        with pytest.raises(ConfigError, match="Invalid subscriptions file"):
             load_subscriptions(empty)
 
     def test_missing_podcasts_key_raises_error(self, tmp_path):
@@ -110,3 +117,10 @@ podcasts:
         )
         subs = load_subscriptions(no_tags)
         assert subs[0].tags == []
+
+    def test_hint_example_file_for_subscriptions(self, tmp_path):
+        """When subscriptions.yaml is missing but example exists, show hint."""
+        example = tmp_path / "subscriptions.example.yaml"
+        example.write_text("podcasts: []\n", encoding="utf-8")
+        with pytest.raises(ConfigError, match="Hint: copy the example file"):
+            load_subscriptions(tmp_path / "subscriptions.yaml")

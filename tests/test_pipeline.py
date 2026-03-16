@@ -172,9 +172,7 @@ class TestPipeline:
         mock_pipeline._transcriber.transcribe.assert_not_called()
 
     @pytest.mark.asyncio
-    async def test_process_episode_saves_pending_on_summary_failure(
-        self, mock_config, tmp_path
-    ):
+    async def test_process_episode_saves_pending_on_summary_failure(self, mock_config, tmp_path):
         """摘要失败时应缓存转录结果到 pending"""
         # 构建带 summarizer 的 pipeline
         transcript_no_summary = TranscriptResult(

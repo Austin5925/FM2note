@@ -1,0 +1,34 @@
+# FM2note Configuration
+# Copy this file to config.yaml and modify as needed:
+#   cp config/config.example.yaml config/config.yaml
+
+# Obsidian vault path (can be overridden by OBSIDIAN_VAULT_PATH env var)
+vault_path: "/path/to/obsidian/vault"
+
+# Subdirectory within the vault for podcast notes
+podcast_dir: "Podcasts"
+
+# RSS polling interval (hours), used in `serve` mode
+poll_interval_hours: 3
+
+# ASR engine: funasr | paraformer | tingwu | whisper_api
+# - funasr: Alibaba FunASR (recommended, Chinese-optimized, ~0.79 CNY/hour)
+# - paraformer: Alibaba Paraformer (cheaper, ~0.29 CNY/hour)
+# - tingwu: Alibaba TingWu (ASR + AI summary, ~3 CNY/hour)
+# - whisper_api: OpenAI Whisper API (~$0.006/min)
+asr_engine: "funasr"
+
+# Temporary directory for audio downloads
+temp_dir: "./data/tmp"
+
+# SQLite database path for state tracking
+db_path: "./data/state.db"
+
+# Max retry attempts for failed episodes
+max_retries: 3
+
+# Poe API call interval in seconds (rate limiting)
+summary_cooldown: 60
+
+# Log level: DEBUG | INFO | WARNING | ERROR
+log_level: "INFO"

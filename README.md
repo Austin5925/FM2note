@@ -1,184 +1,200 @@
 # FM2note
 
-小宇宙播客自动转写笔记管线。监听播客更新，FunASR 转写 + Poe AI 摘要，直接写入 Obsidian vault。
+[English](README.md) | [中文](README.zh-CN.md)
 
-## 架构
+> Automatically transcribe podcasts and save them as Obsidian notes.
+
+FM2note monitors podcast RSS feeds, transcribes episodes using cloud ASR, generates AI summaries, and writes structured Markdown notes directly into your Obsidian vault.
+
+## Features
+
+- **RSS monitoring** — auto-detect new episodes from any RSS/Atom feed
+- **Multiple ASR engines** — FunASR, Paraformer, TingWu, OpenAI Whisper
+- **AI summaries** — chapter breakdown + keywords via Poe or OpenAI
+- **Direct Obsidian vault write** — Markdown with YAML frontmatter
+- **Subtitle detection** — skip ASR when subtitles are available (saves cost)
+- **Auto-retry** — failed episodes retried on next cycle
+- **Self-hosted** — your data stays on your machine
+
+## Architecture
 
 ```
-macroclaw.app (服务器)              本地 Mac
-┌─────────────────────┐      ┌──────────────────────────────┐
-│  RSSHub + Redis     │      │  fm2note (Python 原生进程)    │
-│  (Docker, 7x24)     │◄────│  launchd 自启，每 3h 轮询     │
-│  :1200              │      │          │                    │
-└─────────────────────┘      │          ▼                    │
-                             │  FunASR 转写 + Poe AI 摘要    │
-                             │          │                    │
-                             │          ▼                    │
-                             │  Obsidian vault (iCloud)      │
-                             └──────────────────────────────┘
+Server (optional)              Local Mac
+┌──────────────────┐      ┌────────────────────────────┐
+│  RSSHub + Redis  │      │  fm2note (Python process)   │
+│  (Docker, 24/7)  │◄────│  launchd/systemd auto-start │
+│  :1200           │      │          │                  │
+└──────────────────┘      │          ▼                  │
+                          │  Cloud ASR + AI summary     │
+                          │          │                  │
+                          │          ▼                  │
+                          │  Obsidian vault (local)     │
+                          └────────────────────────────┘
 ```
 
-- **服务器**：仅运行 RSSHub + Redis（RSS 抓取代理，7x24 在线）
-- **本地 Mac**：运行 fm2note 主进程（FunASR 转写 + Poe AI 摘要 + 笔记生成，直接写入本地 vault）
+- **Server** (optional): RSSHub + Redis for Xiaoyuzhou podcast RSS proxy
+- **Local**: fm2note process — ASR, AI summary, note generation, vault write
 
-## 部署
+Standard RSS feeds work directly without RSSHub.
 
-### 服务器端（macroclaw.app）
+## Quick Start
+
+### Install
 
 ```bash
-ssh macroclaw.app
-cd /opt
+pip install fm2note
+```
+
+Or from source:
+
+```bash
 git clone https://github.com/Austin5925/FM2note.git
 cd FM2note
-docker compose up -d
+pip install -e .
 ```
 
-验证 RSSHub：
+### Setup
 
 ```bash
-curl http://localhost:1200/xiaoyuzhou/podcast/6978a31df828d4e9f2787d3d | head -5
+fm2note init
 ```
 
-服务器防火墙需开放 1200 端口（或通过 Nginx 反代）。
+This creates `config/config.yaml`, `config/subscriptions.yaml`, and `.env`.
 
-### 本地 Mac
+### Configure
 
-#### 1. 安装依赖
+1. Edit `.env` — add your API keys:
 
 ```bash
-cd ~/Desktop/gitRepo/FM2note
-pip3.11 install -r requirements.txt
+export DASHSCOPE_API_KEY=sk-xxx          # Required for FunASR/TingWu
+export OBSIDIAN_VAULT_PATH="/path/to/vault"
+export POE_API_KEY=pk-xxx                # Optional: AI summaries
 ```
 
-#### 2. 配置环境变量
-
-```bash
-cp .env.example .env
-vim .env
-```
-
-```bash
-export DASHSCOPE_API_KEY=sk-xxx          # DashScope API Key（FunASR/通义听悟共用）
-export OBSIDIAN_VAULT_PATH="/path/to/obsidian/vault"
-export LOG_LEVEL=INFO
-
-# 可选：Poe AI 摘要
-export POE_API_KEY=pk-xxx                # 不配置则跳过 AI 摘要
-
-# 可选：通义听悟（仅 asr_engine=tingwu 时需要）
-export TINGWU_APP_ID=tw_xxx
-```
-
-#### 3. 验证 RSSHub 连通
-
-```bash
-curl http://<REDACTED_IP>:1200/xiaoyuzhou/podcast/6978a31df828d4e9f2787d3d | head -5
-```
-
-#### 4. 手动测试一次
-
-```bash
-source .env && python3.11 main.py run-once
-```
-
-#### 5. 安装自启服务
-
-```bash
-make install-service
-```
-
-fm2note 将在每次登录时自动启动，每 3 小时检查播客更新。
-
-## 运行模式
-
-| 命令 | 说明 |
-|---|---|
-| `python3.11 main.py serve` | 定时调度模式（默认，每 3h 检查） |
-| `python3.11 main.py run-once` | 手动执行一次 |
-| `python3.11 main.py transcribe <url>` | 单独转写音频 URL（调试） |
-
-## 服务管理
-
-```bash
-# 查看服务状态
-launchctl list | grep fm2note
-
-# 停止服务
-launchctl unload ~/Library/LaunchAgents/com.fm2note.serve.plist
-
-# 启动服务
-launchctl load ~/Library/LaunchAgents/com.fm2note.serve.plist
-
-# 卸载服务
-make uninstall-service
-
-# 查看日志
-tail -f logs/fm2note-stderr.log
-
-# 更新服务器 RSSHub
-make deploy
-```
-
-## 配置
-
-### config/config.yaml
-
-| 字段 | 默认值 | 说明 |
-|---|---|---|
-| `vault_path` | `/vault` | 可被 `OBSIDIAN_VAULT_PATH` 环境变量覆盖 |
-| `podcast_dir` | `Podcasts` | vault 内子目录 |
-| `poll_interval_hours` | `3` | RSS 轮询间隔（小时） |
-| `asr_engine` | `funasr` | ASR 引擎（funasr / paraformer / tingwu / bailian / whisper_api） |
-| `max_retries` | `3` | 失败重试次数 |
-
-### config/subscriptions.yaml
+2. Edit `config/subscriptions.yaml` — add your podcasts:
 
 ```yaml
 podcasts:
-  - name: "非共识的20分钟"
-    rss_url: "http://<REDACTED_IP>:1200/xiaoyuzhou/podcast/6978a31df828d4e9f2787d3d"
-    tags: ["finance", "macro"]
+  - name: "My Favorite Podcast"
+    rss_url: "https://example.com/feed.xml"
+    tags: ["tech"]
 ```
 
-播客 ID 从小宇宙链接获取：`xiaoyuzhoufm.com/podcast/PODCAST_ID`
-
-## 资源消耗
-
-### 服务器（macroclaw.app）
-
-| 容器 | 内存 | CPU |
-|---|---|---|
-| RSSHub | ~200MB | 极低 |
-| Redis | ~10MB | 极低 |
-| **合计** | **~210MB** | **<0.2 核** |
-
-### 本地 Mac
-
-| 进程 | 内存 | CPU |
-|---|---|---|
-| fm2note (idle) | ~40MB | 接近 0 |
-| fm2note (转写中) | ~80MB | 极低 |
-
-## 开发
+### Run
 
 ```bash
-make lint      # 代码检查
-make test      # 运行测试（132 passed）
-make format    # 格式化
+source .env
+fm2note run-once     # Process once
+fm2note serve        # Continuous daemon (polls every 3 hours)
 ```
 
-## 成本
+## ASR Engines
 
-| 引擎 | 单价 | 月费（20 集 x 1h） |
+| Engine | Cost/hour | Features | Best for |
+|---|---|---|---|
+| FunASR (default) | ~0.79 CNY | Chinese-optimized | Chinese podcasts |
+| Paraformer | ~0.29 CNY | Budget option | Cost-sensitive |
+| TingWu | ~3.00 CNY | ASR + AI summary built-in | All-in-one |
+| Whisper API | ~$0.36 | Multilingual | English/other languages |
+
+Set `asr_engine` in `config/config.yaml`.
+
+## AI Summary
+
+FM2note can generate AI summaries with chapter breakdowns and keywords:
+
+- **Poe** (default): Set `POE_API_KEY` in `.env`. Uses GPT-5.4 via Poe subscription.
+- **None**: Without a summary API key, FM2note outputs transcription only.
+
+## Deployment
+
+### Auto-start Service
+
+```bash
+fm2note install-service    # macOS (launchd) or Linux (systemd)
+fm2note uninstall-service  # Remove the service
+```
+
+### RSSHub (for Xiaoyuzhou podcasts)
+
+If you subscribe to Xiaoyuzhou (小宇宙) podcasts, you need a self-hosted RSSHub:
+
+```bash
+# On your server:
+docker compose up -d
+```
+
+This starts RSSHub + Redis. Then use RSS URLs like:
+`https://your-domain.com/rsshub/xiaoyuzhou/podcast/PODCAST_ID`
+
+**Cloudflare users**: RSSHub listens on port 1200 (not proxied by Cloudflare). Options:
+1. **Nginx reverse proxy** (recommended): Add `location /rsshub/ { proxy_pass http://127.0.0.1:1200/; }` to your Nginx config
+2. **Use port 8080**: Change docker-compose port to `8080:1200` (Cloudflare supports 8080)
+
+Standard RSS feeds (Apple Podcasts, Spotify via RSS, etc.) don't need RSSHub.
+
+### How to Find Xiaoyuzhou Podcast ID
+
+Open the podcast page in your browser:
+`https://www.xiaoyuzhoufm.com/podcast/PODCAST_ID`
+
+Copy the `PODCAST_ID` part.
+
+## Configuration
+
+### config/config.yaml
+
+| Field | Default | Description |
 |---|---|---|
-| FunASR（默认） | 0.79 元/小时 | ~16 元 |
-| Paraformer | 0.29 元/小时 | ~6 元 |
-| 通义听悟 | 2.75 元/小时 | ~55 元 |
+| `vault_path` | `/vault` | Obsidian vault path (override with `OBSIDIAN_VAULT_PATH` env var) |
+| `podcast_dir` | `Podcasts` | Subdirectory in vault for notes |
+| `poll_interval_hours` | `3` | Polling interval for `serve` mode |
+| `asr_engine` | `funasr` | ASR engine: `funasr` / `paraformer` / `tingwu` / `whisper_api` |
+| `max_retries` | `3` | Max retry attempts for failed episodes |
+| `summary_cooldown` | `60` | Seconds between Poe API calls |
 
-Poe AI 摘要免费（GPT-5.4 计入 Poe 订阅额度）。
+### Environment Variables
 
-## 版本
+| Variable | Required | Description |
+|---|---|---|
+| `DASHSCOPE_API_KEY` | Yes (for DashScope engines) | Alibaba DashScope API key |
+| `OBSIDIAN_VAULT_PATH` | Yes | Absolute path to Obsidian vault |
+| `POE_API_KEY` | No | Poe API key for AI summaries |
+| `TINGWU_APP_ID` | No (only for `tingwu` engine) | TingWu App ID |
+| `OPENAI_API_KEY` | No (only for `whisper_api`) | OpenAI API key |
 
-当前版本：v1.0.0
+## Commands
 
-详见 [CLAUDE.md](CLAUDE.md) 的 Version History。
+| Command | Description |
+|---|---|
+| `fm2note run-once` | Check feeds and process new episodes once |
+| `fm2note serve` | Start polling daemon |
+| `fm2note transcribe <url>` | Transcribe a single audio URL |
+| `fm2note retry-summaries` | Retry failed AI summaries |
+| `fm2note init` | Interactive setup wizard |
+| `fm2note install-service` | Install auto-start service |
+| `fm2note uninstall-service` | Remove auto-start service |
+
+## Cost Estimates (20 episodes/month, ~1 hour each)
+
+| Setup | Monthly Cost |
+|---|---|
+| FunASR + Poe summary | ~16 CNY (~$2) |
+| Paraformer + Poe summary | ~6 CNY (~$1) |
+| TingWu (all-in-one) | ~55 CNY (~$8) |
+
+## Development
+
+```bash
+pip install -e ".[dev]"
+make lint        # ruff check
+make test        # pytest (170+ tests)
+make test-cov    # Coverage report
+make format      # Auto-format
+```
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for details.
+
+## License
+
+[MIT](LICENSE)

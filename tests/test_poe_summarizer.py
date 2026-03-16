@@ -104,9 +104,7 @@ class TestPoeSummarizer:
         """验证两次调用之间会等待 cooldown 间隔。"""
         s = PoeSummarizer(api_key="pk-test", cooldown=0.5)
 
-        api_response = {
-            "choices": [{"message": {"content": '{"summary": "摘要"}'}}]
-        }
+        api_response = {"choices": [{"message": {"content": '{"summary": "摘要"}'}}]}
         mock_resp = MagicMock()
         mock_resp.json.return_value = api_response
         mock_resp.raise_for_status = MagicMock()

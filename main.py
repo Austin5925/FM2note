@@ -1,66 +1,351 @@
 import asyncio
+import os
+import platform
+import shutil
+import sys
+from pathlib import Path
+from textwrap import dedent
 
 import click
 from loguru import logger
 
 from src.version import VERSION
 
+# --- launchd plist template (macOS) ---
+LAUNCHD_PLIST_TEMPLATE = """\
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" \
+"http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.fm2note.serve</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <string>{python}</string>
+        <string>main.py</string>
+        <string>serve</string>
+    </array>
+
+    <key>WorkingDirectory</key>
+    <string>{workdir}</string>
+
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>PATH</key>
+        <string>{path_env}</string>
+    </dict>
+
+    <key>RunAtLoad</key>
+    <true/>
+
+    <key>KeepAlive</key>
+    <true/>
+
+    <key>StandardOutPath</key>
+    <string>{log_dir}/fm2note-stdout.log</string>
+
+    <key>StandardErrorPath</key>
+    <string>{log_dir}/fm2note-stderr.log</string>
+</dict>
+</plist>
+"""
+
+# --- systemd unit template (Linux) ---
+SYSTEMD_UNIT_TEMPLATE = """\
+[Unit]
+Description=FM2note Podcast-to-Notes Pipeline
+After=network-online.target
+
+[Service]
+Type=simple
+ExecStart={python} {workdir}/main.py serve
+WorkingDirectory={workdir}
+EnvironmentFile={workdir}/.env
+Restart=on-failure
+RestartSec=30
+
+[Install]
+WantedBy=default.target
+"""
+
 
 @click.group()
 @click.version_option(version=VERSION)
 def cli():
-    """FM2note — 小宇宙播客 → Obsidian 笔记自动化管线"""
+    """FM2note — Podcast RSS → Obsidian notes automation pipeline"""
 
 
 @cli.command()
-@click.option("--config", "config_path", default="config/config.yaml", help="配置文件路径")
-@click.option("--subs", "subs_path", default="config/subscriptions.yaml", help="订阅配置路径")
+@click.option("--config", "config_path", default="config/config.yaml", help="Config file path")
+@click.option("--subs", "subs_path", default="config/subscriptions.yaml", help="Subscriptions path")
 def run_once(config_path: str, subs_path: str):
-    """手动执行一次检查和处理"""
-    logger.info("FM2note v{} — run-once 模式", VERSION)
+    """Check all subscriptions and process new episodes once"""
+    logger.info("FM2note v{} — run-once mode", VERSION)
     asyncio.run(_run_once(config_path, subs_path))
 
 
 @cli.command()
-@click.option("--config", "config_path", default="config/config.yaml", help="配置文件路径")
-@click.option("--subs", "subs_path", default="config/subscriptions.yaml", help="订阅配置路径")
+@click.option("--config", "config_path", default="config/config.yaml", help="Config file path")
+@click.option("--subs", "subs_path", default="config/subscriptions.yaml", help="Subscriptions path")
 def serve(config_path: str, subs_path: str):
-    """启动定时调度服务"""
-    logger.info("FM2note v{} — serve 模式", VERSION)
+    """Start scheduled polling daemon"""
+    logger.info("FM2note v{} — serve mode", VERSION)
     asyncio.run(_serve(config_path, subs_path))
 
 
 @cli.command()
 @click.argument("audio_url")
-@click.option("--title", default=None, help="笔记标题（默认从 URL 提取）")
-@click.option("--podcast", "podcast_name", default="单独转录", help="播客名称（用于目录分类）")
-@click.option("--config", "config_path", default="config/config.yaml", help="配置文件路径")
+@click.option("--title", default=None, help="Note title (auto-detected from URL if omitted)")
+@click.option("--podcast", "podcast_name", default="单独转录", help="Podcast name for folder")
+@click.option("--config", "config_path", default="config/config.yaml", help="Config file path")
 def transcribe(audio_url: str, title: str | None, podcast_name: str, config_path: str):
-    """单独转写音频 URL，生成 AI 摘要并写入 Obsidian"""
-    logger.info("FM2note v{} — 单次转写: {}", VERSION, audio_url)
+    """Transcribe a single audio URL and generate an Obsidian note"""
+    logger.info("FM2note v{} — transcribe: {}", VERSION, audio_url)
     asyncio.run(_transcribe(audio_url, title, podcast_name, config_path))
 
 
 @cli.command("retry-summaries")
-@click.option("--config", "config_path", default="config/config.yaml", help="配置文件路径")
+@click.option("--config", "config_path", default="config/config.yaml", help="Config file path")
 def retry_summaries(config_path: str):
-    """重试之前失败的 AI 摘要，补充到已有笔记"""
-    logger.info("FM2note v{} — retry-summaries 模式", VERSION)
+    """Retry previously failed AI summaries"""
+    logger.info("FM2note v{} — retry-summaries mode", VERSION)
     asyncio.run(_retry_summaries(config_path))
 
 
+@cli.command()
+def init():
+    """Interactive setup — generate config and subscription files"""
+    config_dir = Path("config")
+    config_dir.mkdir(exist_ok=True)
+
+    config_path = config_dir / "config.yaml"
+    subs_path = config_dir / "subscriptions.yaml"
+
+    if config_path.exists() and not click.confirm(
+        f"{config_path} already exists. Overwrite?", default=False
+    ):
+        click.echo("Skipping config.yaml")
+        config_path = None
+
+    if subs_path.exists() and not click.confirm(
+        f"{subs_path} already exists. Overwrite?", default=False
+    ):
+        click.echo("Skipping subscriptions.yaml")
+        subs_path = None
+
+    # Gather settings
+    vault_path = click.prompt("Obsidian vault path", type=str)
+    asr_engine = click.prompt(
+        "ASR engine",
+        type=click.Choice(["funasr", "paraformer", "tingwu", "whisper_api"]),
+        default="funasr",
+    )
+    podcast_dir = click.prompt("Podcast subdirectory in vault", default="Podcasts")
+    poll_hours = click.prompt("Polling interval (hours)", default=3, type=int)
+
+    # Generate config.yaml
+    if config_path:
+        config_content = dedent(f"""\
+            # FM2note Configuration (generated by fm2note init)
+            vault_path: "{vault_path}"
+            podcast_dir: "{podcast_dir}"
+            poll_interval_hours: {poll_hours}
+            asr_engine: "{asr_engine}"
+            temp_dir: "./data/tmp"
+            db_path: "./data/state.db"
+            max_retries: 3
+            summary_cooldown: 60
+            log_level: "INFO"
+        """)
+        config_path.write_text(config_content, encoding="utf-8")
+        click.echo(f"  Created {config_path}")
+
+    # Generate subscriptions.yaml
+    if subs_path:
+        subs_example = config_dir / "subscriptions.example.yaml"
+        if subs_example.exists():
+            shutil.copy(subs_example, subs_path)
+        else:
+            subs_content = dedent("""\
+                # Add your podcasts here
+                # See subscriptions.example.yaml for format documentation
+                podcasts: []
+            """)
+            subs_path.write_text(subs_content, encoding="utf-8")
+        click.echo(f"  Created {subs_path}")
+
+    # Generate .env if not exists
+    env_path = Path(".env")
+    if not env_path.exists():
+        env_example = Path(".env.example")
+        if env_example.exists():
+            shutil.copy(env_example, env_path)
+            click.echo("  Created .env (from .env.example)")
+        else:
+            env_content = dedent(f"""\
+                export DASHSCOPE_API_KEY=sk-xxx
+                export OBSIDIAN_VAULT_PATH="{vault_path}"
+                export LOG_LEVEL=INFO
+            """)
+            env_path.write_text(env_content, encoding="utf-8")
+            click.echo("  Created .env")
+
+    click.echo("\nNext steps:")
+    click.echo("  1. Edit .env and add your API keys")
+    click.echo("  2. Edit config/subscriptions.yaml and add your podcasts")
+    click.echo("  3. Run: fm2note run-once")
+
+
+@cli.command("install-service")
+def install_service():
+    """Install as a system service (launchd on macOS, systemd on Linux)"""
+    system = platform.system()
+    python_path = sys.executable
+    workdir = str(Path.cwd())
+    log_dir = str(Path.cwd() / "logs")
+
+    # Ensure log directory exists
+    Path(log_dir).mkdir(exist_ok=True)
+
+    if system == "Darwin":
+        _install_launchd(python_path, workdir, log_dir)
+    elif system == "Linux":
+        _install_systemd(python_path, workdir)
+    else:
+        click.echo(f"Unsupported platform: {system}. Manual setup required.", err=True)
+        sys.exit(1)
+
+
+def _install_launchd(python_path: str, workdir: str, log_dir: str):
+    """Install macOS launchd service."""
+    path_env = os.environ.get("PATH", "/usr/local/bin:/usr/bin:/bin")
+    plist_content = LAUNCHD_PLIST_TEMPLATE.format(
+        python=python_path,
+        workdir=workdir,
+        log_dir=log_dir,
+        path_env=path_env,
+    )
+
+    plist_dir = Path.home() / "Library" / "LaunchAgents"
+    plist_dir.mkdir(parents=True, exist_ok=True)
+    plist_path = plist_dir / "com.fm2note.serve.plist"
+
+    # Load .env vars into the plist EnvironmentVariables
+    env_path = Path(workdir) / ".env"
+    env_vars = _parse_env_file(env_path) if env_path.exists() else {}
+
+    if env_vars:
+        # Insert env vars into the plist before closing EnvironmentVariables dict
+        env_xml_lines = []
+        for key, value in env_vars.items():
+            env_xml_lines.append(f"        <key>{key}</key>")
+            env_xml_lines.append(f"        <string>{value}</string>")
+        env_xml = "\n".join(env_xml_lines)
+        # Insert after the PATH entry
+        plist_content = plist_content.replace(
+            "    </dict>\n\n    <key>RunAtLoad</key>",
+            f"{env_xml}\n    </dict>\n\n    <key>RunAtLoad</key>",
+        )
+
+    plist_path.write_text(plist_content, encoding="utf-8")
+    click.echo(f"  Wrote {plist_path}")
+
+    import subprocess
+
+    subprocess.run(["launchctl", "load", str(plist_path)], check=True)
+    click.echo("  Service installed and started. It will auto-start on login.")
+    click.echo(f"  Logs: {log_dir}/fm2note-stdout.log")
+
+
+def _install_systemd(python_path: str, workdir: str):
+    """Install Linux systemd user service."""
+    unit_content = SYSTEMD_UNIT_TEMPLATE.format(
+        python=python_path,
+        workdir=workdir,
+    )
+
+    unit_dir = Path.home() / ".config" / "systemd" / "user"
+    unit_dir.mkdir(parents=True, exist_ok=True)
+    unit_path = unit_dir / "fm2note.service"
+
+    unit_path.write_text(unit_content, encoding="utf-8")
+    click.echo(f"  Wrote {unit_path}")
+
+    import subprocess
+
+    subprocess.run(["systemctl", "--user", "daemon-reload"], check=True)
+    subprocess.run(["systemctl", "--user", "enable", "--now", "fm2note"], check=True)
+    click.echo("  Service installed and started.")
+    click.echo("  Check status: systemctl --user status fm2note")
+
+
+@cli.command("uninstall-service")
+def uninstall_service():
+    """Uninstall the system service"""
+    system = platform.system()
+
+    if system == "Darwin":
+        plist_path = Path.home() / "Library" / "LaunchAgents" / "com.fm2note.serve.plist"
+        if plist_path.exists():
+            import subprocess
+
+            subprocess.run(["launchctl", "unload", str(plist_path)], check=False)
+            plist_path.unlink()
+            click.echo("  Service uninstalled.")
+        else:
+            click.echo("  Service not found (already uninstalled?).")
+    elif system == "Linux":
+        unit_path = Path.home() / ".config" / "systemd" / "user" / "fm2note.service"
+        if unit_path.exists():
+            import subprocess
+
+            subprocess.run(["systemctl", "--user", "disable", "--now", "fm2note"], check=False)
+            unit_path.unlink()
+            subprocess.run(["systemctl", "--user", "daemon-reload"], check=False)
+            click.echo("  Service uninstalled.")
+        else:
+            click.echo("  Service not found (already uninstalled?).")
+    else:
+        click.echo(f"Unsupported platform: {system}", err=True)
+
+
+def _parse_env_file(env_path: Path) -> dict[str, str]:
+    """Parse a .env file, extracting KEY=VALUE pairs."""
+    env_vars = {}
+    for line in env_path.read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if not line or line.startswith("#"):
+            continue
+        # Remove 'export ' prefix
+        if line.startswith("export "):
+            line = line[7:]
+        if "=" in line:
+            key, _, value = line.partition("=")
+            key = key.strip()
+            value = value.strip().strip("\"'")
+            if value and not value.startswith("sk-xxx") and value != "":
+                env_vars[key] = value
+    return env_vars
+
+
 def _create_summarizer(config):
-    """创建 Poe 摘要器（如配置了 POE_API_KEY）"""
+    """Create Poe summarizer if POE_API_KEY is configured."""
     if config.poe_api_key:
         from src.summarizer.poe_client import PoeSummarizer
 
-        logger.info("已配置 Poe 摘要: model={}, cooldown={}s", config.summary_model, config.summary_cooldown)
+        logger.info(
+            "Poe summarizer enabled: model={}, cooldown={}s",
+            config.summary_model,
+            config.summary_cooldown,
+        )
         return PoeSummarizer(
             api_key=config.poe_api_key,
             model=config.summary_model,
             cooldown=float(config.summary_cooldown),
         )
-    logger.info("未配置 POE_API_KEY，跳过 AI 摘要")
+    logger.info("No POE_API_KEY configured, skipping AI summaries")
     return None
 
 
@@ -100,7 +385,7 @@ async def _run_once(config_path: str, subs_path: str):
         )
 
         results = await pipeline.run_once()
-        logger.info("完成: 共处理 {} 个笔记", len(results))
+        logger.info("Done: {} notes processed", len(results))
     finally:
         await state.close()
 
@@ -150,7 +435,7 @@ async def _serve(config_path: str, subs_path: str):
 async def _resolve_episode_url(
     url: str,
 ) -> tuple[str, str | None, str | None, str, str | None]:
-    """如果 URL 是小宇宙剧集页面，解析出音频 URL、标题、播客名、链接和发布日期。
+    """If URL is a Xiaoyuzhou episode page, extract audio URL and metadata.
 
     Returns:
         (audio_url, title, podcast_name, link, date_published)
@@ -163,19 +448,18 @@ async def _resolve_episode_url(
     if "xiaoyuzhoufm.com/episode/" not in url:
         return url, None, None, "", None
 
-    logger.info("检测到小宇宙剧集 URL，解析元数据...")
+    logger.info("Detected Xiaoyuzhou episode URL, parsing metadata...")
     async with httpx.AsyncClient(timeout=15, follow_redirects=True) as client:
         resp = await client.get(url)
         resp.raise_for_status()
 
-    # 从 JSON-LD <script type="application/ld+json"> 提取
     match = re.search(
         r'<script[^>]*type="application/ld\+json"[^>]*>(.+?)</script>',
         resp.text,
         re.DOTALL,
     )
     if not match:
-        raise ValueError(f"无法从小宇宙页面解析元数据: {url}")
+        raise ValueError(f"Cannot parse metadata from Xiaoyuzhou page: {url}")
 
     data = json.loads(match.group(1))
     audio_url = data.get("associatedMedia", {}).get("contentUrl", "")
@@ -184,15 +468,13 @@ async def _resolve_episode_url(
     date_published = data.get("datePublished")
 
     if not audio_url:
-        raise ValueError(f"无法从小宇宙页面提取音频 URL: {url}")
+        raise ValueError(f"Cannot extract audio URL from Xiaoyuzhou page: {url}")
 
-    logger.info("解析成功: {} — {}", ep_podcast, ep_title)
+    logger.info("Parsed: {} — {}", ep_podcast, ep_title)
     return audio_url, ep_title, ep_podcast, url, date_published
 
 
-async def _transcribe(
-    audio_url: str, title: str | None, podcast_name: str, config_path: str
-):
+async def _transcribe(audio_url: str, title: str | None, podcast_name: str, config_path: str):
     from datetime import datetime
     from urllib.parse import unquote, urlparse
 
@@ -206,16 +488,12 @@ async def _transcribe(
 
     from dateutil import parser as dateutil_parser
 
-    # 解析小宇宙剧集 URL → 音频 URL + 元数据
-    resolved_url, ep_title, ep_podcast, link, date_pub = await _resolve_episode_url(
-        audio_url
-    )
+    resolved_url, ep_title, ep_podcast, link, date_pub = await _resolve_episode_url(audio_url)
     if not title and ep_title:
         title = ep_title
     if podcast_name == "单独转录" and ep_podcast:
         podcast_name = ep_podcast
 
-    # 发布日期：优先用页面解析的，否则用当前时间
     pub_date = datetime.now()
     if date_pub:
         import contextlib
@@ -225,28 +503,29 @@ async def _transcribe(
 
     transcriber = create_transcriber(config)
 
-    # 转写
     result = await transcriber.transcribe(resolved_url)
-    logger.info("转写完成: {} 字, {} 段", len(result.text), len(result.paragraphs))
+    logger.info(
+        "Transcription done: {} chars, {} paragraphs",
+        len(result.text),
+        len(result.paragraphs),
+    )
 
-    # AI 摘要
     summary_failed = False
     summarizer = _create_summarizer(config)
     if summarizer and result.text and not result.summary:
         try:
-            logger.info("调用 AI 摘要...")
+            logger.info("Generating AI summary...")
             summary = await summarizer.summarize(result.text, title or "")
             result.summary = summary.summary
             result.chapters = summary.chapters
             result.keywords = summary.keywords
         except Exception as e:
-            logger.warning("AI 摘要失败（重试耗尽），降级为无摘要: {}: {}", type(e).__name__, e)
+            logger.warning("AI summary failed, continuing without: {}: {}", type(e).__name__, e)
             summary_failed = True
 
-    # 构建 Episode 元数据
     if not title:
         path = urlparse(resolved_url).path
-        title = unquote(path.split("/")[-1]).rsplit(".", 1)[0] or "未命名"
+        title = unquote(path.split("/")[-1]).rsplit(".", 1)[0] or "untitled"
 
     episode = Episode(
         guid=resolved_url,
@@ -259,15 +538,13 @@ async def _transcribe(
         link=link,
     )
 
-    # 生成 Markdown 并写入 Obsidian
     md_generator = MarkdownGenerator()
     content = md_generator.render(episode, result, asr_engine=config.asr_engine)
     writer = ObsidianWriter(config.vault_path, config.podcast_dir)
     note_path = writer.write_note(episode, content)
 
-    logger.success("笔记已写入: {}", note_path)
+    logger.success("Note written: {}", note_path)
 
-    # 摘要失败时缓存转录结果
     if summary_failed:
         from src.summarizer.pending import save_pending
 
@@ -287,34 +564,39 @@ async def _retry_summaries(config_path: str):
     config = load_config(config_path)
     summarizer = _create_summarizer(config)
     if not summarizer:
-        logger.error("未配置 POE_API_KEY，无法重试摘要")
+        logger.error("POE_API_KEY not configured, cannot retry summaries")
         return
 
     pending = load_all_pending()
     if not pending:
-        logger.info("没有待补摘要的任务")
+        logger.info("No pending summaries to retry")
         return
 
-    logger.info("发现 {} 个待补摘要", len(pending))
+    logger.info("Found {} pending summaries", len(pending))
     success_count = 0
     fail_count = 0
 
     for item in pending:
         try:
-            logger.info("重试摘要: {}", item["title"])
+            logger.info("Retrying summary: {}", item["title"])
             result = await summarizer.summarize(item["text"], item["title"])
             if insert_summary_into_note(item["note_path"], result):
                 remove_pending(item["_filepath"])
                 success_count += 1
-                logger.success("摘要补充完成: {}", item["title"])
+                logger.success("Summary added: {}", item["title"])
             else:
                 fail_count += 1
-                logger.warning("摘要插入失败（笔记文件问题）: {}", item["title"])
+                logger.warning("Summary insert failed (note file issue): {}", item["title"])
         except Exception as e:
             fail_count += 1
-            logger.warning("摘要重试失败: {} - {}: {}", item["title"], type(e).__name__, e)
+            logger.warning("Summary retry failed: {} - {}: {}", item["title"], type(e).__name__, e)
 
-    logger.info("重试完成: 共 {} 个, 成功 {}, 失败 {}", len(pending), success_count, fail_count)
+    logger.info(
+        "Retry complete: {} total, {} success, {} failed",
+        len(pending),
+        success_count,
+        fail_count,
+    )
 
 
 if __name__ == "__main__":

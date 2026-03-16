@@ -8,15 +8,36 @@ from src.models import Episode, TranscriptResult
 from src.version import VERSION
 from src.writer.html_cleaner import clean_show_notes
 
+# Default section labels (Chinese for backward compatibility)
+DEFAULT_LABELS = {
+    "ai_summary": "AI 摘要",
+    "chapters": "章节速览",
+    "show_notes": "Show Notes",
+    "transcript": "全文转写",
+    "podcast": "播客",
+    "date": "日期",
+    "duration": "时长",
+    "link": "链接",
+    "link_text": "小宇宙",
+    "footer": "由 FM2note v{version} 自动生成",
+}
+
 
 class MarkdownGenerator:
-    """Jinja2 模板渲染器，生成 Markdown 笔记"""
+    """Jinja2 template renderer for Markdown notes."""
 
-    def __init__(self, template_dir: str = "templates"):
+    def __init__(
+        self,
+        template_dir: str = "templates",
+        template_name: str = "podcast_note.md.j2",
+        labels: dict[str, str] | None = None,
+    ):
         self._env = Environment(
             loader=FileSystemLoader(template_dir),
             keep_trailing_newline=True,
         )
+        self._template_name = template_name
+        self._labels = {**DEFAULT_LABELS, **(labels or {})}
 
     def render(
         self,
@@ -24,20 +45,19 @@ class MarkdownGenerator:
         transcript: TranscriptResult,
         asr_engine: str = "tingwu",
     ) -> str:
-        """将剧集元数据和转写结果渲染为 Markdown 笔记。
+        """Render episode metadata and transcript into a Markdown note.
 
         Args:
-            episode: 剧集信息
-            transcript: 转写结果
-            asr_engine: 使用的 ASR 引擎名称
+            episode: Episode information.
+            transcript: Transcription result.
+            asr_engine: Name of the ASR engine used.
 
         Returns:
-            渲染后的 Markdown 字符串
+            Rendered Markdown string.
         """
-        # 清洗 show notes HTML
         cleaned_show_notes = clean_show_notes(episode.show_notes)
 
-        template = self._env.get_template("podcast_note.md.j2")
+        template = self._env.get_template(self._template_name)
         return template.render(
             episode=episode,
             transcript=transcript,
@@ -45,4 +65,5 @@ class MarkdownGenerator:
             now=datetime.now(),
             version=VERSION,
             asr_engine=asr_engine,
+            labels=self._labels,
         )

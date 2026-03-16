@@ -43,6 +43,9 @@ class AppConfig:
     # OpenAI (Whisper API)
     openai_api_key: str = ""
 
+    # Custom template path (relative to project root)
+    template_path: str = ""
+
 
 class ConfigError(Exception):
     """Configuration loading error."""
@@ -100,6 +103,7 @@ def load_config(path: str | Path = "config/config.yaml") -> AppConfig:
         summary_model=os.environ.get("SUMMARY_MODEL", "GPT-5.4"),
         summary_cooldown=int(os.environ.get("SUMMARY_COOLDOWN", raw.get("summary_cooldown", 30))),
         openai_api_key=os.environ.get("OPENAI_API_KEY", ""),
+        template_path=raw.get("template_path", ""),
     )
 
     return config

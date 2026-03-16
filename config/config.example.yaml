@@ -32,3 +32,7 @@ summary_cooldown: 60
 
 # Log level: DEBUG | INFO | WARNING | ERROR
 log_level: "INFO"
+
+# Custom note template path (default: templates/podcast_note.md.j2)
+# You can copy and modify the default template, then point to your custom one.
+# template_path: "templates/my_custom_note.md.j2"

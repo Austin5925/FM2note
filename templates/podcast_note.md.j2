@@ -22,19 +22,19 @@ asr_engine: "{{ asr_engine }}"
 
 # {{ episode.title }}
 
-> **播客**：{{ episode.podcast_name }}
-> **日期**：{{ episode.pub_date.strftime('%Y-%m-%d') }}
-> **时长**：{{ episode.duration }}
-> **链接**：[小宇宙]({{ episode.link }})
+> **{{ labels.podcast | default("播客") }}**：{{ episode.podcast_name }}
+> **{{ labels.date | default("日期") }}**：{{ episode.pub_date.strftime('%Y-%m-%d') }}
+> **{{ labels.duration | default("时长") }}**：{{ episode.duration }}
+> **{{ labels.link | default("链接") }}**：[{{ labels.link_text | default("小宇宙") }}]({{ episode.link }})
 
 {% if transcript.summary %}
-## AI 摘要
+## {{ labels.ai_summary | default("AI 摘要") }}
 
 {{ transcript.summary }}
 
 {% endif %}
 {% if transcript.chapters %}
-## 章节速览
+## {{ labels.chapters | default("章节速览") }}
 
 {% for ch in transcript.chapters %}
 ### {{ ch.title }}
@@ -43,11 +43,11 @@ asr_engine: "{{ asr_engine }}"
 
 {% endfor %}
 {% endif %}
-## Show Notes
+## {{ labels.show_notes | default("Show Notes") }}
 
 {{ show_notes_cleaned }}
 
-## 全文转写
+## {{ labels.transcript | default("全文转写") }}
 
 {% for para in transcript.paragraphs %}
 {{ para }}
@@ -56,4 +56,4 @@ asr_engine: "{{ asr_engine }}"
 
 ---
 
-_由 FM2note v{{ version }} 自动生成_
+_{{ (labels.footer | default("由 FM2note v{version} 自动生成")).format(version=version) }}_

@@ -19,13 +19,14 @@ make lint      # ruff check
 make format    # ruff format
 make test      # pytest (all tests must pass before committing)
 make test-cov  # pytest with coverage report
+make build     # python -m build (generate sdist + wheel)
 ```
 
 ## Code Style
 
 - **Linter**: ruff (line-length 100, Python 3.11+)
 - **Type hints**: Required on all public APIs
-- **Architecture**: Protocol-based abstractions (transcribers, summarizers)
+- **Architecture**: Protocol-based abstractions (Transcriber, Summarizer)
 - **Naming**: modules `snake_case`, classes `PascalCase`
 - **Async**: All I/O operations use `async/await`
 - **Logging**: loguru with structured context
@@ -41,10 +42,10 @@ make test-cov  # pytest with coverage report
 ## Adding a New Summarizer
 
 1. Create `src/summarizer/your_summarizer.py`
-2. Follow the `PoeSummarizer` interface pattern
-3. Add to pipeline injection in `main.py`
+2. Implement the `Summarizer` protocol from `src/summarizer/base.py`
+3. Register in `src/summarizer/factory.py`
 4. Add tests
-5. Update config and documentation
+5. Update config, `.env.example`, and README
 
 ## Pull Request Process
 

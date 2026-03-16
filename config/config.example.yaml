@@ -11,10 +11,11 @@ podcast_dir: "Podcasts"
 # RSS polling interval (hours), used in `serve` mode
 poll_interval_hours: 3
 
-# ASR engine: funasr | paraformer | tingwu | whisper_api
+# ASR engine: funasr | paraformer | tingwu | bailian | whisper_api
 # - funasr: Alibaba FunASR (recommended, Chinese-optimized, ~0.79 CNY/hour)
 # - paraformer: Alibaba Paraformer (cheaper, ~0.29 CNY/hour)
-# - tingwu: Alibaba TingWu (ASR + AI summary, ~3 CNY/hour)
+# - tingwu: Alibaba TingWu (ASR + AI summary built-in, ~3 CNY/hour)
+# - bailian: Alibaba Bailian ASR (DashScope SDK, up to 12h/2GB, ~0.79 CNY/hour)
 # - whisper_api: OpenAI Whisper API (~$0.006/min)
 asr_engine: "funasr"
 
@@ -27,7 +28,11 @@ db_path: "./data/state.db"
 # Max retry attempts for failed episodes
 max_retries: 3
 
-# Poe API call interval in seconds (rate limiting)
+# AI summary provider: auto | poe | openai | none
+# "auto" detects based on available API keys (POE_API_KEY or OPENAI_API_KEY)
+# summary_provider: "auto"
+
+# Summary API call interval in seconds (rate limiting)
 summary_cooldown: 60
 
 # Log level: DEBUG | INFO | WARNING | ERROR

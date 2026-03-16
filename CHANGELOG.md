@@ -7,16 +7,38 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Planned (v1.2.4)
-- Generic RSS/Atom feed support (not just Xiaoyuzhou via RSSHub)
-- Customizable note templates (configurable path and labels)
-- Enhanced `fm2note init` with RSSHub URL prompt and vault auto-detection
+## [1.2.6] - 2025-06-16
 
-### Planned (v1.2.5)
-- Summarizer Protocol abstraction (pluggable LLM backends)
+### Changed
+- All documentation updated to match current codebase
+- CLAUDE.md: complete rewrite with all file paths, ASR engines, summarizer modules
+- README.md / README.zh-CN.md: added Bailian engine, summary provider table, template customization
+- CONTRIBUTING.md: updated to reference Summarizer Protocol and factory pattern
+- config.example.yaml: added summary_provider, bailian engine, template_path
+- .env.example: restructured with SUMMARY_PROVIDER, SUMMARY_BASE_URL
+- help.md: removed hardcoded IPs, updated architecture and commands
+
+### Fixed
+- Default ASR engine fallback in load_config() was `tingwu`, now correctly `funasr`
+
+## [1.2.5] - 2025-06-16
+
+### Added
+- Summarizer Protocol abstraction (`src/summarizer/base.py`)
 - OpenAI-compatible summarizer (GPT-4o, DeepSeek, Groq, Ollama)
-- Summarizer factory with auto-detection
-- PyPI publication
+- Summarizer factory with auto-detection (`auto`/`poe`/`openai`/`none`)
+- `summary_provider`, `summary_base_url` config fields
+- 213 tests passing
+
+## [1.2.4] - 2025-06-16
+
+### Added
+- Generic RSS/Atom feed support (standard feeds work without RSSHub)
+- Customizable note templates (configurable path and section labels)
+- Enhanced `fm2note init` with RSSHub URL prompt and macOS vault auto-detection
+- Entries without audio enclosure automatically skipped
+- GUID fallback chain (id → link → title-based)
+- 192 tests passing
 
 ## [1.2.2] - 2025-06-15
 

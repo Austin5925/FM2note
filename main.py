@@ -260,19 +260,20 @@ def _install_launchd(python_path: str, workdir: str, log_dir: str):
     env_vars = _parse_env_file(env_path) if env_path.exists() else {}
 
     if env_vars:
-        # Insert env vars into the plist before closing EnvironmentVariables dict
+        from xml.sax.saxutils import escape as xml_escape
+
         env_xml_lines = []
         for key, value in env_vars.items():
-            env_xml_lines.append(f"        <key>{key}</key>")
-            env_xml_lines.append(f"        <string>{value}</string>")
+            env_xml_lines.append(f"        <key>{xml_escape(key)}</key>")
+            env_xml_lines.append(f"        <string>{xml_escape(value)}</string>")
         env_xml = "\n".join(env_xml_lines)
-        # Insert after the PATH entry
         plist_content = plist_content.replace(
             "    </dict>\n\n    <key>RunAtLoad</key>",
             f"{env_xml}\n    </dict>\n\n    <key>RunAtLoad</key>",
         )
 
     plist_path.write_text(plist_content, encoding="utf-8")
+    plist_path.chmod(0o600)  # restrict read access (contains API keys)
     click.echo(f"  Wrote {plist_path}")
 
     import subprocess

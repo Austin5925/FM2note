@@ -63,7 +63,9 @@ class BailianTranscriber:
 
         task_id = response.output.get("task_id")
         if not task_id:
-            raise TranscriptionError(f"百炼 ASR 未返回 task_id: {response}")
+            raise TranscriptionError(
+                f"百炼 ASR 未返回 task_id (status={getattr(response, 'status_code', '?')})"
+            )
 
         logger.info("百炼 ASR 任务已创建: task_id={}", task_id)
 

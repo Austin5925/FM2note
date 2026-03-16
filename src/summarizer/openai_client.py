@@ -65,6 +65,12 @@ class OpenAISummarizer:
                 logger.info("OpenAI API rate limit wait: {:.0f}s", wait_time)
                 await asyncio.sleep(wait_time)
 
+        # Truncate very long transcripts to avoid exceeding API context limits
+        max_chars = 80000
+        if len(text) > max_chars:
+            logger.warning("Transcript truncated for summary: {} → {} chars", len(text), max_chars)
+            text = text[:max_chars]
+
         user_content = f"Podcast title: {title}\n\nTranscript:\n{text}"
 
         payload = {

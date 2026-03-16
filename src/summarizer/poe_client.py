@@ -69,6 +69,12 @@ class PoeSummarizer:
                 logger.info("Poe API 限速等待: {:.0f}s", wait_time)
                 await asyncio.sleep(wait_time)
 
+        # Truncate very long transcripts to avoid exceeding API context limits
+        max_chars = 80000
+        if len(text) > max_chars:
+            logger.warning("Transcript truncated for summary: {} → {} chars", len(text), max_chars)
+            text = text[:max_chars]
+
         user_content = f"播客标题：{title}\n\n转写文本：\n{text}"
 
         payload = {

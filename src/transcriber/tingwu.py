@@ -88,7 +88,9 @@ class TingwuTranscriber:
         output = response.output if hasattr(response, "output") else {}
         data_id = output.get("dataId") if isinstance(output, dict) else None
         if not data_id:
-            raise TranscriptionError(f"创建任务失败: {response}")
+            raise TranscriptionError(
+                f"创建任务失败 (status={getattr(response, 'status_code', '?')})"
+            )
 
         return data_id
 

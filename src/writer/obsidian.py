@@ -9,29 +9,30 @@ from src.models import Episode
 
 
 class ObsidianWriter:
-    """Obsidian vault 文件写入器"""
+    """Obsidian vault file writer."""
 
-    # 文件名非法字符
+    # Illegal filename characters
     ILLEGAL_CHARS = re.compile(r'[/\\:*?"<>|]')
 
     def __init__(self, vault_path: str, podcast_dir: str = "Podcasts"):
-        self._vault_path = Path(vault_path)
+        self._vault_path = Path(vault_path).resolve()
         self._podcast_dir = podcast_dir
 
     def write_note(self, episode: Episode, content: str) -> Path:
-        """将 Markdown 内容写入 Obsidian vault。
+        """Write Markdown content to Obsidian vault.
 
-        路径格式：{vault_path}/{podcast_dir}/{podcast_name}/{date} {title}.md
+        Path format: {vault_path}/{podcast_dir}/{podcast_name}/{date}-{title}.md
 
         Args:
-            episode: 剧集信息
-            content: Markdown 内容
+            episode: Episode info.
+            content: Markdown content.
 
         Returns:
-            写入的文件路径
+            Written file path.
 
         Raises:
-            FileExistsError: 文件已存在
+            FileExistsError: If the note already exists.
+            ValueError: If the path would escape the vault directory.
         """
         note_path = self._build_path(episode)
 
@@ -45,22 +46,15 @@ class ObsidianWriter:
         return note_path
 
     def note_exists(self, episode: Episode) -> bool:
-        """检查笔记文件是否已存在（文件系统层去重）"""
+        """Check if note file already exists (filesystem-level dedup)."""
         return self._build_path(episode).exists()
 
     async def search_existing_mcp(self, title: str) -> bool:
-        """通过 Obsidian MCP 搜索是否已有同名笔记（第三层去重）。
+        """Search via Obsidian MCP for an existing note with the same title.
 
-        这是可选的去重机制，MCP 不可用时降级为 False。
-
-        Args:
-            title: 笔记标题
-
-        Returns:
-            是否找到同名笔记
+        Optional dedup mechanism. Degrades to False if MCP unavailable.
         """
         try:
-            # 延迟导入，MCP 不可用时不影响核心功能
             from src.writer.mcp_client import search_notes
 
             results = await search_notes(title)
@@ -74,17 +68,24 @@ class ObsidianWriter:
         return False
 
     def _build_path(self, episode: Episode) -> Path:
-        """构建笔记文件路径"""
+        """Build note file path with path traversal guard."""
         date_str = episode.pub_date.strftime("%Y-%m-%d")
         title = self._sanitize_filename(episode.title)
+        podcast_name = self._sanitize_filename(episode.podcast_name)
         filename = f"{date_str}-{title}.md"
 
-        return self._vault_path / self._podcast_dir / episode.podcast_name / filename
+        note_path = (self._vault_path / self._podcast_dir / podcast_name / filename).resolve()
+
+        # Guard against path traversal
+        if not note_path.is_relative_to(self._vault_path):
+            raise ValueError(f"Path traversal detected: {note_path}")
+
+        return note_path
 
     def _sanitize_filename(self, name: str) -> str:
-        """清理文件名，移除非法字符并截断"""
+        """Sanitize filename: remove illegal chars, strip dots, truncate."""
         cleaned = self.ILLEGAL_CHARS.sub("", name)
-        cleaned = cleaned.strip()
+        cleaned = cleaned.replace("..", "").strip(". ")
         if len(cleaned) > 200:
             cleaned = cleaned[:200]
         return cleaned or "untitled"

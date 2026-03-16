@@ -10,7 +10,7 @@ from src.models import Episode, TranscriptResult
 from src.monitor.rss_checker import RSSChecker
 from src.monitor.state import StateManager
 from src.monitor.subtitle import fetch_subtitle_from_url
-from src.summarizer.poe_client import PoeSummarizer
+from src.summarizer.base import Summarizer
 from src.transcriber.base import Transcriber
 from src.writer.markdown import MarkdownGenerator
 from src.writer.obsidian import ObsidianWriter
@@ -28,7 +28,7 @@ class Pipeline:
         md_generator: MarkdownGenerator,
         writer: ObsidianWriter,
         state: StateManager,
-        summarizer: PoeSummarizer | None = None,
+        summarizer: Summarizer | None = None,
     ):
         self._config = config
         self._rss_checker = rss_checker

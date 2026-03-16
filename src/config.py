@@ -35,12 +35,16 @@ class AppConfig:
     # TingWu AppId
     tingwu_app_id: str = ""
 
+    # AI summary provider: auto | poe | openai | none
+    summary_provider: str = "auto"
+    summary_model: str = ""  # provider default if empty
+    summary_cooldown: int = 60
+    summary_base_url: str = ""  # OpenAI-compatible endpoint (optional)
+
     # Poe API (AI summaries)
     poe_api_key: str = ""
-    summary_model: str = "GPT-5.4"
-    summary_cooldown: int = 60
 
-    # OpenAI (Whisper API)
+    # OpenAI (Whisper API + summaries)
     openai_api_key: str = ""
 
     # Custom template path (relative to project root)
@@ -99,9 +103,11 @@ def load_config(path: str | Path = "config/config.yaml") -> AppConfig:
         db_path=raw.get("db_path", "./data/state.db"),
         dashscope_api_key=os.environ.get("DASHSCOPE_API_KEY", ""),
         tingwu_app_id=os.environ.get("TINGWU_APP_ID", ""),
+        summary_provider=os.environ.get("SUMMARY_PROVIDER", raw.get("summary_provider", "auto")),
+        summary_model=os.environ.get("SUMMARY_MODEL", raw.get("summary_model", "")),
+        summary_cooldown=int(os.environ.get("SUMMARY_COOLDOWN", raw.get("summary_cooldown", 60))),
+        summary_base_url=os.environ.get("SUMMARY_BASE_URL", raw.get("summary_base_url", "")),
         poe_api_key=os.environ.get("POE_API_KEY", ""),
-        summary_model=os.environ.get("SUMMARY_MODEL", "GPT-5.4"),
-        summary_cooldown=int(os.environ.get("SUMMARY_COOLDOWN", raw.get("summary_cooldown", 30))),
         openai_api_key=os.environ.get("OPENAI_API_KEY", ""),
         template_path=raw.get("template_path", ""),
     )

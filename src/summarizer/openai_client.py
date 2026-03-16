@@ -8,68 +8,64 @@ from loguru import logger
 
 from src.models import SummaryResult
 
-SYSTEM_PROMPT = """你是播客内容分析专家。根据播客转写文本，生成：
+SYSTEM_PROMPT = """You are a podcast content analyst. Given a podcast transcript, generate:
 
-1. **摘要**（250-500 字，概括核心观点和关键讨论）
-2. **章节**（按话题自然分段，每章给出标题和一句话总结）
-3. **关键词**（5-10 个核心概念）
+1. **Summary** (250-500 words, covering core viewpoints and key discussions)
+2. **Chapters** (natural topic segments, each with a title and one-sentence summary)
+3. **Keywords** (5-10 core concepts)
 
-严格按以下 JSON 格式输出，不要添加任何其他文字：
+Output ONLY valid JSON in this exact format, no other text:
 {"summary": "...", "chapters": [{"title": "...", "summary": "..."}], "keywords": ["...", "..."]}"""
 
 
-class PoeSummarizer:
-    """通过 Poe API 调用 GPT 模型生成播客摘要。
+class OpenAISummarizer:
+    """OpenAI-compatible API summarizer.
 
-    Poe API 兼容 OpenAI Chat Completions 格式。
-    参考 MacroClaw internal/adapter/poe/client.go 实现。
+    Works with OpenAI, DeepSeek, Groq, Ollama, and any OpenAI-compatible endpoint.
     """
-
-    BASE_URL = "https://api.poe.com/v1"
 
     def __init__(
         self,
         api_key: str,
-        model: str = "GPT-5.4",
-        reasoning_effort: str = "medium",
-        cooldown: float = 60.0,
+        model: str = "gpt-4o-mini",
+        base_url: str = "https://api.openai.com/v1",
+        cooldown: float = 0,
     ):
         self._api_key = api_key
         self._model = model
-        self._reasoning_effort = reasoning_effort
+        self._base_url = base_url.rstrip("/")
         self._cooldown = cooldown
         self._last_call_time: float = 0
 
     @property
     def name(self) -> str:
-        return f"poe/{self._model}"
+        return f"openai/{self._model}"
 
     async def summarize(self, text: str, title: str, *, max_retries: int = 3) -> SummaryResult:
-        """调用 Poe API 生成播客摘要，带重试。
+        """Call OpenAI-compatible API to generate podcast summary.
 
         Args:
-            text: 转写全文
-            title: 播客标题
-            max_retries: 最大重试次数
+            text: Full transcript text.
+            title: Podcast episode title.
+            max_retries: Maximum retry attempts.
 
         Returns:
-            SummaryResult
+            SummaryResult with summary, chapters, and keywords.
 
         Raises:
-            Exception: 重试耗尽后仍失败
+            Exception: After all retries exhausted.
         """
         import asyncio
         import time
 
-        # 限速：距上次调用不足 cooldown 时等待
         if self._last_call_time > 0 and self._cooldown > 0:
             elapsed = time.monotonic() - self._last_call_time
             if elapsed < self._cooldown:
                 wait_time = self._cooldown - elapsed
-                logger.info("Poe API 限速等待: {:.0f}s", wait_time)
+                logger.info("OpenAI API rate limit wait: {:.0f}s", wait_time)
                 await asyncio.sleep(wait_time)
 
-        user_content = f"播客标题：{title}\n\n转写文本：\n{text}"
+        user_content = f"Podcast title: {title}\n\nTranscript:\n{text}"
 
         payload = {
             "model": self._model,
@@ -78,13 +74,11 @@ class PoeSummarizer:
                 {"role": "user", "content": user_content},
             ],
             "stream": False,
-            "reasoning_effort": self._reasoning_effort,
         }
 
         logger.info(
-            "Poe 摘要请求: model={}, reasoning={}, 文本长度={}",
+            "OpenAI summary request: model={}, text_length={}",
             self._model,
-            self._reasoning_effort,
             len(text),
         )
 
@@ -93,7 +87,7 @@ class PoeSummarizer:
             try:
                 async with httpx.AsyncClient(timeout=600) as client:
                     resp = await client.post(
-                        f"{self.BASE_URL}/chat/completions",
+                        f"{self._base_url}/chat/completions",
                         json=payload,
                         headers={
                             "Authorization": f"Bearer {self._api_key}",
@@ -109,7 +103,7 @@ class PoeSummarizer:
                     content = choices[0].get("message", {}).get("content", "")
 
                 if not content:
-                    raise ValueError("Poe API 返回空内容")
+                    raise ValueError("OpenAI API returned empty content")
 
                 self._last_call_time = time.monotonic()
                 return self._parse_response(content)
@@ -119,7 +113,7 @@ class PoeSummarizer:
                 if attempt < max_retries - 1:
                     wait = 2 ** (attempt + 1)
                     logger.warning(
-                        "Poe 摘要失败 (重试 {}/{}): {}: {}",
+                        "OpenAI summary failed (retry {}/{}): {}: {}",
                         attempt + 1,
                         max_retries,
                         type(e).__name__,
@@ -131,15 +125,13 @@ class PoeSummarizer:
         raise last_error  # type: ignore[misc]
 
     def _parse_response(self, content: str) -> SummaryResult:
-        """解析 LLM 返回的 JSON 内容，带容错。"""
-        # 尝试直接解析
+        """Parse LLM JSON response with fallback."""
         try:
             data = json.loads(content)
             return self._to_summary_result(data)
         except json.JSONDecodeError:
             pass
 
-        # 容错：提取 JSON 块
         match = re.search(r"\{[\s\S]*\}", content)
         if match:
             try:
@@ -148,18 +140,15 @@ class PoeSummarizer:
             except json.JSONDecodeError:
                 pass
 
-        logger.warning("Poe 响应 JSON 解析失败，使用原文作为摘要")
+        logger.warning("OpenAI response JSON parse failed, using raw text as summary")
         return SummaryResult(summary=content[:500])
 
     def _to_summary_result(self, data: dict) -> SummaryResult:
-        """将解析后的 dict 转为 SummaryResult"""
+        """Convert parsed dict to SummaryResult."""
         chapters = data.get("chapters")
         if chapters and isinstance(chapters, list):
             chapters = [
-                {
-                    "title": ch.get("title", ""),
-                    "summary": ch.get("summary", ""),
-                }
+                {"title": ch.get("title", ""), "summary": ch.get("summary", "")}
                 for ch in chapters
                 if isinstance(ch, dict)
             ]

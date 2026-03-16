@@ -148,6 +148,9 @@ make uninstall-service # 本地 Mac 卸载 launchd 服务
 - **v1.2.1** — podcast_dir 改为 10_Podcasts + launchd 服务修复
 - **v1.2.2** — 开源化基础：pyproject.toml 完整 PEP 621 + pip install 支持、fm2note init 交互式配置、install-service 动态路径生成（消除硬编码）、systemd 支持、GitHub Actions CI、MIT LICENSE、CHANGELOG/CONTRIBUTING/CODE_OF_CONDUCT、CLI 帮助英文化、示例配置分离、RSSHub 端口绑定 localhost、170 个测试用例通过
 
+- **v1.2.4** — 通用 RSS/Atom 兼容性修复 + 模板定制化（标签变量化 + 自定义模板路径）+ init 增强（RSSHub URL + vault 自动检测），192 个测试
+- **v1.2.5** — Summarizer Protocol 抽象 + OpenAI-compatible 摘要器（支持 DeepSeek/Groq/Ollama）+ 摘要器工厂（auto/poe/openai/none）+ PyPI build 验证，213 个测试
+
 ## Current Version
 
-v1.2.2 — 开源化基础（pip install + init + CI + 文档）
+v1.2.5 — LLM 摘要抽象 + PyPI 发布准备

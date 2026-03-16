@@ -380,22 +380,10 @@ def _create_md_generator(config):
 
 
 def _create_summarizer(config):
-    """Create Poe summarizer if POE_API_KEY is configured."""
-    if config.poe_api_key:
-        from src.summarizer.poe_client import PoeSummarizer
+    """Create summarizer using the factory (auto-detects provider from config)."""
+    from src.summarizer.factory import create_summarizer
 
-        logger.info(
-            "Poe summarizer enabled: model={}, cooldown={}s",
-            config.summary_model,
-            config.summary_cooldown,
-        )
-        return PoeSummarizer(
-            api_key=config.poe_api_key,
-            model=config.summary_model,
-            cooldown=float(config.summary_cooldown),
-        )
-    logger.info("No POE_API_KEY configured, skipping AI summaries")
-    return None
+    return create_summarizer(config)
 
 
 async def _run_once(config_path: str, subs_path: str):

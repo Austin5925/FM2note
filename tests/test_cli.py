@@ -16,7 +16,7 @@ class TestInit:
         result = runner.invoke(
             cli,
             ["init"],
-            input="/tmp/test-vault\nfunasr\nPodcasts\n3\n",
+            input="/tmp/test-vault\nfunasr\nPodcasts\n3\n\n",
         )
         assert result.exit_code == 0
         assert (tmp_path / "config" / "config.yaml").exists()
@@ -33,7 +33,7 @@ class TestInit:
         result = runner.invoke(
             cli,
             ["init"],
-            input="/tmp/vault\nfunasr\nPodcasts\n3\n",
+            input="/tmp/vault\nfunasr\nPodcasts\n3\n\n",
         )
         assert result.exit_code == 0
         assert (tmp_path / ".env").exists()
@@ -46,7 +46,7 @@ class TestInit:
         result = runner.invoke(
             cli,
             ["init"],
-            input="/tmp/vault\nfunasr\nPodcasts\n3\n",
+            input="/tmp/vault\nfunasr\nPodcasts\n3\n\n",
         )
         assert result.exit_code == 0
         env_content = (tmp_path / ".env").read_text()
@@ -62,7 +62,7 @@ class TestInit:
         result = runner.invoke(
             cli,
             ["init"],
-            input="n\nn\n/tmp/vault\nfunasr\nPodcasts\n3\n",
+            input="n\nn\n/tmp/vault\nfunasr\nPodcasts\n3\n\n",
         )
         assert result.exit_code == 0
         # Original file should be unchanged
@@ -74,7 +74,7 @@ class TestInit:
         result = runner.invoke(
             cli,
             ["init"],
-            input="/tmp/vault\nfunasr\nPodcasts\n3\n",
+            input="/tmp/vault\nfunasr\nPodcasts\n3\n\n",
         )
         assert "Next steps" in result.output
         assert "fm2note run-once" in result.output

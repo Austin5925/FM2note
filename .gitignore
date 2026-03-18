@@ -46,8 +46,8 @@ htmlcov/
 .ruff_cache/
 
 # Dev docs (not for production)
-research.md
-plan.md
-test.md
-docs/
+devdocs/
 transcripts/
+
+# Dev scripts
+benchmark_asr.py

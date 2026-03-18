@@ -7,7 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [1.3.0] - 2025-06-16
+## [1.3.0] - 2026-03-18
 
 ### Changed
 - API keys are no longer embedded in launchd plist files — `.env` is auto-loaded at CLI startup
@@ -27,7 +27,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Transcript text truncation (80K chars) before AI API calls
 - API response objects no longer logged in error messages (could leak auth headers)
 
-## [1.2.6] - 2025-06-16
+## [1.2.6] - 2026-03-16
 
 ### Changed
 - All documentation updated to match current codebase
@@ -41,7 +41,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 - Default ASR engine fallback in load_config() was `tingwu`, now correctly `funasr`
 
-## [1.2.5] - 2025-06-16
+## [1.2.5] - 2026-03-16
 
 ### Added
 - Summarizer Protocol abstraction (`src/summarizer/base.py`)
@@ -50,7 +50,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `summary_provider`, `summary_base_url` config fields
 - 213 tests passing
 
-## [1.2.4] - 2025-06-16
+## [1.2.4] - 2026-03-16
 
 ### Added
 - Generic RSS/Atom feed support (standard feeds work without RSSHub)
@@ -60,7 +60,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - GUID fallback chain (id → link → title-based)
 - 192 tests passing
 
-## [1.2.2] - 2025-06-15
+## [1.2.2] - 2026-03-15
 
 ### Added
 - `fm2note init` interactive setup command

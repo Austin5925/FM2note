@@ -1,12 +1,16 @@
 from __future__ import annotations
 
 from datetime import datetime
+from pathlib import Path
 
 from jinja2 import Environment, FileSystemLoader
 
 from src.models import Episode, TranscriptResult
 from src.version import VERSION
 from src.writer.html_cleaner import clean_show_notes
+
+# Package-bundled templates directory (resolved relative to this file)
+_PACKAGE_TEMPLATE_DIR = str(Path(__file__).resolve().parent.parent.parent / "templates")
 
 # Default section labels (Chinese for backward compatibility)
 DEFAULT_LABELS = {
@@ -28,10 +32,14 @@ class MarkdownGenerator:
 
     def __init__(
         self,
-        template_dir: str = "templates",
+        template_dir: str | None = None,
         template_name: str = "podcast_note.md.j2",
         labels: dict[str, str] | None = None,
     ):
+        # Resolve template directory: explicit > CWD "templates/" > package-bundled
+        if template_dir is None:
+            cwd_templates = Path("templates")
+            template_dir = str(cwd_templates) if cwd_templates.is_dir() else _PACKAGE_TEMPLATE_DIR
         self._env = Environment(
             loader=FileSystemLoader(template_dir),
             keep_trailing_newline=True,

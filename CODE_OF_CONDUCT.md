@@ -34,7 +34,7 @@ Examples of unacceptable behavior:
 
 Instances of abusive, harassing, or otherwise unacceptable behavior may be
 reported to the community leaders responsible for enforcement at
-[INSERT EMAIL].
+https://github.com/Austin5925/FM2note/issues.
 
 All complaints will be reviewed and investigated promptly and fairly. Community
 leaders are obligated to respect the privacy and security of the reporter.

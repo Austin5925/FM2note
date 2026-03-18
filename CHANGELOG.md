@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.3.1] - 2026-03-18
+
+### Changed
+- Developer docs (help/plan/research/test/dashscope-api) moved to `devdocs/` (gitignored)
+- CODE_OF_CONDUCT: enforcement contact now links to GitHub Issues
+- CHANGELOG: all version dates corrected to actual release dates
+- Template path resolution: pip-installed users auto-find package-bundled templates
+
+### Security
+- Git history rewritten to remove server IP and personal paths
+- `benchmark_asr.py` added to .gitignore
+
 ## [1.3.0] - 2026-03-18
 
 ### Changed

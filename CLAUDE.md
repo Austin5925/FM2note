@@ -143,7 +143,8 @@ make bump-minor  # 版本号 minor +1
 - **v1.2.6** — 文档全面更新：所有文档对齐最新代码
 - **v1.2.7** — 安全加固：路径遍历防护、XML 注入修复、API Key 不再写入 plist
 - **v1.3.0** — 正式公开版：.env 自动加载、API Key 彻底从 plist 移除、pip-audit 通过、216 个测试
+- **v1.3.1** — 开源前清理：开发文档迁入 devdocs/ + git 历史敏感数据清理 + 模板路径修复
 
 ## Current Version
 
-v1.3.0 — 正式公开版
+v1.3.1 — 开源前清理

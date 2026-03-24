@@ -353,17 +353,47 @@ def _parse_env_file(env_path: Path) -> dict[str, str]:
     return env_vars
 
 
-def _detect_obsidian_vault() -> str | None:
-    """Try to auto-detect Obsidian vault path on macOS."""
+def _detect_obsidian_vaults() -> list[Path]:
+    """Detect all Obsidian vault paths on macOS (iCloud + local)."""
+    vaults: list[Path] = []
     if platform.system() != "Darwin":
-        return None
-    # Common iCloud Obsidian vault location
+        return vaults
+    # iCloud Obsidian vaults
     icloud_base = Path.home() / "Library/Mobile Documents/iCloud~md~obsidian/Documents"
     if icloud_base.is_dir():
-        vaults = [d for d in icloud_base.iterdir() if d.is_dir()]
-        if len(vaults) == 1:
-            return str(vaults[0])
-    return None
+        vaults.extend(d for d in sorted(icloud_base.iterdir()) if d.is_dir())
+    # Local (non-iCloud) vaults — check Obsidian config
+    obsidian_config = Path.home() / "Library/Application Support/obsidian/obsidian.json"
+    if obsidian_config.exists():
+        try:
+            import json
+
+            data = json.loads(obsidian_config.read_text(encoding="utf-8"))
+            for _id, info in data.get("vaults", {}).items():
+                p = Path(info.get("path", ""))
+                if p.is_dir() and p not in vaults:
+                    vaults.append(p)
+        except (json.JSONDecodeError, KeyError, TypeError):
+            pass
+    return vaults
+
+
+def _detect_obsidian_vault() -> str | None:
+    """Auto-detect Obsidian vault; if multiple, let user pick."""
+    vaults = _detect_obsidian_vaults()
+    if not vaults:
+        return None
+    if len(vaults) == 1:
+        return str(vaults[0])
+    # Multiple vaults — show picker
+    click.echo("\nDetected multiple Obsidian vaults:")
+    for i, v in enumerate(vaults, 1):
+        click.echo(f"  [{i}] {v.name}  ({v})")
+    while True:
+        choice = click.prompt("Choose vault number", type=int, default=1)
+        if 1 <= choice <= len(vaults):
+            return str(vaults[choice - 1])
+        click.echo(f"  Please enter a number between 1 and {len(vaults)}")
 
 
 def _create_md_generator(config):

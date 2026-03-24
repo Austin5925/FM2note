@@ -55,7 +55,8 @@ FM2note — 播客 → Obsidian 笔记自动化管线。
 | `src/scheduler.py` | APScheduler 定时任务 |
 | `config/config.example.yaml` | 全局配置示例 |
 | `config/subscriptions.example.yaml` | 播客订阅列表示例 |
-| `templates/podcast_note.md.j2` | 笔记 Jinja2 模板（标签变量化） |
+| `src/templates/podcast_note.md.j2` | 笔记 Jinja2 模板（随 pip install 打包） |
+| `templates/podcast_note.md.j2` | 本地开发用模板副本（CWD 优先级高于包内模板） |
 
 ## 开发命令
 
@@ -144,7 +145,8 @@ make bump-minor  # 版本号 minor +1
 - **v1.2.7** — 安全加固：路径遍历防护、XML 注入修复、API Key 不再写入 plist
 - **v1.3.0** — 正式公开版：.env 自动加载、API Key 彻底从 plist 移除、pip-audit 通过、216 个测试
 - **v1.3.1** — 开源前清理：开发文档迁入 devdocs/ + git 历史敏感数据清理 + 模板路径修复
+- **v1.3.2** — pip install 端到端修复：模板打包进 wheel + 空订阅友好报错，216 个测试
 
 ## Current Version
 
-v1.3.1 — 开源前清理
+v1.3.2 — pip install 端到端修复

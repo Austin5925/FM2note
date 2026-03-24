@@ -135,8 +135,11 @@ def load_subscriptions(path: str | Path = "config/subscriptions.yaml") -> list[S
     with open(path, encoding="utf-8") as f:
         raw = yaml.safe_load(f)
 
-    if not raw or "podcasts" not in raw:
-        raise ConfigError(f"Invalid subscriptions file (missing 'podcasts' key): {path}")
+    if not raw or "podcasts" not in raw or not raw["podcasts"]:
+        raise ConfigError(
+            f"No podcasts configured in {path}. "
+            "Edit the file and add at least one podcast entry under 'podcasts:'."
+        )
 
     subscriptions = []
     for item in raw["podcasts"]:

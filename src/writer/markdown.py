@@ -9,8 +9,8 @@ from src.models import Episode, TranscriptResult
 from src.version import VERSION
 from src.writer.html_cleaner import clean_show_notes
 
-# Package-bundled templates directory (resolved relative to this file)
-_PACKAGE_TEMPLATE_DIR = str(Path(__file__).resolve().parent.parent.parent / "templates")
+# Package-bundled templates directory (inside src/templates/)
+_PACKAGE_TEMPLATE_DIR = str(Path(__file__).resolve().parent.parent / "templates")
 
 # Default section labels (Chinese for backward compatibility)
 DEFAULT_LABELS = {

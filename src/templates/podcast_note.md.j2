@@ -1,0 +1,59 @@
+---
+title: "{{ episode.title }}"
+podcast: "{{ episode.podcast_name }}"
+date: {{ episode.pub_date.strftime('%Y-%m-%d') }}
+duration: "{{ episode.duration }}"
+source: "{{ episode.link }}"
+tags:
+  - podcast
+  - {{ episode.podcast_name | replace(' ', '-') | lower }}
+{% for tag in episode.tags %}
+  - {{ tag }}
+{% endfor %}
+{% if transcript.keywords %}
+{% for kw in transcript.keywords %}
+  - {{ kw | replace(' ', '-') | lower }}
+{% endfor %}
+{% endif %}
+status: unread
+created: {{ now.strftime('%Y-%m-%dT%H:%M:%S') }}
+asr_engine: "{{ asr_engine }}"
+---
+
+# {{ episode.title }}
+
+> **{{ labels.podcast | default("播客") }}**：{{ episode.podcast_name }}
+> **{{ labels.date | default("日期") }}**：{{ episode.pub_date.strftime('%Y-%m-%d') }}
+> **{{ labels.duration | default("时长") }}**：{{ episode.duration }}
+> **{{ labels.link | default("链接") }}**：[{{ labels.link_text | default("小宇宙") }}]({{ episode.link }})
+
+{% if transcript.summary %}
+## {{ labels.ai_summary | default("AI 摘要") }}
+
+{{ transcript.summary }}
+
+{% endif %}
+{% if transcript.chapters %}
+## {{ labels.chapters | default("章节速览") }}
+
+{% for ch in transcript.chapters %}
+### {{ ch.title }}
+
+{{ ch.summary }}
+
+{% endfor %}
+{% endif %}
+## {{ labels.show_notes | default("Show Notes") }}
+
+{{ show_notes_cleaned }}
+
+## {{ labels.transcript | default("全文转写") }}
+
+{% for para in transcript.paragraphs %}
+{{ para }}
+
+{% endfor %}
+
+---
+
+_{{ (labels.footer | default("由 FM2note v{version} 自动生成")).format(version=version) }}_

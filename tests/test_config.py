@@ -84,7 +84,7 @@ class TestLoadSubscriptions:
     def test_empty_file_raises_error(self, tmp_path):
         empty = tmp_path / "empty.yaml"
         empty.write_text("", encoding="utf-8")
-        with pytest.raises(ConfigError, match="Invalid subscriptions file"):
+        with pytest.raises(ConfigError, match="No podcasts configured"):
             load_subscriptions(empty)
 
     def test_missing_podcasts_key_raises_error(self, tmp_path):

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime
+from pathlib import Path
 
 import aiosqlite
 from loguru import logger
@@ -31,6 +32,7 @@ class StateManager:
 
     async def init(self):
         """初始化数据库连接和表"""
+        Path(self._db_path).parent.mkdir(parents=True, exist_ok=True)
         self._db = await aiosqlite.connect(self._db_path)
         await self._db.execute(CREATE_TABLE_SQL)
         await self._db.commit()

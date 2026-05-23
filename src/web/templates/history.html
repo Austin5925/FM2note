@@ -4,11 +4,30 @@
 
 {% block content %}
 <section>
-  <h2 class="text-2xl font-semibold mb-2">历史</h2>
-  <p class="text-stone-500 text-sm mb-6">最近转录过的剧集。</p>
-
-  <div class="p-8 border-2 border-dashed border-stone-300 rounded-lg text-center text-sm text-stone-400">
-    v1.4.1 即将开放
+  <div class="flex items-center justify-between mb-6">
+    <div>
+      <h2 class="text-2xl font-semibold">历史</h2>
+      <p class="text-stone-500 text-sm">最近转录过的剧集 + 待补摘要。</p>
+    </div>
+    <button id="retry-all-btn"
+            class="hidden px-3 py-1.5 rounded-md bg-amber-600 text-white text-xs hover:bg-amber-500">
+      重试所有失败摘要
+    </button>
   </div>
+
+  <div id="history-loading" class="text-sm text-stone-400">加载中…</div>
+  <div id="history-empty" class="hidden p-8 border-2 border-dashed border-stone-300 rounded-lg text-center text-sm text-stone-400">
+    还没有处理过的剧集。去转录一集试试？
+  </div>
+  <ul id="history-list" class="hidden space-y-3"></ul>
+
+  <h3 id="pending-heading" class="hidden text-sm font-semibold text-amber-700 mt-10 mb-3">
+    待补摘要
+  </h3>
+  <ul id="pending-list" class="hidden space-y-3"></ul>
 </section>
+{% endblock %}
+
+{% block scripts %}
+<script src="/static/history.js"></script>
 {% endblock %}

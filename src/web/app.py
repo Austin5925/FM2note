@@ -6,7 +6,7 @@ from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 
 from src.version import VERSION
-from src.web.routes import pages, settings_api, transcribe
+from src.web.routes import balance, history, pages, settings_api, subscriptions, transcribe
 
 _STATIC_DIR = Path(__file__).resolve().parent / "static"
 
@@ -20,6 +20,9 @@ def create_app() -> FastAPI:
     app.include_router(pages.router)
     app.include_router(transcribe.router)
     app.include_router(settings_api.router)
+    app.include_router(history.router)
+    app.include_router(subscriptions.router)
+    app.include_router(balance.router)
 
     @app.get("/healthz")
     async def healthz() -> dict:

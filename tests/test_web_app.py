@@ -43,12 +43,14 @@ class TestPages:
     def test_history_page_renders(self, client):
         r = client.get("/history")
         assert r.status_code == 200
-        assert "v1.4.1 即将开放" in r.text
+        assert "最近转录过的剧集" in r.text
+        assert "/static/history.js" in r.text
 
     def test_subscriptions_page_renders(self, client):
         r = client.get("/subscriptions")
         assert r.status_code == 200
-        assert "v1.4.1 即将开放" in r.text
+        assert "管理播客 RSS 订阅" in r.text
+        assert "/static/subscriptions.js" in r.text
 
     def test_settings_page_renders(self, client):
         r = client.get("/settings")

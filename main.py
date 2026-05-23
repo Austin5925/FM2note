@@ -130,11 +130,16 @@ def retry_summaries(config_path: str):
 
 
 @cli.command()
-@click.option("--host", default="127.0.0.1", show_default=True, help="Bind address")
 @click.option("--port", default=7878, show_default=True, type=int, help="Bind port")
 @click.option("--no-browser", is_flag=True, help="Do not auto-open the browser")
-def web(host: str, port: int, no_browser: bool):
-    """Launch the local Web UI (http://127.0.0.1:7878 by default)."""
+def web(port: int, no_browser: bool):
+    """Launch the local Web UI.
+
+    Always binds to 127.0.0.1 — exposing FM2note to a routable interface would
+    create SSRF risk via the subscription/transcribe URL inputs and leak the
+    settings UI (which can read/write API keys). Use a reverse proxy if you need
+    LAN access.
+    """
     import threading
     import webbrowser
 
@@ -149,6 +154,7 @@ def web(host: str, port: int, no_browser: bool):
 
     from src.web.app import create_app
 
+    host = "127.0.0.1"
     app = create_app()
     if not no_browser:
         threading.Timer(
@@ -156,6 +162,47 @@ def web(host: str, port: int, no_browser: bool):
         ).start()
     logger.info("FM2note v{} — web UI at http://{}:{}", VERSION, host, port)
     uvicorn.run(app, host=host, port=port, log_level="warning")
+
+
+@cli.command("install-shortcut")
+@click.option("--dir", "target_dir", default=None, help="Where to put the shortcut (default: Desktop)")
+def install_shortcut(target_dir: str | None):
+    """Drop a double-clickable launcher on the Desktop (macOS) or HOME (Linux)."""
+    if platform.system() == "Darwin":
+        target = Path(target_dir).expanduser() if target_dir else Path.home() / "Desktop"
+        shortcut_path = target / "FM2note.command"
+        workdir = Path.cwd().resolve()
+        shortcut_path.write_text(
+            dedent(f"""\
+                #!/bin/bash
+                # FM2note launcher (auto-generated)
+                cd "{workdir}" 2>/dev/null || cd "$HOME"
+                exec fm2note web
+            """),
+            encoding="utf-8",
+        )
+        shortcut_path.chmod(0o755)
+        click.echo(f"  Created {shortcut_path}")
+        click.echo(
+            "  首次双击若被 macOS 拦截，右键 → 打开 → 确认即可（仅需一次）"
+        )
+    elif platform.system() == "Linux":
+        target = Path(target_dir).expanduser() if target_dir else Path.home()
+        shortcut_path = target / "fm2note.sh"
+        workdir = Path.cwd().resolve()
+        shortcut_path.write_text(
+            dedent(f"""\
+                #!/bin/bash
+                cd "{workdir}" 2>/dev/null || cd "$HOME"
+                exec fm2note web
+            """),
+            encoding="utf-8",
+        )
+        shortcut_path.chmod(0o755)
+        click.echo(f"  Created {shortcut_path}")
+    else:
+        click.echo("install-shortcut: unsupported platform", err=True)
+        sys.exit(1)
 
 
 @cli.command()

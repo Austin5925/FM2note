@@ -14,21 +14,27 @@
         <h1 class="text-lg font-semibold tracking-tight">FM2note</h1>
         <span class="text-xs text-stone-400">v{{ version }}</span>
       </div>
-      <nav class="flex items-center gap-1 text-sm">
-        {% set tabs = [
-          ('transcribe', '/', '转录'),
-          ('history', '/history', '历史'),
-          ('subscriptions', '/subscriptions', '订阅'),
-          ('settings', '/settings', '设置')
-        ] %}
-        {% for key, href, label in tabs %}
-          <a href="{{ href }}"
-             class="px-3 py-1.5 rounded-md transition-colors
-                    {% if active == key %}bg-stone-900 text-white{% else %}text-stone-600 hover:bg-stone-100{% endif %}">
-            {{ label }}
-          </a>
-        {% endfor %}
-      </nav>
+      <div class="flex items-center gap-3">
+        <a id="balance-badge"
+           href="/settings"
+           class="hidden text-xs px-2 py-1 rounded-md border border-stone-200 hover:bg-stone-50"
+           title="点击查看余额详情"></a>
+        <nav class="flex items-center gap-1 text-sm">
+          {% set tabs = [
+            ('transcribe', '/', '转录'),
+            ('history', '/history', '历史'),
+            ('subscriptions', '/subscriptions', '订阅'),
+            ('settings', '/settings', '设置')
+          ] %}
+          {% for key, href, label in tabs %}
+            <a href="{{ href }}"
+               class="px-3 py-1.5 rounded-md transition-colors
+                      {% if active == key %}bg-stone-900 text-white{% else %}text-stone-600 hover:bg-stone-100{% endif %}">
+              {{ label }}
+            </a>
+          {% endfor %}
+        </nav>
+      </div>
     </div>
   </header>
 
@@ -36,10 +42,33 @@
     {% block content %}{% endblock %}
   </main>
 
+  <!-- Balance critical modal -->
+  <div id="balance-modal" class="hidden fixed inset-0 bg-black/40 flex items-center justify-center z-50">
+    <div class="bg-white rounded-xl max-w-sm w-full p-6 mx-4 shadow-xl">
+      <h3 class="text-lg font-semibold mb-2">阿里云余额不足 ⚠️</h3>
+      <div id="balance-modal-amount" class="text-sm text-stone-600 mb-4"></div>
+      <div class="text-sm text-stone-700 mb-4">
+        提醒男朋友给阿里云充值，否则转录可能失败。
+      </div>
+      <img id="balance-qr"
+           src="/static/payment-qr.png"
+           alt="收款码"
+           class="hidden w-full max-w-[240px] mx-auto rounded border border-stone-200"
+           onerror="this.classList.add('hidden')" />
+      <div class="mt-4 flex justify-end gap-2">
+        <button id="balance-modal-close"
+                class="px-3 py-1.5 rounded-md border border-stone-300 text-xs hover:bg-stone-50">
+          知道了
+        </button>
+      </div>
+    </div>
+  </div>
+
   <footer class="text-center text-xs text-stone-400 py-6">
     FM2note · 本地运行 · 数据不上传
   </footer>
 
+  <script src="/static/balance-badge.js"></script>
   {% block scripts %}{% endblock %}
 </body>
 </html>

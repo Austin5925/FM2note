@@ -4,11 +4,67 @@
 
 {% block content %}
 <section>
-  <h2 class="text-2xl font-semibold mb-2">订阅</h2>
-  <p class="text-stone-500 text-sm mb-6">管理 RSS 播客订阅。</p>
-
-  <div class="p-8 border-2 border-dashed border-stone-300 rounded-lg text-center text-sm text-stone-400">
-    v1.4.1 即将开放
+  <div class="flex items-center justify-between mb-6">
+    <div>
+      <h2 class="text-2xl font-semibold">订阅</h2>
+      <p class="text-stone-500 text-sm">管理播客 RSS 订阅，定时任务会自动抓新剧集。</p>
+    </div>
+    <button id="add-sub-btn"
+            class="px-3 py-1.5 rounded-md bg-stone-900 text-white text-xs hover:bg-stone-700">
+      + 添加
+    </button>
   </div>
+
+  <div id="subs-loading" class="text-sm text-stone-400">加载中…</div>
+  <div id="subs-empty" class="hidden p-8 border-2 border-dashed border-stone-300 rounded-lg text-center text-sm text-stone-400">
+    还没有订阅。点右上角"+ 添加"加一个 RSS。
+  </div>
+  <ul id="subs-list" class="hidden space-y-3"></ul>
 </section>
+
+<!-- Add/Edit dialog -->
+<div id="sub-modal" class="hidden fixed inset-0 bg-black/40 flex items-center justify-center z-50">
+  <div class="bg-white rounded-xl max-w-md w-full p-6 mx-4 shadow-xl">
+    <h3 id="sub-modal-title" class="text-lg font-semibold mb-4">添加播客</h3>
+    <form id="sub-form" class="space-y-3" onsubmit="return false;">
+      <input type="hidden" id="sub-index" value="" />
+      <div>
+        <label class="text-xs text-stone-600">名称</label>
+        <input id="sub-name" type="text" required
+               class="w-full px-3 py-2 mt-1 rounded-md border border-stone-300 text-sm" />
+      </div>
+      <div>
+        <label class="text-xs text-stone-600">RSS URL</label>
+        <input id="sub-rss" type="url" required
+               class="w-full px-3 py-2 mt-1 rounded-md border border-stone-300 text-sm" />
+      </div>
+      <div>
+        <label class="text-xs text-stone-600">标签（逗号分隔，可选）</label>
+        <input id="sub-tags" type="text"
+               class="w-full px-3 py-2 mt-1 rounded-md border border-stone-300 text-sm" />
+      </div>
+      <div id="sub-test-result" class="text-xs"></div>
+      <div class="flex justify-between items-center pt-2">
+        <button id="sub-test-btn" type="button"
+                class="px-3 py-1.5 rounded-md border border-stone-300 text-xs hover:bg-stone-50">
+          测试连接
+        </button>
+        <div class="flex gap-2">
+          <button id="sub-cancel-btn" type="button"
+                  class="px-3 py-1.5 rounded-md border border-stone-300 text-xs hover:bg-stone-50">
+            取消
+          </button>
+          <button id="sub-save-btn" type="button"
+                  class="px-3 py-1.5 rounded-md bg-stone-900 text-white text-xs hover:bg-stone-700">
+            保存
+          </button>
+        </div>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="/static/subscriptions.js"></script>
 {% endblock %}

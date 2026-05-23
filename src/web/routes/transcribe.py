@@ -11,6 +11,7 @@ from loguru import logger
 
 from src.config import load_config
 from src.transcribe_flow import preview_episode, transcribe_single_url
+from src.web.paths import CONFIG_PATH
 from src.web.progress import ProgressEvent, get_bus
 
 router = APIRouter(prefix="/api")
@@ -43,9 +44,8 @@ async def submit_transcribe(payload: dict) -> dict:
     if not url:
         raise HTTPException(status_code=400, detail="url is required")
 
-    config_path = (payload or {}).get("config_path", "config/config.yaml")
     try:
-        config = load_config(config_path)
+        config = load_config(CONFIG_PATH)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"load_config failed: {e}") from e
 

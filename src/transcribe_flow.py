@@ -44,6 +44,27 @@ def _emit(callback: ProgressCallback | None, stage: str, status: str, message: s
         logger.warning("Progress callback raised: {}: {}", type(e).__name__, e)
 
 
+_XIAOYUZHOU_HOSTS = frozenset({"www.xiaoyuzhoufm.com", "xiaoyuzhoufm.com"})
+
+
+def _is_xiaoyuzhou_episode_url(url: str) -> bool:
+    """Strict host + path check to prevent SSRF via substring spoofing.
+
+    A URL like ``http://attacker/xiaoyuzhoufm.com/episode/x`` must be rejected.
+    """
+    from urllib.parse import urlparse
+
+    try:
+        parsed = urlparse(url)
+    except (TypeError, ValueError):
+        return False
+    if parsed.scheme not in ("http", "https"):
+        return False
+    if parsed.hostname not in _XIAOYUZHOU_HOSTS:
+        return False
+    return parsed.path.startswith("/episode/")
+
+
 async def _resolve_episode_url(
     url: str,
 ) -> tuple[str, str | None, str | None, str, str | None]:
@@ -57,7 +78,7 @@ async def _resolve_episode_url(
 
     import httpx
 
-    if "xiaoyuzhoufm.com/episode/" not in url:
+    if not _is_xiaoyuzhou_episode_url(url):
         return url, None, None, "", None
 
     logger.info("Detected Xiaoyuzhou episode URL, parsing metadata...")
@@ -225,6 +246,26 @@ async def transcribe_single_url(
             note_path=str(note_path),
             podcast_name=podcast_name,
         )
+
+    # Best-effort: record this single-URL transcribe in state.db so it shows up
+    # in the history page. Failures here must not abort the pipeline.
+    try:
+        from src.monitor.state import StateManager
+
+        state = StateManager(config.db_path)
+        await state.init()
+        try:
+            await state.mark_status(
+                resolved_url,
+                "done",
+                podcast_name=podcast_name,
+                title=title,
+                note_path=str(note_path),
+            )
+        finally:
+            await state.close()
+    except Exception as e:
+        logger.warning("state.db write skipped: {}: {}", type(e).__name__, e)
 
     elapsed_ms = int((time.monotonic() - started_at) * 1000)
     return TranscribeOutcome(

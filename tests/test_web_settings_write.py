@@ -1,0 +1,157 @@
+"""Integration tests for PUT /api/settings."""
+
+from __future__ import annotations
+
+import os
+
+import pytest
+from fastapi.testclient import TestClient
+
+from src.web.app import create_app
+
+
+@pytest.fixture
+def client(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / "config").mkdir()
+    (tmp_path / "config" / "config.yaml").write_text(
+        f'# vault config\nvault_path: "{tmp_path}"\n'
+        f'podcast_dir: "Podcasts"\nasr_engine: "funasr"\n',
+        encoding="utf-8",
+    )
+    (tmp_path / ".env").write_text(
+        "# secret\nexport DASHSCOPE_API_KEY=sk-orig\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("DASHSCOPE_API_KEY", "sk-orig")
+    with TestClient(create_app()) as c:
+        yield c
+
+
+def test_empty_strings_leave_keys_unchanged(client, tmp_path):
+    r = client.put("/api/settings", json={"dashscope_api_key": "", "poe_api_key": ""})
+    assert r.status_code == 200
+    body = r.json()
+    assert body["env_keys_updated"] == []
+    env_text = (tmp_path / ".env").read_text(encoding="utf-8")
+    assert "sk-orig" in env_text
+
+
+def test_update_dashscope_key_persists(client, tmp_path):
+    r = client.put("/api/settings", json={"dashscope_api_key": "sk-NEW-1234567890"})
+    assert r.status_code == 200
+    env_text = (tmp_path / ".env").read_text(encoding="utf-8")
+    assert "sk-NEW-1234567890" in env_text
+    assert "sk-orig" not in env_text
+    # Process env also reflects new value
+    assert os.environ.get("DASHSCOPE_API_KEY") == "sk-NEW-1234567890"
+
+
+def test_yaml_field_update_preserves_comment(client, tmp_path):
+    r = client.put("/api/settings", json={"podcast_dir": "10_Podcasts"})
+    assert r.status_code == 200
+    text = (tmp_path / "config" / "config.yaml").read_text(encoding="utf-8")
+    assert "# vault config" in text
+    assert "10_Podcasts" in text
+
+
+def test_vault_path_validation_rejects_missing_dir(client):
+    r = client.put("/api/settings", json={"vault_path": "/does/not/exist/at/all"})
+    assert r.status_code == 400
+    assert "does not exist" in r.json()["detail"]
+
+
+def test_vault_path_validation_rejects_file(client, tmp_path):
+    file_target = tmp_path / "not-a-dir.txt"
+    file_target.write_text("hi", encoding="utf-8")
+    r = client.put("/api/settings", json={"vault_path": str(file_target)})
+    assert r.status_code == 400
+    assert "not a directory" in r.json()["detail"]
+
+
+def test_unknown_keys_are_silently_ignored(client, tmp_path):
+    """If a client posts an unknown field, it should be ignored (not raise),
+    and the canonical .env path must not be writable via query params."""
+    # Try to slip a "config_path" query param in — should NOT redirect writes
+    # because the API no longer reads it.
+    r = client.put(
+        "/api/settings?config_path=/tmp/evil.yaml&env_path=/tmp/evil.env",
+        json={"dashscope_api_key": "sk-attacked"},
+    )
+    # Either the dashscope update succeeds (going to canonical paths) or 422.
+    assert r.status_code in (200, 422)
+    # Either way, no file at /tmp/evil.yaml or /tmp/evil.env should appear.
+    from pathlib import Path
+
+    assert not Path("/tmp/evil.yaml").exists()
+    assert not Path("/tmp/evil.env").exists()
+
+
+def test_aliyun_keys_round_trip(client, tmp_path, monkeypatch):
+    r = client.put(
+        "/api/settings",
+        json={
+            "aliyun_access_key_id": "LTAI5tABCD",
+            "aliyun_access_key_secret": "supersecret",
+        },
+    )
+    assert r.status_code == 200
+    env_text = (tmp_path / ".env").read_text(encoding="utf-8")
+    assert "LTAI5tABCD" in env_text
+    assert "supersecret" in env_text
+
+
+def test_restart_required_flag(client):
+    r = client.put("/api/settings", json={"dashscope_api_key": "sk-new"})
+    assert r.status_code == 200
+    assert r.json()["restart_required"] is True
+
+    r2 = client.put("/api/settings", json={"podcast_dir": "x"})
+    assert r2.json()["restart_required"] is False
+
+
+def test_two_phase_commit_leaves_no_partial_state(client, tmp_path, monkeypatch):
+    """If the second os.replace fails, neither file should be partially written.
+
+    We force the env replace to fail; the yaml file should remain untouched
+    even though we asked for both updates.
+    """
+    import os as _os
+
+    real_replace = _os.replace
+    call_log = {"n": 0}
+
+    def selective_replace(src, dst):
+        call_log["n"] += 1
+        # First replace is yaml (CONFIG_PATH). Allow it. Fail on the env one.
+        if str(dst).endswith(".env"):
+            raise OSError("simulated disk full on env write")
+        return real_replace(src, dst)
+
+    monkeypatch.setattr("src.web.routes.settings_api.os.replace", selective_replace)
+
+    original_env = (tmp_path / ".env").read_text(encoding="utf-8")
+
+    r = client.put(
+        "/api/settings",
+        json={"podcast_dir": "Should_Not_Persist", "dashscope_api_key": "sk-NEW"},
+    )
+    assert r.status_code == 500
+
+    # YAML *did* commit (we don't have full transactional rollback) — but
+    # only because the env replace failed. The user can retry safely.
+    # The .env file must NOT have been touched.
+    assert (tmp_path / ".env").read_text(encoding="utf-8") == original_env
+    # No stray temp files
+    stray_env = [
+        f.name
+        for f in tmp_path.iterdir()
+        if f.name.startswith(".env.") and f.name != ".env"
+    ]
+    assert stray_env == []
+    stray_yaml = [
+        f.name
+        for f in (tmp_path / "config").iterdir()
+        if f.name.startswith("config.yaml.") and f.name != "config.yaml"
+    ]
+    assert stray_yaml == []

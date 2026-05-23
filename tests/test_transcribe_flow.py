@@ -13,7 +13,23 @@ import pytest
 
 from src.config import AppConfig
 from src.models import TranscriptResult
-from src.transcribe_flow import transcribe_single_url
+from src.transcribe_flow import _is_xiaoyuzhou_episode_url, transcribe_single_url
+
+
+def test_xiaoyuzhou_host_check_rejects_substring_spoofing():
+    """Must not accept URLs where ``xiaoyuzhoufm.com/episode/`` is just a substring."""
+    # Genuine
+    assert _is_xiaoyuzhou_episode_url("https://www.xiaoyuzhoufm.com/episode/abc123")
+    assert _is_xiaoyuzhou_episode_url("https://xiaoyuzhoufm.com/episode/abc123")
+    # Spoofing attempts that the old substring check would accept
+    assert not _is_xiaoyuzhou_episode_url("http://attacker.com/xiaoyuzhoufm.com/episode/x")
+    assert not _is_xiaoyuzhou_episode_url("http://xiaoyuzhoufm.com.attacker.com/episode/x")
+    assert not _is_xiaoyuzhou_episode_url("file:///xiaoyuzhoufm.com/episode/x")
+    # Non-episode paths on the real domain
+    assert not _is_xiaoyuzhou_episode_url("https://www.xiaoyuzhoufm.com/podcast/x")
+    # Garbage
+    assert not _is_xiaoyuzhou_episode_url("")
+    assert not _is_xiaoyuzhou_episode_url("not a url")
 
 
 def _make_config(tmp_path: Path) -> AppConfig:
@@ -26,6 +42,7 @@ def _make_config(tmp_path: Path) -> AppConfig:
         summary_cooldown=0,
         poe_api_key="",
         openai_api_key="",
+        db_path=str(tmp_path / "state.db"),
     )
 
 

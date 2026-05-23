@@ -5,60 +5,70 @@
 {% block content %}
 <section>
   <h2 class="text-2xl font-semibold mb-2">设置</h2>
-  <p class="text-stone-500 text-sm mb-6">当前配置（v1.4.0 仅展示，编辑功能将在 v1.4.1 开放）。</p>
+  <p class="text-stone-500 text-sm mb-6">
+    密钥字段留空不会改动原值；要清除某个密钥请在该字段输入空格后保存（暂不支持）。
+  </p>
 
-  <div id="settings-container" class="space-y-6">
-    <div class="text-sm text-stone-400">加载中…</div>
-  </div>
+  <form id="settings-form" class="space-y-6" onsubmit="return false;">
+    <div class="border border-stone-200 rounded-lg bg-white p-5">
+      <h3 class="text-sm font-semibold text-stone-700 mb-3">存储</h3>
+      <label class="block text-xs text-stone-600 mt-2">Obsidian Vault 路径</label>
+      <input id="vault_path" type="text"
+             class="w-full px-3 py-2 mt-1 rounded-md border border-stone-300 text-sm" />
+      <label class="block text-xs text-stone-600 mt-3">笔记子目录</label>
+      <input id="podcast_dir" type="text"
+             class="w-full px-3 py-2 mt-1 rounded-md border border-stone-300 text-sm" />
+    </div>
+
+    <div class="border border-stone-200 rounded-lg bg-white p-5">
+      <h3 class="text-sm font-semibold text-stone-700 mb-3">引擎</h3>
+      <label class="block text-xs text-stone-600">语音转文字</label>
+      <select id="asr_engine"
+              class="w-full px-3 py-2 mt-1 rounded-md border border-stone-300 text-sm">
+        <option value="funasr">funasr</option>
+        <option value="paraformer">paraformer</option>
+        <option value="tingwu">tingwu</option>
+        <option value="whisper_api">whisper_api</option>
+      </select>
+      <label class="block text-xs text-stone-600 mt-3">AI 摘要提供方</label>
+      <select id="summary_provider"
+              class="w-full px-3 py-2 mt-1 rounded-md border border-stone-300 text-sm">
+        <option value="auto">auto</option>
+        <option value="poe">poe</option>
+        <option value="openai">openai</option>
+        <option value="none">none</option>
+      </select>
+      <label class="block text-xs text-stone-600 mt-3">摘要模型（留空使用默认）</label>
+      <input id="summary_model" type="text"
+             placeholder="GPT-5.5 / gpt-4o-mini / …"
+             class="w-full px-3 py-2 mt-1 rounded-md border border-stone-300 text-sm" />
+    </div>
+
+    <div class="border border-stone-200 rounded-lg bg-white p-5">
+      <h3 class="text-sm font-semibold text-stone-700 mb-3">API 密钥</h3>
+      <div id="key-fields" class="space-y-3"></div>
+    </div>
+
+    <div class="border border-stone-200 rounded-lg bg-white p-5">
+      <h3 class="text-sm font-semibold text-stone-700 mb-3">阿里云余额查询（可选）</h3>
+      <p class="text-xs text-stone-500 mb-3">
+        填入只挂 <code>AliyunBSSReadOnlyAccess</code> 权限的 RAM 子账号 AK/SK 后，
+        顶部会显示余额徽章；余额低于 ¥10 会弹出提醒。
+      </p>
+      <div id="aliyun-fields" class="space-y-3"></div>
+    </div>
+
+    <div class="flex items-center justify-end gap-3 sticky bottom-4">
+      <div id="save-status" class="text-xs text-stone-500"></div>
+      <button id="save-btn"
+              class="px-4 py-2 rounded-md bg-stone-900 text-white text-sm hover:bg-stone-700">
+        保存
+      </button>
+    </div>
+  </form>
 </section>
 {% endblock %}
 
 {% block scripts %}
-<script>
-async function loadSettings() {
-  const c = document.getElementById('settings-container');
-  try {
-    const resp = await fetch('/api/settings');
-    if (!resp.ok) throw new Error('HTTP ' + resp.status);
-    const s = await resp.json();
-    c.innerHTML = `
-      <div class="border border-stone-200 rounded-lg bg-white p-5">
-        <h3 class="text-sm font-semibold text-stone-700 mb-3">存储</h3>
-        <dl class="text-sm space-y-2">
-          <div class="flex justify-between gap-4"><dt class="text-stone-500">Obsidian Vault</dt><dd class="text-right break-all">${s.vault_path}</dd></div>
-          <div class="flex justify-between gap-4"><dt class="text-stone-500">笔记子目录</dt><dd>${s.podcast_dir}</dd></div>
-        </dl>
-      </div>
-      <div class="border border-stone-200 rounded-lg bg-white p-5">
-        <h3 class="text-sm font-semibold text-stone-700 mb-3">引擎</h3>
-        <dl class="text-sm space-y-2">
-          <div class="flex justify-between gap-4"><dt class="text-stone-500">语音转文字</dt><dd>${s.asr_engine}</dd></div>
-          <div class="flex justify-between gap-4"><dt class="text-stone-500">AI 摘要</dt><dd>${s.summary_provider} · ${s.summary_model}</dd></div>
-          <div class="flex justify-between gap-4"><dt class="text-stone-500">摘要间隔</dt><dd>${s.summary_cooldown}s</dd></div>
-        </dl>
-      </div>
-      <div class="border border-stone-200 rounded-lg bg-white p-5">
-        <h3 class="text-sm font-semibold text-stone-700 mb-3">API 密钥</h3>
-        <dl class="text-sm space-y-2">
-          ${renderKey('DashScope (语音)', s.keys.dashscope)}
-          ${renderKey('Poe (摘要)', s.keys.poe)}
-          ${renderKey('OpenAI', s.keys.openai)}
-          ${renderKey('TingWu App ID', s.keys.tingwu_app_id)}
-        </dl>
-      </div>
-    `;
-  } catch (e) {
-    c.innerHTML = `<div class="text-sm text-red-600">加载失败：${e.message}</div>`;
-  }
-}
-
-function renderKey(label, info) {
-  const status = info.configured
-    ? `<span class="text-emerald-600">✓ 已配置</span> <span class="text-stone-400 font-mono text-xs">${info.preview}</span>`
-    : `<span class="text-stone-400">未配置</span>`;
-  return `<div class="flex justify-between gap-4"><dt class="text-stone-500">${label}</dt><dd>${status}</dd></div>`;
-}
-
-loadSettings();
-</script>
+<script src="/static/settings.js"></script>
 {% endblock %}

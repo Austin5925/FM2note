@@ -148,7 +148,8 @@ make bump-minor  # 版本号 minor +1
 - **v1.3.2** — pip install 端到端修复：模板打包进 wheel + 空订阅友好报错，216 个测试
 - **v1.3.3** — Poe 默认模型升级 GPT-5.4 → GPT-5.5
 - **v1.4.0** — Web UI MVP：FastAPI + SSE 转录主页 + `fm2note web` 命令 + 设置页只读视图 + 历史/订阅占位，新增 30 个测试
+- **v1.4.1** — Web UI 功能完整：历史/订阅/设置可写 + 阿里云余额徽章（方案 A: BSS OpenAPI + RAM 子账号）+ 桌面快捷方式 + 两阶段提交 + SSRF 加固，171 个测试，Codex Code Review 通过
 
 ## Current Version
 
-v1.4.0 — Web UI MVP（转录主页 + SSE 进度 + 设置只读）
+v1.4.1 — Web UI 完整 + 阿里云余额查询 + 安全加固

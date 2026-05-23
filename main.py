@@ -164,23 +164,122 @@ def web(port: int, no_browser: bool):
     uvicorn.run(app, host=host, port=port, log_level="warning")
 
 
+@cli.command()
+@click.option("--port", default=7878, show_default=True, type=int, help="Bind port")
+def app(port: int):
+    """Launch the Web UI inside a native desktop window (requires fm2note[app]).
+
+    Same backend as ``fm2note web`` but wrapped in a PyWebView window so users
+    don't need to switch to a browser tab. Closing the window stops the server.
+    Falls back with a helpful message if pywebview isn't installed.
+    """
+    try:
+        import webview
+    except ImportError:
+        click.echo(
+            "pywebview 未安装。运行：\n"
+            "  pip install --upgrade 'fm2note[app]'\n"
+            "或继续用 fm2note web（浏览器模式）。",
+            err=True,
+        )
+        sys.exit(1)
+
+    try:
+        import uvicorn
+    except ImportError:
+        click.echo("uvicorn 未安装。请重新安装 fm2note。", err=True)
+        sys.exit(1)
+
+    import threading
+    import time
+    import urllib.request
+
+    from src.web.app import create_app
+
+    host = "127.0.0.1"
+    fastapi_app = create_app()
+
+    server_config = uvicorn.Config(fastapi_app, host=host, port=port, log_level="warning")
+    server = uvicorn.Server(server_config)
+
+    def _run_server():
+        server.run()
+
+    t = threading.Thread(target=_run_server, daemon=True)
+    t.start()
+
+    # Wait until the server is ready (max ~6s). Abort with a clear error if it
+    # never comes up — opening a window onto a dead server is worse than failing fast.
+    ready = False
+    deadline = time.monotonic() + 6.0
+    while time.monotonic() < deadline:
+        try:
+            with urllib.request.urlopen(f"http://{host}:{port}/healthz", timeout=0.3):
+                ready = True
+                break
+        except Exception:
+            time.sleep(0.2)
+    if not ready:
+        click.echo(
+            f"启动失败：等待 http://{host}:{port}/healthz 超时（6s）。"
+            "可能是端口被占用，请用 --port 换一个。",
+            err=True,
+        )
+        sys.exit(1)
+
+    logger.info("FM2note v{} — desktop app at http://{}:{}", VERSION, host, port)
+    webview.create_window(
+        "FM2note",
+        f"http://{host}:{port}",
+        width=900,
+        height=900,
+        min_size=(700, 700),
+    )
+    webview.start()
+    # Window closed → shut down uvicorn. The thread is a daemon, so even if join
+    # times out the OS will release the socket on process exit.
+    server.should_exit = True
+    t.join(timeout=3)
+    if t.is_alive():
+        logger.warning("uvicorn 关停超时；进程退出时由内核回收端口")
+
+
 @cli.command("install-shortcut")
 @click.option("--dir", "target_dir", default=None, help="Where to put the shortcut (default: Desktop)")
-def install_shortcut(target_dir: str | None):
-    """Drop a double-clickable launcher on the Desktop (macOS) or HOME (Linux)."""
+@click.option("--mode", type=click.Choice(["app", "web"]), default="app", help="Use desktop app window (default) or browser tab")
+def install_shortcut(target_dir: str | None, mode: str):
+    """Drop a double-clickable launcher on the Desktop (macOS) or HOME (Linux).
+
+    Default mode is ``app`` (PyWebView desktop window). The generated launcher
+    tries ``fm2note app`` first and falls back to ``fm2note web`` if PyWebView
+    isn't installed.
+    """
+    import shlex
+
     if platform.system() == "Darwin":
         target = Path(target_dir).expanduser() if target_dir else Path.home() / "Desktop"
         shortcut_path = target / "FM2note.command"
-        workdir = Path.cwd().resolve()
-        shortcut_path.write_text(
-            dedent(f"""\
+        workdir_q = shlex.quote(str(Path.cwd().resolve()))  # safe even if path has " or $
+        if mode == "app":
+            body = dedent(f"""\
                 #!/bin/bash
                 # FM2note launcher (auto-generated)
-                cd "{workdir}" 2>/dev/null || cd "$HOME"
+                cd {workdir_q} 2>/dev/null || cd "$HOME"
+                # Prefer desktop window if pywebview is actually importable;
+                # `--help` would succeed even when pywebview is missing, so probe by import.
+                if command -v python3 >/dev/null 2>&1 && python3 -c 'import webview' >/dev/null 2>&1; then
+                  exec fm2note app
+                else
+                  exec fm2note web
+                fi
+            """)
+        else:
+            body = dedent(f"""\
+                #!/bin/bash
+                cd {workdir_q} 2>/dev/null || cd "$HOME"
                 exec fm2note web
-            """),
-            encoding="utf-8",
-        )
+            """)
+        shortcut_path.write_text(body, encoding="utf-8")
         shortcut_path.chmod(0o755)
         click.echo(f"  Created {shortcut_path}")
         click.echo(
@@ -189,11 +288,11 @@ def install_shortcut(target_dir: str | None):
     elif platform.system() == "Linux":
         target = Path(target_dir).expanduser() if target_dir else Path.home()
         shortcut_path = target / "fm2note.sh"
-        workdir = Path.cwd().resolve()
+        workdir_q = shlex.quote(str(Path.cwd().resolve()))
         shortcut_path.write_text(
             dedent(f"""\
                 #!/bin/bash
-                cd "{workdir}" 2>/dev/null || cd "$HOME"
+                cd {workdir_q} 2>/dev/null || cd "$HOME"
                 exec fm2note web
             """),
             encoding="utf-8",

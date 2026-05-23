@@ -7,6 +7,66 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.4.3] - 2026-05-24
+
+### Added
+- `fm2note app` — desktop window via PyWebView (optional extra: `pip install 'fm2note[app]'`)
+- `fm2note install-shortcut --mode app|web` — desktop shortcut now prefers PyWebView with browser fallback
+- 女友指南改写为 GUI 优先版本（CLI 流程折叠为进阶用法）
+
+### Documentation
+- README / README.zh-CN: 新增 "Web UI" 章节
+- girlfriend-guide.md: 全面改写为 Web UI 流程
+- CHANGELOG: 整合 v1.4.x 历史
+
+## [1.4.2] - 2026-05-23
+
+### Added
+- `GET /api/health-check` — 配置 + key + vault + 余额 一站式自检
+- `GET /api/service/status` — 检测 launchd 后台服务安装与运行状态
+- 设置页顶部健康自检 + 服务状态面板
+- 全局异常中间件（Exception → 500 JSON，不泄漏栈信息）
+- 转录失败的 SSE 错误消息走 `friendly_transcribe_error` 友好映射（429/402/401/timeout/小宇宙解析失败 等）
+
+### Fixed
+- conftest 加 `_isolate_env` / `_reset_balance_cache` autouse fixture，根治 settings PUT 写 `os.environ` 跨测试污染
+
+## [1.4.1] - 2026-05-23
+
+### Added
+- 历史页：state.db + pending_summaries 合并展示 + 单条 / 一键重试摘要
+- 订阅页：增删改 RSS（ruamel.yaml 保留注释）+ feedparser 连接测试
+- 设置页可写：API key 密码框 + vault 校验 + 引擎切换
+- 阿里云余额徽章：BSS OpenAPI QueryAccountBalance + 5 分钟缓存 + 三色告警 + 充值提醒弹窗
+- `fm2note install-shortcut` — 一键生成 macOS 桌面快捷方式
+- 可选依赖：`fm2note[aliyun]` (BSS SDK)
+
+### Security
+- settings/history/transcribe 路由不再接受路径查询参数（防止任意路径写入）
+- `_is_xiaoyuzhou_episode_url` 用 urlparse + 精确 host 匹配（修复 SSRF substring 欺骗）
+- subscriptions/test 接口拒绝非 http(s) scheme
+- 阿里云 SDK 异常仅返回类型名（不透传可能含凭据的原始消息）
+- env+yaml 写入两阶段提交（双 stage → 双 replace + finally 清理）
+- 异步锁串行化 settings/subscriptions 的读改写操作
+- history retry-summary id 严格 hex 校验 + relative_to 路径锚定
+- `fm2note web` 强制 127.0.0.1，移除 --host 选项
+
+### Reviewed
+- Codex Code Review 通过（C2/H3 fixed: --host removal + two-phase commit）
+
+## [1.4.0] - 2026-05-23
+
+### Added
+- Web UI MVP — FastAPI + Jinja2 + Tailwind CDN + SSE 进度推送
+- `fm2note web --port 7878` CLI 命令，自动开浏览器
+- 转录主页：贴 URL → 5 阶段实时进度（resolve/subtitle_check/asr/summary/write）→ obsidian:// 跳转
+- 设置页只读视图（API key 掩码尾 4 位）
+- 历史 / 订阅页占位
+- `src/transcribe_flow.py` 抽取共享管线，CLI 与 Web 共用
+
+### Changed
+- Poe 默认模型 GPT-5.4 → GPT-5.5（v1.3.3 实际变更）
+
 ## [1.3.1] - 2026-03-18
 
 ### Changed

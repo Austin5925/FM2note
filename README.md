@@ -8,12 +8,14 @@ FM2note monitors podcast RSS feeds, transcribes episodes using cloud ASR, genera
 
 ## Features
 
+- **Local Web UI** — `fm2note web` (browser) or `fm2note app` (native window) with transcribe / history / subscriptions / settings pages
 - **RSS monitoring** — auto-detect new episodes from any RSS/Atom feed
 - **Multiple ASR engines** — FunASR, Paraformer, TingWu, Bailian, OpenAI Whisper
 - **AI summaries** — chapter breakdown + keywords via Poe, OpenAI, or any OpenAI-compatible API
 - **Direct Obsidian vault write** — Markdown with YAML frontmatter
 - **Customizable templates** — configurable note template path and section labels
 - **Subtitle detection** — skip ASR when subtitles are available (saves cost)
+- **Aliyun balance widget** — optional top-nav badge with low-balance alert
 - **Auto-retry** — failed episodes retried on next cycle
 - **Self-hosted** — your data stays on your machine
 
@@ -95,9 +97,29 @@ podcasts:
 ```bash
 fm2note run-once     # Process once
 fm2note serve        # Continuous daemon (polls every 3 hours)
+fm2note transcribe <URL>   # Single episode (no RSS feed needed)
 ```
 
 > `.env` is auto-loaded from the working directory — no need to `source` manually.
+
+## Web UI (v1.4+)
+
+For everyone who doesn't want to touch the terminal after first install:
+
+```bash
+fm2note web          # Browser tab at http://127.0.0.1:7878
+fm2note app          # Native desktop window (requires fm2note[app] extra)
+fm2note install-shortcut   # Drop a double-clickable launcher on the Desktop
+```
+
+The UI ships four pages:
+
+- **转录** — paste a podcast URL → 5-stage progress (resolve / subtitle / ASR / summary / write) → one-click `obsidian://` deep link
+- **历史** — recent episodes from `state.db` + pending-summary retries
+- **订阅** — add/edit/delete RSS feeds with a built-in connection tester (ruamel.yaml preserves your YAML comments)
+- **设置** — write API keys, switch engines, edit vault path; with health self-check and launchd service status
+
+The Aliyun account balance shows in the top nav (configure via the optional `ALIYUN_ACCESS_KEY_ID` / `_SECRET` env vars — see `.env.example`). Bind is always `127.0.0.1`; use a reverse proxy for LAN access.
 
 ## ASR Engines
 

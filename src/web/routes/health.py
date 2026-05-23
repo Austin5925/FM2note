@@ -1,0 +1,113 @@
+from __future__ import annotations
+
+import os
+from pathlib import Path
+
+from fastapi import APIRouter
+
+from src.config import load_config
+from src.web.paths import CONFIG_PATH
+from src.web.services.balance import fetch_balance
+
+router = APIRouter(prefix="/api")
+
+
+def _check(label: str, ok: bool, hint: str = "") -> dict:
+    return {"label": label, "ok": ok, "hint": hint}
+
+
+@router.get("/health-check")
+async def health_check() -> dict:
+    """Probe critical config + connectivity. Read-only; never modifies state.
+
+    Returns one entry per check with ``{label, ok, hint}``. Frontend can decide
+    how to render. Keys are **not** probed by actually calling the upstream
+    (that would burn quota); only their presence is verified.
+    """
+    items: list[dict] = []
+
+    # ---- Config load ----
+    try:
+        config = load_config(CONFIG_PATH)
+        items.append(_check("配置文件可读", True))
+    except Exception as e:
+        items.append(_check("配置文件可读", False, f"{type(e).__name__}: {e}"))
+        return {"items": items, "overall_ok": False}
+
+    # ---- Obsidian vault ----
+    vault = Path(config.vault_path).expanduser()
+    if not vault.exists():
+        items.append(_check("Obsidian Vault 路径", False, f"路径不存在: {vault}"))
+    elif not vault.is_dir():
+        items.append(_check("Obsidian Vault 路径", False, f"不是目录: {vault}"))
+    elif not os.access(vault, os.W_OK):
+        items.append(_check("Obsidian Vault 路径", False, f"无写权限: {vault}"))
+    else:
+        items.append(_check("Obsidian Vault 路径", True, str(vault)))
+
+    # ---- State DB parent writable ----
+    db_parent = Path(config.db_path).expanduser().parent
+    db_writable = db_parent.exists() and os.access(db_parent, os.W_OK)
+    if not db_writable:
+        try:
+            db_parent.mkdir(parents=True, exist_ok=True)
+            db_writable = os.access(db_parent, os.W_OK)
+        except OSError:
+            db_writable = False
+    items.append(
+        _check(
+            "状态数据库可写",
+            db_writable,
+            "" if db_writable else f"父目录无写权限: {db_parent}",
+        )
+    )
+
+    # ---- DashScope key ----
+    if config.dashscope_api_key:
+        items.append(_check("DashScope 语音 Key", True, "已配置"))
+    else:
+        items.append(
+            _check(
+                "DashScope 语音 Key",
+                False,
+                "未配置（去设置页填 sk- 开头的 key）",
+            )
+        )
+
+    # ---- Summary provider ----
+    if config.summary_provider == "none":
+        items.append(_check("AI 摘要", True, "已禁用"))
+    elif config.poe_api_key or config.openai_api_key:
+        which = "Poe" if config.poe_api_key else "OpenAI"
+        items.append(_check("AI 摘要", True, f"{which} key 已配置"))
+    else:
+        items.append(_check("AI 摘要", False, "无可用 key（可在设置页填 Poe 或 OpenAI）"))
+
+    # ---- TingWu app id (only if engine selected) ----
+    if config.asr_engine == "tingwu":
+        items.append(
+            _check(
+                "TingWu App ID",
+                bool(config.tingwu_app_id),
+                "已配置" if config.tingwu_app_id else "tingwu 引擎需要 TINGWU_APP_ID",
+            )
+        )
+
+    # ---- Aliyun balance (only if configured) ----
+    balance_state = await fetch_balance()
+    if balance_state.configured:
+        if balance_state.snapshot is not None:
+            snap = balance_state.snapshot
+            tag = {"ok": "✓", "warn": "⚠", "critical": "✕"}.get(snap.alert_level, "?")
+            items.append(
+                _check(
+                    "阿里云余额",
+                    snap.alert_level != "critical",
+                    f"{tag} ¥{snap.available_cash_amount:.2f} 现金可用",
+                )
+            )
+        else:
+            items.append(_check("阿里云余额", False, balance_state.error or "未知错误"))
+
+    overall_ok = all(item["ok"] for item in items)
+    return {"items": items, "overall_ok": overall_ok}

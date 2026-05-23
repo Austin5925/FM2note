@@ -102,5 +102,79 @@
     }
   });
 
+  // -------- Health check --------
+  async function loadHealth() {
+    const ul = document.getElementById('health-items');
+    if (!ul) return;
+    ul.innerHTML = '<li class="text-stone-400">检测中…</li>';
+    try {
+      const resp = await fetch('/api/health-check');
+      const data = await resp.json();
+      if (!data.items || data.items.length === 0) {
+        ul.innerHTML = '<li class="text-stone-400">无可检测项</li>';
+        return;
+      }
+      ul.innerHTML = data.items.map((it) => {
+        const icon = it.ok
+          ? '<span class="text-emerald-600">✓</span>'
+          : '<span class="text-red-600">✕</span>';
+        const hintCls = it.ok ? 'text-stone-400' : 'text-red-600';
+        return `<li class="flex items-baseline gap-2">
+          ${icon}
+          <span class="text-stone-700">${escapeHtml(it.label)}</span>
+          ${it.hint ? `<span class="text-xs ${hintCls}">— ${escapeHtml(it.hint)}</span>` : ''}
+        </li>`;
+      }).join('');
+    } catch (e) {
+      ul.innerHTML = `<li class="text-red-600">检测失败：${escapeHtml(e.message)}</li>`;
+    }
+  }
+  const refreshBtn = document.getElementById('health-refresh-btn');
+  if (refreshBtn) refreshBtn.addEventListener('click', loadHealth);
+
+  // -------- Service status --------
+  async function loadService() {
+    const el = document.getElementById('service-status');
+    if (!el) return;
+    try {
+      const resp = await fetch('/api/service/status');
+      const data = await resp.json();
+      if (data.platform !== 'darwin') {
+        el.innerHTML = `<span class="text-stone-500">当前平台暂不支持检测（${escapeHtml(data.platform)}）</span>`;
+        return;
+      }
+      if (!data.installed) {
+        el.innerHTML = `
+          <div class="text-stone-600">未安装后台服务</div>
+          <div class="text-xs text-stone-400 mt-1">
+            在终端运行 <code class="bg-stone-100 px-1">fm2note install-service</code>
+            即可让 FM2note 在开机时自动启动并定时抓取新剧集
+          </div>
+        `;
+        return;
+      }
+      if (data.running) {
+        el.innerHTML = `
+          <div><span class="text-emerald-600">●</span>
+          <span class="text-stone-700">服务运行中</span>
+          <span class="text-xs text-stone-400 ml-2 font-mono">PID ${data.pid}</span></div>
+          <div class="text-xs text-stone-400 mt-1">${escapeHtml(data.plist_path || '')}</div>
+        `;
+      } else {
+        el.innerHTML = `
+          <div><span class="text-amber-600">●</span>
+          <span class="text-stone-700">已安装但未运行</span></div>
+          <div class="text-xs text-stone-400 mt-1">
+            终端运行 <code class="bg-stone-100 px-1">launchctl load ${escapeHtml(data.plist_path || '')}</code> 启动
+          </div>
+        `;
+      }
+    } catch (e) {
+      el.innerHTML = `<span class="text-red-600">检测失败：${escapeHtml(e.message)}</span>`;
+    }
+  }
+
   loadSettings();
+  loadHealth();
+  loadService();
 })();

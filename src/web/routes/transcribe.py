@@ -13,6 +13,7 @@ from src.config import load_config
 from src.transcribe_flow import preview_episode, transcribe_single_url
 from src.web.paths import CONFIG_PATH
 from src.web.progress import ProgressEvent, get_bus
+from src.web.services.error_messages import friendly_transcribe_error
 
 router = APIRouter(prefix="/api")
 
@@ -93,15 +94,12 @@ async def submit_transcribe(payload: dict) -> dict:
                 ),
             )
         except Exception as e:
-            logger.warning("transcribe task {} failed: {}: {}", task_id, type(e).__name__, e)
-            bus.update_record(task_id, error=f"{type(e).__name__}: {e}")
+            logger.warning("transcribe task {} failed: {}", task_id, type(e).__name__)
+            friendly = friendly_transcribe_error(e)
+            bus.update_record(task_id, error=friendly)
             bus.publish(
                 task_id,
-                ProgressEvent(
-                    stage="write",
-                    status="error",
-                    message=f"{type(e).__name__}: {e}",
-                ),
+                ProgressEvent(stage="write", status="error", message=friendly),
             )
         finally:
             bus.close(task_id)

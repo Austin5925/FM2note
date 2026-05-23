@@ -1,6 +1,38 @@
+import os
 from pathlib import Path
 
 import pytest
+
+
+@pytest.fixture(autouse=True)
+def _isolate_env():
+    """Restore os.environ after every test.
+
+    Routes like ``PUT /api/settings`` mutate ``os.environ`` directly (so a
+    saved key takes effect immediately within the running web process). Without
+    this fixture those mutations leak across tests and produce order-dependent
+    failures.
+    """
+    snapshot = os.environ.copy()
+    yield
+    # Remove keys added during the test
+    for k in list(os.environ.keys()):
+        if k not in snapshot:
+            del os.environ[k]
+    # Restore values that changed
+    for k, v in snapshot.items():
+        if os.environ.get(k) != v:
+            os.environ[k] = v
+
+
+@pytest.fixture(autouse=True)
+def _reset_balance_cache():
+    """Wipe the balance module cache between tests so leaked state never crosses runs."""
+    from src.web.services import balance as _balance
+
+    _balance.reset_cache()
+    yield
+    _balance.reset_cache()
 
 
 @pytest.fixture

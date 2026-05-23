@@ -30,7 +30,7 @@ class PoeSummarizer:
     def __init__(
         self,
         api_key: str,
-        model: str = "GPT-5.4",
+        model: str = "GPT-5.5",
         reasoning_effort: str = "medium",
         cooldown: float = 60.0,
     ):

@@ -146,7 +146,8 @@ make bump-minor  # 版本号 minor +1
 - **v1.3.0** — 正式公开版：.env 自动加载、API Key 彻底从 plist 移除、pip-audit 通过、216 个测试
 - **v1.3.1** — 开源前清理：开发文档迁入 devdocs/ + git 历史敏感数据清理 + 模板路径修复
 - **v1.3.2** — pip install 端到端修复：模板打包进 wheel + 空订阅友好报错，216 个测试
+- **v1.3.3** — Poe 默认模型升级 GPT-5.4 → GPT-5.5
 
 ## Current Version
 
-v1.3.2 — pip install 端到端修复
+v1.3.3 — Poe 默认模型升级 GPT-5.5

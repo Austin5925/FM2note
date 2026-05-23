@@ -11,7 +11,7 @@ from src.summarizer.poe_client import PoeSummarizer
 class TestPoeSummarizer:
     def test_init_defaults(self):
         s = PoeSummarizer(api_key="pk-test")
-        assert s._model == "GPT-5.4"
+        assert s._model == "GPT-5.5"
         assert s._reasoning_effort == "medium"
         assert s._cooldown == 60.0
 

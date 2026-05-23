@@ -51,12 +51,12 @@ def _create_poe(config: AppConfig) -> Summarizer:
 
     logger.info(
         "Summarizer: Poe (model={}, cooldown={}s)",
-        config.summary_model or "GPT-5.4",
+        config.summary_model or "GPT-5.5",
         config.summary_cooldown,
     )
     return PoeSummarizer(
         api_key=config.poe_api_key,
-        model=config.summary_model or "GPT-5.4",
+        model=config.summary_model or "GPT-5.5",
         cooldown=float(config.summary_cooldown),
     )
 

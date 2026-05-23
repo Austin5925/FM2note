@@ -117,7 +117,7 @@ FM2note 支持多种 AI 摘要提供商，默认**自动检测**可用的 API Ke
 
 | 提供商 | 配置 | API Key | 默认模型 |
 |---|---|---|---|
-| Poe | `SUMMARY_PROVIDER=poe` | `POE_API_KEY` | GPT-5.4 |
+| Poe | `SUMMARY_PROVIDER=poe` | `POE_API_KEY` | GPT-5.5 |
 | OpenAI | `SUMMARY_PROVIDER=openai` | `OPENAI_API_KEY` | gpt-4o-mini |
 | DeepSeek/Groq/Ollama | `SUMMARY_PROVIDER=openai` + `SUMMARY_BASE_URL=...` | `OPENAI_API_KEY` | 自定义 |
 | 不使用 | `SUMMARY_PROVIDER=none` | — | — |

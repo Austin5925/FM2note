@@ -130,6 +130,35 @@ def retry_summaries(config_path: str):
 
 
 @cli.command()
+@click.option("--host", default="127.0.0.1", show_default=True, help="Bind address")
+@click.option("--port", default=7878, show_default=True, type=int, help="Bind port")
+@click.option("--no-browser", is_flag=True, help="Do not auto-open the browser")
+def web(host: str, port: int, no_browser: bool):
+    """Launch the local Web UI (http://127.0.0.1:7878 by default)."""
+    import threading
+    import webbrowser
+
+    try:
+        import uvicorn
+    except ImportError:
+        click.echo(
+            "uvicorn 未安装。请重新安装：pip install --upgrade fm2note",
+            err=True,
+        )
+        sys.exit(1)
+
+    from src.web.app import create_app
+
+    app = create_app()
+    if not no_browser:
+        threading.Timer(
+            1.5, lambda: webbrowser.open(f"http://{host}:{port}")
+        ).start()
+    logger.info("FM2note v{} — web UI at http://{}:{}", VERSION, host, port)
+    uvicorn.run(app, host=host, port=port, log_level="warning")
+
+
+@cli.command()
 def init():
     """Interactive setup — generate config and subscription files"""
     config_dir = Path("config")
@@ -497,128 +526,32 @@ async def _serve(config_path: str, subs_path: str):
         await state.close()
 
 
-async def _resolve_episode_url(
-    url: str,
-) -> tuple[str, str | None, str | None, str, str | None]:
-    """If URL is a Xiaoyuzhou episode page, extract audio URL and metadata.
-
-    Returns:
-        (audio_url, title, podcast_name, link, date_published)
-    """
-    import json
-    import re
-
-    import httpx
-
-    if "xiaoyuzhoufm.com/episode/" not in url:
-        return url, None, None, "", None
-
-    logger.info("Detected Xiaoyuzhou episode URL, parsing metadata...")
-    async with httpx.AsyncClient(timeout=15, follow_redirects=True) as client:
-        resp = await client.get(url)
-        resp.raise_for_status()
-
-    match = re.search(
-        r'<script[^>]*type="application/ld\+json"[^>]*>(.+?)</script>',
-        resp.text,
-        re.DOTALL,
-    )
-    if not match:
-        raise ValueError(f"Cannot parse metadata from Xiaoyuzhou page: {url}")
-
-    data = json.loads(match.group(1))
-    audio_url = data.get("associatedMedia", {}).get("contentUrl", "")
-    ep_title = data.get("name")
-    ep_podcast = data.get("partOfSeries", {}).get("name")
-    date_published = data.get("datePublished")
-
-    if not audio_url:
-        raise ValueError(f"Cannot extract audio URL from Xiaoyuzhou page: {url}")
-
-    logger.info("Parsed: {} — {}", ep_podcast, ep_title)
-    return audio_url, ep_title, ep_podcast, url, date_published
 
 
 async def _transcribe(audio_url: str, title: str | None, podcast_name: str, config_path: str):
-    from datetime import datetime
-    from urllib.parse import unquote, urlparse
-
     from src.config import load_config
-    from src.models import Episode
-    from src.transcriber.factory import create_transcriber
-    from src.writer.obsidian import ObsidianWriter
+    from src.transcribe_flow import transcribe_single_url
 
     config = load_config(config_path)
 
-    from dateutil import parser as dateutil_parser
+    def _log_cb(stage: str, status: str, message: str) -> None:
+        if status == "start":
+            logger.info("[{}] {}", stage, message or "...")
+        elif status == "done" and stage == "asr":
+            logger.info("Transcription done: {}", message)
+        elif status == "skipped":
+            logger.debug("[{}] skipped: {}", stage, message)
+        elif status == "error":
+            logger.warning("[{}] error: {}", stage, message)
 
-    resolved_url, ep_title, ep_podcast, link, date_pub = await _resolve_episode_url(audio_url)
-    if not title and ep_title:
-        title = ep_title
-    if podcast_name == "单独转录" and ep_podcast:
-        podcast_name = ep_podcast
-
-    pub_date = datetime.now()
-    if date_pub:
-        import contextlib
-
-        with contextlib.suppress(ValueError, TypeError):
-            pub_date = dateutil_parser.parse(date_pub)
-
-    transcriber = create_transcriber(config)
-
-    result = await transcriber.transcribe(resolved_url)
-    logger.info(
-        "Transcription done: {} chars, {} paragraphs",
-        len(result.text),
-        len(result.paragraphs),
-    )
-
-    summary_failed = False
-    summarizer = _create_summarizer(config)
-    if summarizer and result.text and not result.summary:
-        try:
-            logger.info("Generating AI summary...")
-            summary = await summarizer.summarize(result.text, title or "")
-            result.summary = summary.summary
-            result.chapters = summary.chapters
-            result.keywords = summary.keywords
-        except Exception as e:
-            logger.warning("AI summary failed, continuing without: {}: {}", type(e).__name__, e)
-            summary_failed = True
-
-    if not title:
-        path = urlparse(resolved_url).path
-        title = unquote(path.split("/")[-1]).rsplit(".", 1)[0] or "untitled"
-
-    episode = Episode(
-        guid=resolved_url,
+    outcome = await transcribe_single_url(
+        audio_url,
+        config,
         title=title,
         podcast_name=podcast_name,
-        pub_date=pub_date,
-        audio_url=resolved_url,
-        duration="",
-        show_notes="",
-        link=link,
+        progress_callback=_log_cb,
     )
-
-    md_generator = _create_md_generator(config)
-    content = md_generator.render(episode, result, asr_engine=config.asr_engine)
-    writer = ObsidianWriter(config.vault_path, config.podcast_dir)
-    note_path = writer.write_note(episode, content)
-
-    logger.success("Note written: {}", note_path)
-
-    if summary_failed:
-        from src.summarizer.pending import save_pending
-
-        save_pending(
-            guid=resolved_url,
-            title=title,
-            text=result.text,
-            note_path=str(note_path),
-            podcast_name=podcast_name,
-        )
+    logger.success("Note written: {}", outcome.note_path)
 
 
 async def _retry_summaries(config_path: str):

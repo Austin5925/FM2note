@@ -147,7 +147,8 @@ make bump-minor  # 版本号 minor +1
 - **v1.3.1** — 开源前清理：开发文档迁入 devdocs/ + git 历史敏感数据清理 + 模板路径修复
 - **v1.3.2** — pip install 端到端修复：模板打包进 wheel + 空订阅友好报错，216 个测试
 - **v1.3.3** — Poe 默认模型升级 GPT-5.4 → GPT-5.5
+- **v1.4.0** — Web UI MVP：FastAPI + SSE 转录主页 + `fm2note web` 命令 + 设置页只读视图 + 历史/订阅占位，新增 30 个测试
 
 ## Current Version
 
-v1.3.3 — Poe 默认模型升级 GPT-5.5
+v1.4.0 — Web UI MVP（转录主页 + SSE 进度 + 设置只读）

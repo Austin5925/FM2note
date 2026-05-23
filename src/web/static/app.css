@@ -1,0 +1,43 @@
+/* Step states for the progress list */
+.step-icon[data-state="pending"] {
+  border-color: rgb(214 211 209); /* stone-300 */
+  background-color: transparent;
+  color: transparent;
+}
+.step-icon[data-state="in_progress"] {
+  border-color: rgb(28 25 23); /* stone-900 */
+  background-color: rgb(28 25 23);
+  color: white;
+}
+.step-icon[data-state="in_progress"]::after {
+  content: "";
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: white;
+  animation: pulse 1s ease-in-out infinite;
+}
+.step-icon[data-state="done"] {
+  border-color: rgb(5 150 105); /* emerald-600 */
+  background-color: rgb(5 150 105);
+  color: white;
+}
+.step-icon[data-state="done"]::after { content: "✓"; }
+.step-icon[data-state="skipped"] {
+  border-color: rgb(168 162 158); /* stone-400 */
+  background-color: rgb(245 245 244); /* stone-100 */
+  color: rgb(120 113 108); /* stone-500 */
+}
+.step-icon[data-state="skipped"]::after { content: "—"; font-size: 10px; }
+.step-icon[data-state="error"] {
+  border-color: rgb(220 38 38); /* red-600 */
+  background-color: rgb(220 38 38);
+  color: white;
+}
+.step-icon[data-state="error"]::after { content: "✕"; }
+
+@keyframes pulse {
+  0%, 100% { opacity: 0.4; }
+  50% { opacity: 1; }
+}

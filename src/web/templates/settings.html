@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+
+{% block title %}设置 · FM2note{% endblock %}
+
+{% block content %}
+<section>
+  <h2 class="text-2xl font-semibold mb-2">设置</h2>
+  <p class="text-stone-500 text-sm mb-6">当前配置（v1.4.0 仅展示，编辑功能将在 v1.4.1 开放）。</p>
+
+  <div id="settings-container" class="space-y-6">
+    <div class="text-sm text-stone-400">加载中…</div>
+  </div>
+</section>
+{% endblock %}
+
+{% block scripts %}
+<script>
+async function loadSettings() {
+  const c = document.getElementById('settings-container');
+  try {
+    const resp = await fetch('/api/settings');
+    if (!resp.ok) throw new Error('HTTP ' + resp.status);
+    const s = await resp.json();
+    c.innerHTML = `
+      <div class="border border-stone-200 rounded-lg bg-white p-5">
+        <h3 class="text-sm font-semibold text-stone-700 mb-3">存储</h3>
+        <dl class="text-sm space-y-2">
+          <div class="flex justify-between gap-4"><dt class="text-stone-500">Obsidian Vault</dt><dd class="text-right break-all">${s.vault_path}</dd></div>
+          <div class="flex justify-between gap-4"><dt class="text-stone-500">笔记子目录</dt><dd>${s.podcast_dir}</dd></div>
+        </dl>
+      </div>
+      <div class="border border-stone-200 rounded-lg bg-white p-5">
+        <h3 class="text-sm font-semibold text-stone-700 mb-3">引擎</h3>
+        <dl class="text-sm space-y-2">
+          <div class="flex justify-between gap-4"><dt class="text-stone-500">语音转文字</dt><dd>${s.asr_engine}</dd></div>
+          <div class="flex justify-between gap-4"><dt class="text-stone-500">AI 摘要</dt><dd>${s.summary_provider} · ${s.summary_model}</dd></div>
+          <div class="flex justify-between gap-4"><dt class="text-stone-500">摘要间隔</dt><dd>${s.summary_cooldown}s</dd></div>
+        </dl>
+      </div>
+      <div class="border border-stone-200 rounded-lg bg-white p-5">
+        <h3 class="text-sm font-semibold text-stone-700 mb-3">API 密钥</h3>
+        <dl class="text-sm space-y-2">
+          ${renderKey('DashScope (语音)', s.keys.dashscope)}
+          ${renderKey('Poe (摘要)', s.keys.poe)}
+          ${renderKey('OpenAI', s.keys.openai)}
+          ${renderKey('TingWu App ID', s.keys.tingwu_app_id)}
+        </dl>
+      </div>
+    `;
+  } catch (e) {
+    c.innerHTML = `<div class="text-sm text-red-600">加载失败：${e.message}</div>`;
+  }
+}
+
+function renderKey(label, info) {
+  const status = info.configured
+    ? `<span class="text-emerald-600">✓ 已配置</span> <span class="text-stone-400 font-mono text-xs">${info.preview}</span>`
+    : `<span class="text-stone-400">未配置</span>`;
+  return `<div class="flex justify-between gap-4"><dt class="text-stone-500">${label}</dt><dd>${status}</dd></div>`;
+}
+
+loadSettings();
+</script>
+{% endblock %}

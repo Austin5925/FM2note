@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>{% block title %}FM2note{% endblock %}</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="/static/app.css" />
+</head>
+<body class="bg-stone-50 text-stone-800 min-h-screen">
+  <header class="border-b border-stone-200 bg-white">
+    <div class="max-w-3xl mx-auto px-6 py-4 flex items-center justify-between">
+      <div class="flex items-baseline gap-3">
+        <h1 class="text-lg font-semibold tracking-tight">FM2note</h1>
+        <span class="text-xs text-stone-400">v{{ version }}</span>
+      </div>
+      <nav class="flex items-center gap-1 text-sm">
+        {% set tabs = [
+          ('transcribe', '/', '转录'),
+          ('history', '/history', '历史'),
+          ('subscriptions', '/subscriptions', '订阅'),
+          ('settings', '/settings', '设置')
+        ] %}
+        {% for key, href, label in tabs %}
+          <a href="{{ href }}"
+             class="px-3 py-1.5 rounded-md transition-colors
+                    {% if active == key %}bg-stone-900 text-white{% else %}text-stone-600 hover:bg-stone-100{% endif %}">
+            {{ label }}
+          </a>
+        {% endfor %}
+      </nav>
+    </div>
+  </header>
+
+  <main class="max-w-3xl mx-auto px-6 py-10">
+    {% block content %}{% endblock %}
+  </main>
+
+  <footer class="text-center text-xs text-stone-400 py-6">
+    FM2note · 本地运行 · 数据不上传
+  </footer>
+
+  {% block scripts %}{% endblock %}
+</body>
+</html>

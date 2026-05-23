@@ -1,0 +1,98 @@
+"""Integration tests for the FastAPI web app (pages + API)."""
+
+from __future__ import annotations
+
+import pytest
+from fastapi.testclient import TestClient
+
+from src.web.app import create_app
+from src.web.progress import reset_bus
+
+
+@pytest.fixture
+def client(tmp_path, monkeypatch):
+    # Provide a minimal valid config the routes can load
+    config_path = tmp_path / "config.yaml"
+    config_path.write_text(
+        f'vault_path: "{tmp_path}"\npodcast_dir: "Podcasts"\nasr_engine: "funasr"\n',
+        encoding="utf-8",
+    )
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / "config").mkdir(exist_ok=True)
+    (tmp_path / "config" / "config.yaml").write_text(
+        f'vault_path: "{tmp_path}"\npodcast_dir: "Podcasts"\nasr_engine: "funasr"\n',
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("DASHSCOPE_API_KEY", "sk-test-1234567890abcdef")
+    reset_bus()
+    app = create_app()
+    with TestClient(app) as c:
+        yield c
+
+
+class TestPages:
+    def test_transcribe_page_renders(self, client):
+        r = client.get("/")
+        assert r.status_code == 200
+        assert "FM2note" in r.text
+        assert "开始转录" in r.text
+        # 5-stage progress list rendered
+        for stage in ["resolve", "subtitle_check", "asr", "summary", "write"]:
+            assert f'data-stage="{stage}"' in r.text
+
+    def test_history_page_renders(self, client):
+        r = client.get("/history")
+        assert r.status_code == 200
+        assert "v1.4.1 即将开放" in r.text
+
+    def test_subscriptions_page_renders(self, client):
+        r = client.get("/subscriptions")
+        assert r.status_code == 200
+        assert "v1.4.1 即将开放" in r.text
+
+    def test_settings_page_renders(self, client):
+        r = client.get("/settings")
+        assert r.status_code == 200
+        assert "API 密钥" in r.text or "设置" in r.text
+
+    def test_active_tab_highlighted(self, client):
+        r = client.get("/history")
+        # The active tab uses bg-stone-900 styling
+        assert "bg-stone-900" in r.text
+
+
+class TestHealthz:
+    def test_healthz(self, client):
+        r = client.get("/healthz")
+        assert r.status_code == 200
+        body = r.json()
+        assert body["ok"] is True
+        assert "version" in body
+
+
+class TestSettingsAPI:
+    def test_get_settings_returns_redacted_keys(self, client):
+        r = client.get("/api/settings")
+        assert r.status_code == 200
+        body = r.json()
+        # DashScope key is set via monkeypatched env var
+        assert body["keys"]["dashscope"]["configured"] is True
+        preview = body["keys"]["dashscope"]["preview"]
+        # Preview must not contain the middle of the actual key
+        assert "1234567890abcdef" not in preview
+        assert preview.startswith("sk-t")
+        # Unset keys are empty strings
+        assert body["keys"]["poe"]["configured"] is False
+        assert body["keys"]["poe"]["preview"] == ""
+
+
+class TestStaticFiles:
+    def test_app_js_served(self, client):
+        r = client.get("/static/app.js")
+        assert r.status_code == 200
+        assert "EventSource" in r.text
+
+    def test_app_css_served(self, client):
+        r = client.get("/static/app.css")
+        assert r.status_code == 200
+        assert "step-icon" in r.text

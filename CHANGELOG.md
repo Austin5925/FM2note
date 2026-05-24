@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.4.5] - 2026-05-24
+
+### Added
+- Easter egg: 像素风边牧（32×24 inline SVG）嵌入 header 版本号旁
+- 3 条独立 CSS 动画轨道：身体呼吸（1.4s）+ 尾巴摇摆（0.5s）+ 眨眼（4s）
+- 点击边牧 → "汪!" 气泡 + 身体抖动微互动
+- CSS 变量 `--collie-dark` / `--collie-light` 适配暗色模式（黑色提升为 stone-600 避免与暗色背景同色）
+
 ## [1.4.4] - 2026-05-24
 
 ### Added

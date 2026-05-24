@@ -30,6 +30,60 @@
       <div class="flex items-baseline gap-3">
         <h1 class="text-lg font-semibold tracking-tight">FM2note</h1>
         <span class="text-xs text-stone-400">v{{ version }}</span>
+        <!-- ===== Easter egg: 像素风边牧（点击 → "汪!"）===== -->
+        <button id="collie"
+                type="button"
+                aria-label="边牧（点我）"
+                title="点我"
+                class="relative inline-flex items-center justify-center self-center ml-1 p-1 rounded-md hover:bg-stone-100">
+          <svg viewBox="0 0 32 24" width="48" height="36" shape-rendering="crispEdges" aria-hidden="true">
+            <!-- TAIL — wags around the rear-end connection point -->
+            <g class="collie-tail">
+              <rect x="2" y="9"  width="4" height="1" fill="var(--collie-dark)"/>
+              <rect x="1" y="10" width="5" height="1" fill="var(--collie-dark)"/>
+              <rect x="2" y="11" width="4" height="1" fill="var(--collie-light)"/>
+              <rect x="3" y="12" width="3" height="1" fill="var(--collie-light)"/>
+            </g>
+            <!-- BODY — gentle vertical bob -->
+            <g class="collie-body">
+              <!-- Back (dark) -->
+              <rect x="6"  y="10" width="14" height="4" fill="var(--collie-dark)"/>
+              <!-- Belly (light) -->
+              <rect x="8"  y="14" width="12" height="3" fill="var(--collie-light)"/>
+              <!-- Neck -->
+              <rect x="18" y="9"  width="3"  height="3" fill="var(--collie-dark)"/>
+              <!-- Head -->
+              <rect x="19" y="6"  width="7"  height="5" fill="var(--collie-dark)"/>
+              <!-- White blaze (iconic BC forehead stripe) -->
+              <rect x="22" y="6"  width="1"  height="6" fill="var(--collie-light)"/>
+              <!-- Snout -->
+              <rect x="25" y="9"  width="3"  height="3" fill="var(--collie-light)"/>
+              <rect x="26" y="12" width="2"  height="1" fill="var(--collie-light)"/>
+              <!-- Nose tip -->
+              <rect x="28" y="10" width="1"  height="1" fill="var(--collie-dark)"/>
+              <!-- Mouth -->
+              <rect x="26" y="11" width="2"  height="1" fill="var(--collie-dark)"/>
+              <!-- Ears (perked, forward) -->
+              <rect x="19" y="5"  width="2"  height="2" fill="var(--collie-dark)"/>
+              <rect x="23" y="5"  width="2"  height="2" fill="var(--collie-dark)"/>
+              <rect x="20" y="4"  width="1"  height="1" fill="var(--collie-dark)"/>
+              <rect x="23" y="4"  width="1"  height="1" fill="var(--collie-dark)"/>
+              <!-- Eye (blinks) -->
+              <rect class="collie-eye" x="24" y="8" width="1" height="1" fill="var(--collie-light)"/>
+              <!-- Front legs -->
+              <rect x="17" y="17" width="2" height="4" fill="var(--collie-dark)"/>
+              <rect x="19" y="17" width="2" height="4" fill="var(--collie-dark)"/>
+              <rect x="19" y="20" width="2" height="1" fill="var(--collie-light)"/>
+              <!-- Back legs -->
+              <rect x="8"  y="17" width="2" height="4" fill="var(--collie-dark)"/>
+              <rect x="8"  y="20" width="2" height="1" fill="var(--collie-light)"/>
+              <rect x="10" y="17" width="2" height="4" fill="var(--collie-dark)"/>
+              <!-- Chest fluff -->
+              <rect x="18" y="12" width="2" height="2" fill="var(--collie-light)"/>
+            </g>
+          </svg>
+          <span id="collie-bark" class="collie-bark">汪!</span>
+        </button>
       </div>
       <div class="flex items-center gap-3">
         <a id="balance-badge"
@@ -115,6 +169,7 @@
 
   <script src="/static/theme.js"></script>
   <script src="/static/balance-badge.js"></script>
+  <script src="/static/collie.js"></script>
   {% block scripts %}{% endblock %}
 </body>
 </html>

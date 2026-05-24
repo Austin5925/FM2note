@@ -77,7 +77,11 @@ export POE_API_KEY=pk-xxx                # Poe subscription
 export OPENAI_API_KEY=sk-xxx             # OpenAI / DeepSeek / Groq
 ```
 
-2. Edit `config/subscriptions.yaml` — add your podcasts:
+2. Add podcast subscriptions. The easiest path is the Web UI **Subscriptions** page:
+paste a Xiaoyuzhou podcast page, episode page, or share text, and FM2note will generate
+the RSSHub subscription URL automatically.
+
+You can also edit `config/subscriptions.yaml` manually:
 
 ```yaml
 podcasts:
@@ -116,7 +120,7 @@ The UI ships four pages:
 
 - **转录** — paste a podcast URL → 5-stage progress (resolve / subtitle / ASR / summary / write) → one-click `obsidian://` deep link
 - **历史** — recent episodes from `state.db` + pending-summary retries
-- **订阅** — add/edit/delete RSS feeds with a built-in connection tester (ruamel.yaml preserves your YAML comments)
+- **订阅** — paste Xiaoyuzhou links to auto-generate RSSHub feeds, or manually edit/test RSS feeds (ruamel.yaml preserves your YAML comments)
 - **设置** — write API keys, switch engines, edit vault path; with health self-check and launchd service status
 
 The Aliyun account balance shows in the top nav (configure via the optional `ALIYUN_ACCESS_KEY_ID` / `_SECRET` env vars — see `.env.example`). Bind is always `127.0.0.1`; use a reverse proxy for LAN access.

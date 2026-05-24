@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.4.9] - 2026-05-24
+
+### Added
+- 订阅页新增“粘贴链接自动识别”：支持小宇宙播客页、剧集页、分享文本、已有 RSSHub URL，自动生成订阅名称和最终 RSS 地址
+- 新增 `/api/subscriptions/defaults` 和 `/api/subscriptions/resolve`，前端可直接拿默认 RSSHub 地址并解析用户粘贴内容
+- 默认 RSSHub 地址面向本地家庭使用预填为 `https://macroclaw.app/rsshub`，仍可在界面中手动覆盖
+
+### Changed
+- 订阅弹窗从手动填 RSS URL 改为“先粘贴播客链接”的主流程，保留最终 RSS 地址和名称的可编辑兜底
+
 ## [1.4.8] - 2026-05-24
 
 ### Fixed

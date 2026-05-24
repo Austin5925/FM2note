@@ -77,7 +77,9 @@ export POE_API_KEY=pk-xxx                # Poe 订阅
 export OPENAI_API_KEY=sk-xxx             # OpenAI / DeepSeek / Groq
 ```
 
-2. 编辑 `config/subscriptions.yaml` — 添加播客：
+2. 添加播客订阅。推荐打开 Web UI 的 **订阅** 页面，直接粘贴小宇宙播客页、剧集页或分享文本；FM2note 会用默认 RSSHub 自动生成订阅地址。
+
+也可以手动编辑 `config/subscriptions.yaml`：
 
 ```yaml
 podcasts:
@@ -116,7 +118,7 @@ fm2note install-shortcut   # 桌面生成双击启动图标
 
 - **转录** — 贴播客 URL → 5 阶段实时进度（解析 / 字幕 / ASR / 摘要 / 写入）→ 一键 `obsidian://` 跳转
 - **历史** — `state.db` 的最近剧集 + 失败摘要的重试
-- **订阅** — 增删改 RSS 订阅，自带"测试连接"按钮；ruamel.yaml 保留 YAML 注释
+- **订阅** — 粘贴小宇宙链接自动识别并生成 RSSHub 地址，也可手动编辑/测试 RSS；ruamel.yaml 保留 YAML 注释
 - **设置** — 编辑 API key、切换引擎、改 vault 路径；含健康自检 + launchd 服务状态
 
 顶部导航有阿里云余额徽章（可选，配置 `ALIYUN_ACCESS_KEY_ID` / `_SECRET` 即可，参见 `.env.example`）。Web 服务只监听 `127.0.0.1`；需要局域网访问请用反向代理。

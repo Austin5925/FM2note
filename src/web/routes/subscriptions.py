@@ -9,6 +9,7 @@ from ruamel.yaml.comments import CommentedMap, CommentedSeq
 
 from src.web.paths import SUBSCRIPTIONS_PATH
 from src.web.services import locks
+from src.web.services.subscription_resolver import detect_rsshub_base, resolve_subscription_input
 from src.web.services.yaml_writer import dump_yaml, load_yaml
 
 router = APIRouter(prefix="/api")
@@ -59,6 +60,28 @@ async def list_subs() -> dict:
         "path": SUBSCRIPTIONS_PATH,
         "subscriptions": [{"index": i, **_to_dict(it)} for i, it in enumerate(items)],
     }
+
+
+@router.get("/subscriptions/defaults")
+async def subscription_defaults() -> dict:
+    return {"rsshub_base": detect_rsshub_base(), "path": SUBSCRIPTIONS_PATH}
+
+
+@router.post("/subscriptions/resolve")
+async def resolve_sub(payload: dict) -> dict:
+    input_text = (payload or {}).get("input", "").strip()
+    if not input_text:
+        raise HTTPException(status_code=400, detail="input is required")
+    rsshub_base = (payload or {}).get("rsshub_base", "").strip()
+    try:
+        return await resolve_subscription_input(input_text, rsshub_base)
+    except Exception as e:
+        logger.warning("subscription resolve failed: {}", type(e).__name__)
+        return {
+            "ok": False,
+            "error": f"自动识别失败：{type(e).__name__}",
+            "rsshub_base": detect_rsshub_base(),
+        }
 
 
 @router.post("/subscriptions")

@@ -156,7 +156,8 @@ make bump-minor  # 版本号 minor +1
 - **v1.4.6** — Header 视觉调优：左侧组从 items-baseline 改 items-center，FM2note / 版本号 / 边牧三者垂直居中对齐；"汪!" 气泡从上方挪到狗下方（避免遮挡顶部窗口拖动条）
 - **v1.4.7** — 边牧重画：从 header 挪到 "开始转录" 按钮下方居中，viewBox 改 32×32 显示 128×128（4 倍大小），姿态从侧站改坐姿（更像狗、不像马），头大 + 胸毛蓬松 + 立耳明显 + 黑白配色 + 立尾蜷曲；bark 气泡同步放大字号
 - **v1.4.8** — 修复"看笔记"按钮在 PyWebView 下不工作：obsidian:// 自定义协议必须走 `<a target="_blank">` 才能被 OS 接管（programmatic `window.location.href` 在嵌入 WebKit 里被吞）。 同步：抽取 `src/web/services/obsidian_url.py` 共享给 transcribe + history，history 端点返回 `obsidian_url` 字段，前端用真链接
+- **v1.4.9** — 订阅页用户友好化：默认预填 `https://macroclaw.app/rsshub`，支持粘贴小宇宙播客页 / 剧集页 / 分享文本自动生成 RSSHub 订阅地址，保留名称和 RSS URL 手动兜底
 
 ## Current Version
 
-v1.4.8 — 修复 "看笔记" 按钮在桌面 app 下点击无效
+v1.4.9 — 订阅页粘贴链接自动识别 + 默认 RSSHub 预填

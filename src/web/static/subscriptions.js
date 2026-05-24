@@ -7,13 +7,19 @@
   const modal = document.getElementById('sub-modal');
   const modalTitle = document.getElementById('sub-modal-title');
   const indexInput = document.getElementById('sub-index');
+  const pasteInput = document.getElementById('sub-paste');
+  const rsshubBaseInput = document.getElementById('sub-rsshub-base');
   const nameInput = document.getElementById('sub-name');
   const rssInput = document.getElementById('sub-rss');
   const tagsInput = document.getElementById('sub-tags');
   const testResult = document.getElementById('sub-test-result');
+  const resolveBtn = document.getElementById('sub-resolve-btn');
   const testBtn = document.getElementById('sub-test-btn');
   const cancelBtn = document.getElementById('sub-cancel-btn');
   const saveBtn = document.getElementById('sub-save-btn');
+
+  let defaultRsshubBase = 'https://macroclaw.app/rsshub';
+  let resolveTimer = null;
 
   function escapeHtml(s) {
     return String(s == null ? '' : s)
@@ -21,6 +27,7 @@
   }
 
   async function reload() {
+    await loadDefaults();
     loadingEl.classList.remove('hidden');
     listEl.classList.add('hidden');
     emptyEl.classList.add('hidden');
@@ -37,6 +44,20 @@
       listEl.innerHTML = subs.map(renderRow).join('');
     } catch (e) {
       loadingEl.textContent = '加载失败：' + e.message;
+    }
+  }
+
+  async function loadDefaults() {
+    try {
+      const resp = await fetch('/api/subscriptions/defaults');
+      if (!resp.ok) return;
+      const data = await resp.json();
+      if (data.rsshub_base) defaultRsshubBase = data.rsshub_base;
+      if (rsshubBaseInput && !rsshubBaseInput.value.trim()) {
+        rsshubBaseInput.value = defaultRsshubBase;
+      }
+    } catch (_) {
+      // The local fallback is enough for the UI to stay usable.
     }
   }
 
@@ -64,12 +85,14 @@
   function openModal({ index = '', name = '', rss_url = '', tags = [] } = {}) {
     modalTitle.textContent = index === '' ? '添加播客' : '编辑播客';
     indexInput.value = index;
+    pasteInput.value = '';
+    rsshubBaseInput.value = defaultRsshubBase;
     nameInput.value = name;
     rssInput.value = rss_url;
     tagsInput.value = tags.join(', ');
     testResult.textContent = '';
     modal.classList.remove('hidden');
-    nameInput.focus();
+    pasteInput.focus();
   }
 
   function closeModal() {
@@ -81,6 +104,61 @@
   modal.addEventListener('click', (e) => {
     if (e.target === modal) closeModal();
   });
+
+  pasteInput.addEventListener('input', () => {
+    if (resolveTimer) clearTimeout(resolveTimer);
+    const pasted = pasteInput.value.trim();
+    if (!pasted) return;
+    testResult.textContent = '准备识别…';
+    testResult.className = 'text-xs text-stone-500';
+    resolveTimer = setTimeout(resolvePastedInput, 500);
+  });
+
+  resolveBtn.addEventListener('click', resolvePastedInput);
+
+  async function resolvePastedInput() {
+    const input = pasteInput.value.trim();
+    if (!input) {
+      testResult.textContent = '先把小宇宙播客链接粘贴到上面';
+      testResult.className = 'text-xs text-amber-700';
+      return false;
+    }
+    resolveBtn.disabled = true;
+    testResult.textContent = '自动识别中…';
+    testResult.className = 'text-xs text-stone-500';
+    try {
+      const resp = await fetch('/api/subscriptions/resolve', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          input,
+          rsshub_base: rsshubBaseInput.value.trim() || defaultRsshubBase,
+        }),
+      });
+      const data = await resp.json();
+      if (!resp.ok || !data.ok) {
+        testResult.textContent = '✕ ' + (data.error || data.detail || '识别失败');
+        testResult.className = 'text-xs text-red-700';
+        return false;
+      }
+      if (data.rsshub_base) {
+        defaultRsshubBase = data.rsshub_base;
+        rsshubBaseInput.value = data.rsshub_base;
+      }
+      nameInput.value = data.name || nameInput.value;
+      rssInput.value = data.rss_url || rssInput.value;
+      if (!tagsInput.value.trim() && data.kind === 'xiaoyuzhou') tagsInput.value = 'podcast';
+      testResult.textContent = '✓ ' + (data.message || '已识别') + '：' + (data.name || data.rss_url);
+      testResult.className = 'text-xs text-emerald-700';
+      return true;
+    } catch (e) {
+      testResult.textContent = '✕ 请求失败：' + e.message;
+      testResult.className = 'text-xs text-red-700';
+      return false;
+    } finally {
+      resolveBtn.disabled = false;
+    }
+  }
 
   testBtn.addEventListener('click', async () => {
     const url = rssInput.value.trim();
@@ -112,6 +190,10 @@
   });
 
   saveBtn.addEventListener('click', async () => {
+    if ((!nameInput.value.trim() || !rssInput.value.trim()) && pasteInput.value.trim()) {
+      const resolved = await resolvePastedInput();
+      if (!resolved) return;
+    }
     const name = nameInput.value.trim();
     const rss_url = rssInput.value.trim();
     const tags = tagsInput.value.split(',').map(s => s.trim()).filter(Boolean);

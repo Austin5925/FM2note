@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from unittest.mock import patch
+from unittest.mock import AsyncMock, patch
 
 import pytest
 from fastapi.testclient import TestClient
@@ -71,6 +71,99 @@ def test_delete_removes_entry(client):
 
     r2 = client.get("/api/subscriptions")
     assert r2.json()["subscriptions"] == []
+
+
+def _fake_feed(title: str):
+    fake_feed = type("F", (), {})()
+    fake_feed.bozo = 0
+    fake_feed.entries = []
+    fake_feed.feed = {"title": title}
+    return fake_feed
+
+
+def test_defaults_use_personal_rsshub_fallback(client):
+    r = client.get("/api/subscriptions/defaults")
+    assert r.status_code == 200
+    assert r.json()["rsshub_base"] == "https://macroclaw.app/rsshub"
+
+
+def test_defaults_extract_existing_rsshub_base(client, tmp_path):
+    (tmp_path / "config" / "subscriptions.yaml").write_text(
+        "podcasts:\n"
+        "  - name: x\n"
+        "    rss_url: https://example.com/rsshub/xiaoyuzhou/podcast/abc123\n",
+        encoding="utf-8",
+    )
+    r = client.get("/api/subscriptions/defaults")
+    assert r.status_code == 200
+    assert r.json()["rsshub_base"] == "https://example.com/rsshub"
+
+
+def test_resolve_xiaoyuzhou_podcast_url_uses_default_rsshub(client):
+    with patch("feedparser.parse", return_value=_fake_feed("非共识的20分钟")):
+        r = client.post(
+            "/api/subscriptions/resolve",
+            json={"input": "https://www.xiaoyuzhoufm.com/podcast/6978a31df828d4e9f2787d3d"},
+        )
+    assert r.status_code == 200
+    body = r.json()
+    assert body["ok"] is True
+    assert body["kind"] == "xiaoyuzhou"
+    assert body["name"] == "非共识的20分钟"
+    assert (
+        body["rss_url"]
+        == "https://macroclaw.app/rsshub/xiaoyuzhou/podcast/6978a31df828d4e9f2787d3d"
+    )
+
+
+def test_resolve_xiaoyuzhou_share_text_extracts_podcast_url(client):
+    with patch("feedparser.parse", return_value=_fake_feed("支无不言")):
+        r = client.post(
+            "/api/subscriptions/resolve",
+            json={
+                "input": "我在小宇宙发现了一个播客 https://www.xiaoyuzhoufm.com/podcast/681b47122ad01a51a21cd515?utm_source=copy_link"
+            },
+        )
+    assert r.status_code == 200
+    body = r.json()
+    assert body["ok"] is True
+    assert body["podcast_id"] == "681b47122ad01a51a21cd515"
+    assert body["name"] == "支无不言"
+
+
+def test_resolve_xiaoyuzhou_episode_url_extracts_series(client):
+    html = """
+    <script type="application/ld+json">
+      {"partOfSeries":{"name":"从剧集页来的播客","url":"https://www.xiaoyuzhoufm.com/podcast/podcast123"}}
+    </script>
+    """
+    with (
+        patch(
+            "src.web.services.subscription_resolver._fetch_xiaoyuzhou_html",
+            new=AsyncMock(return_value=html),
+        ),
+        patch("feedparser.parse", return_value=_fake_feed("从剧集页来的播客")),
+    ):
+        r = client.post(
+            "/api/subscriptions/resolve",
+            json={"input": "https://www.xiaoyuzhoufm.com/episode/episode123"},
+        )
+    assert r.status_code == 200
+    body = r.json()
+    assert body["ok"] is True
+    assert body["podcast_id"] == "podcast123"
+    assert body["rss_url"] == "https://macroclaw.app/rsshub/xiaoyuzhou/podcast/podcast123"
+
+
+def test_resolve_existing_rsshub_url_preserves_url(client):
+    url = "https://macroclaw.app/rsshub/xiaoyuzhou/podcast/existing123"
+    with patch("feedparser.parse", return_value=_fake_feed("已有 RSSHub")):
+        r = client.post("/api/subscriptions/resolve", json={"input": url})
+    assert r.status_code == 200
+    body = r.json()
+    assert body["ok"] is True
+    assert body["rss_url"] == url
+    assert body["rsshub_base"] == "https://macroclaw.app/rsshub"
 
 
 def test_test_endpoint_happy_path(client):

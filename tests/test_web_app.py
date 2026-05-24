@@ -49,7 +49,8 @@ class TestPages:
     def test_subscriptions_page_renders(self, client):
         r = client.get("/subscriptions")
         assert r.status_code == 200
-        assert "管理播客 RSS 订阅" in r.text
+        assert "粘贴小宇宙播客链接" in r.text
+        assert "sub-paste" in r.text
         assert "/static/subscriptions.js" in r.text
 
     def test_settings_page_renders(self, client):

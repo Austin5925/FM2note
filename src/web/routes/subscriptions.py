@@ -37,9 +37,7 @@ def _ensure_doc_with_seq(doc):
         doc["podcasts"] = CommentedSeq()
         return doc, doc["podcasts"]
     if not isinstance(doc, dict):
-        raise HTTPException(
-            status_code=400, detail="subscriptions.yaml root must be a mapping"
-        )
+        raise HTTPException(status_code=400, detail="subscriptions.yaml root must be a mapping")
     podcasts = doc.get("podcasts")
     if podcasts is None:
         doc["podcasts"] = CommentedSeq()

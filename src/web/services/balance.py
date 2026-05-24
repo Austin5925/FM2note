@@ -88,11 +88,7 @@ async def fetch_balance(force_refresh: bool = False) -> BalanceState:
         return BalanceState(configured=False)
 
     now = time.monotonic()
-    if (
-        not force_refresh
-        and _cache is not None
-        and (now - _cache.fetched_at) < CACHE_TTL_SEC
-    ):
+    if not force_refresh and _cache is not None and (now - _cache.fetched_at) < CACHE_TTL_SEC:
         return BalanceState(configured=True, snapshot=_cache)
 
     ak, sk = creds
@@ -118,9 +114,7 @@ async def fetch_balance(force_refresh: bool = False) -> BalanceState:
 
         sk_fp = sha256(sk.encode()).hexdigest()[:6]
         logger.warning("QueryAccountBalance failed (sk_fp={}): {}", sk_fp, type(e).__name__)
-        return BalanceState(
-            configured=True, error=f"Aliyun BSS API 调用失败（{type(e).__name__}）"
-        )
+        return BalanceState(configured=True, error=f"Aliyun BSS API 调用失败（{type(e).__name__}）")
 
     try:
         body = response.body

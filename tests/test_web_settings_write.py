@@ -144,9 +144,7 @@ def test_two_phase_commit_leaves_no_partial_state(client, tmp_path, monkeypatch)
     assert (tmp_path / ".env").read_text(encoding="utf-8") == original_env
     # No stray temp files
     stray_env = [
-        f.name
-        for f in tmp_path.iterdir()
-        if f.name.startswith(".env.") and f.name != ".env"
+        f.name for f in tmp_path.iterdir() if f.name.startswith(".env.") and f.name != ".env"
     ]
     assert stray_env == []
     stray_yaml = [

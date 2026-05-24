@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-import os
+import platform
 import shlex
 
 import pytest
@@ -11,7 +11,10 @@ from click.testing import CliRunner
 from main import cli
 
 
-@pytest.mark.skipif(os.name != "posix", reason="shell-quoting test is POSIX-only")
+@pytest.mark.skipif(
+    platform.system() != "Darwin",
+    reason="install-shortcut macOS branch — Linux branch writes fm2note.sh instead",
+)
 class TestInstallShortcut:
     def test_app_mode_uses_safe_workdir_quoting(self, tmp_path, monkeypatch):
         """If CWD contains shell-special chars, the shortcut must still parse safely."""

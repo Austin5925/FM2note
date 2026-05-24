@@ -15,7 +15,7 @@ def test_read_simple_unquoted(tmp_path: Path):
 
 def test_read_quoted_values(tmp_path: Path):
     p = tmp_path / ".env"
-    p.write_text('export A="hello world"\nB=\'q\'\n', encoding="utf-8")
+    p.write_text("export A=\"hello world\"\nB='q'\n", encoding="utf-8")
     out = read_env(p)
     assert out["A"] == "hello world"
     assert out["B"] == "q"

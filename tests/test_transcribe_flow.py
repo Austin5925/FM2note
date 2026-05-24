@@ -160,9 +160,7 @@ async def test_asr_failure_propagates_with_error_event(tmp_path):
         patch("src.transcriber.factory.create_transcriber", return_value=fake_transcriber),
         pytest.raises(RuntimeError, match="network"),
     ):
-        await transcribe_single_url(
-            "http://audio.example/x.mp3", config, progress_callback=cb
-        )
+        await transcribe_single_url("http://audio.example/x.mp3", config, progress_callback=cb)
 
     assert ("asr", "error") in events
     assert ("write", "done") not in events

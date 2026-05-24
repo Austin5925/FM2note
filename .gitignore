@@ -15,6 +15,9 @@ env/
 # Environment variables
 .env
 
+# Personal assets (never commit) — see CLAUDE.md
+src/web/static/payment-qr.png
+
 # User config (use *.example.yaml as template)
 config/config.yaml
 config/subscriptions.yaml

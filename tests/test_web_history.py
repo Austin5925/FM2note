@@ -17,8 +17,7 @@ def client(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     (tmp_path / "config").mkdir()
     (tmp_path / "config" / "config.yaml").write_text(
-        f'vault_path: "{tmp_path}"\npodcast_dir: "Podcasts"\n'
-        f'db_path: "{tmp_path}/state.db"\n',
+        f'vault_path: "{tmp_path}"\npodcast_dir: "Podcasts"\ndb_path: "{tmp_path}/state.db"\n',
         encoding="utf-8",
     )
     with TestClient(create_app()) as c:
@@ -143,9 +142,7 @@ class TestRetrySummary:
         fake_summarizer.summarize = AsyncMock(
             return_value=SummaryResult(summary="The summary.", chapters=None, keywords=None)
         )
-        with patch(
-            "src.web.routes.history.create_summarizer", return_value=fake_summarizer
-        ):
+        with patch("src.web.routes.history.create_summarizer", return_value=fake_summarizer):
             r = client.post("/api/history/retry-summary", json={"id": "abcd"})
         assert r.status_code == 200
         assert r.json()["ok"] is True

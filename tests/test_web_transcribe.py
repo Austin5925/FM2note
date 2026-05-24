@@ -124,8 +124,8 @@ class TestSseStream:
                 body = "".join(stream.iter_text())
 
         # All five stages and an end event must be present
-        assert 'event: progress' in body
-        assert 'event: end' in body
+        assert "event: progress" in body
+        assert "event: end" in body
         for stage in ["resolve", "subtitle_check", "asr", "summary", "write"]:
             assert f'"stage": "{stage}"' in body
         # complete payload includes note_path
@@ -146,4 +146,4 @@ class TestSseStream:
 
         assert '"status": "error"' in body
         assert "boom" in body
-        assert 'event: end' in body
+        assert "event: end" in body

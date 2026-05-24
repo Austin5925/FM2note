@@ -6,16 +6,14 @@ import shlex
 import tempfile
 from pathlib import Path
 
-_EXPORT_LINE = re.compile(
-    r'^\s*(?:export\s+)?(?P<key>[A-Za-z_][A-Za-z0-9_]*)\s*=\s*(?P<rest>.*)$'
-)
+_EXPORT_LINE = re.compile(r"^\s*(?:export\s+)?(?P<key>[A-Za-z_][A-Za-z0-9_]*)\s*=\s*(?P<rest>.*)$")
 
 
 def _quote(value: str) -> str:
     """Quote a value so it survives a roundtrip in a POSIX shell-style .env file."""
     if value == "":
         return '""'
-    if re.fullmatch(r'[A-Za-z0-9_./:@\-+%]+', value):
+    if re.fullmatch(r"[A-Za-z0-9_./:@\-+%]+", value):
         return value
     return '"' + value.replace("\\", "\\\\").replace('"', '\\"') + '"'
 

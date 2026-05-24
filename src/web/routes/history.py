@@ -153,9 +153,7 @@ async def retry_all_summaries() -> dict:
             else:
                 failed += 1
         except Exception as e:
-            logger.warning(
-                "retry summary failed for {}: {}", item.get("title"), type(e).__name__
-            )
+            logger.warning("retry summary failed for {}: {}", item.get("title"), type(e).__name__)
             failed += 1
 
     return {"total": total, "success": success, "failed": failed}

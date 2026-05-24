@@ -109,13 +109,9 @@ async def update_settings(payload: dict) -> dict:
         if not vp.exists():
             raise HTTPException(status_code=400, detail=f"vault_path does not exist: {vp_str}")
         if not vp.is_dir():
-            raise HTTPException(
-                status_code=400, detail=f"vault_path is not a directory: {vp_str}"
-            )
+            raise HTTPException(status_code=400, detail=f"vault_path is not a directory: {vp_str}")
         if not os.access(vp, os.W_OK):
-            raise HTTPException(
-                status_code=400, detail=f"vault_path is not writable: {vp_str}"
-            )
+            raise HTTPException(status_code=400, detail=f"vault_path is not writable: {vp_str}")
 
     # Build both new file contents up front, then commit both within the lock.
     # Two-phase ensures we never persist YAML without ENV (or vice versa) on a

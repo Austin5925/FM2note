@@ -61,9 +61,7 @@ async def submit_transcribe(payload: dict) -> dict:
 
     async def _run() -> None:
         try:
-            outcome = await transcribe_single_url(
-                url, config, progress_callback=callback
-            )
+            outcome = await transcribe_single_url(url, config, progress_callback=callback)
             obsidian_url = _make_obsidian_url(config.vault_path, outcome.note_path)
             bus.update_record(
                 task_id,

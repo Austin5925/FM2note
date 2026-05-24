@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.4.10] - 2026-05-24
+
+### Fixed
+- 本机全局 `web3` 安装的 `pytest_ethereum` 插件与 `eth_typing` 版本不兼容，会在 pytest 自动加载阶段拦截 `make test`
+- 在项目 pytest 配置中禁用无关的 `pytest_ethereum` 插件，保留 `make test` 原命令不变
+
 ## [1.4.9] - 2026-05-24
 
 ### Added

@@ -7,7 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [1.4.6] - 2026-05-24
+## [1.4.7] - 2026-05-24
+
+### Changed
+- 边牧从 header 挪到"开始转录"按钮下方居中，从 48×36 放大到 128×128（约 4× 大小）
+- viewBox 由 32×24 改 32×32（增加纵向空间放下坐姿姿态）
+- 姿态由侧站改为坐姿 — 修复 v1.4.5 "看起来像马" 的反馈：
+  · 头部明显增大（占整体 ~30%，原 ~20%）
+  · 胸毛白色蓬松（区别于光滑马身）
+  · 前腿短而垂直、后腿盘坐（破除马的四足对称感）
+  · 立耳上方加 1 像素尖端突出
+  · 蜷曲短尾在身后（替代原"水平鞭尾"）
+- bark 气泡字号 10→14、padding 加大、动画位移翻倍以匹配更大的狗
 
 ### Fixed
 - Header 左侧组（FM2note / 版本号 / 边牧）从 `items-baseline` 改为 `items-center`，

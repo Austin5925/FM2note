@@ -41,3 +41,108 @@
   0%, 100% { opacity: 0.4; }
   50% { opacity: 1; }
 }
+
+/* ---------------------------------------------------------------------------
+ * Dark-mode overrides
+ *
+ * Cascade-based: we re-map the stone-* palette used pervasively in the
+ * templates (instead of tagging every Tailwind class with a `dark:` variant).
+ * This keeps the markup readable and means any new page that uses the same
+ * palette automatically gets dark mode for free.
+ * --------------------------------------------------------------------------- */
+
+.dark body { background-color: rgb(28 25 23); color: rgb(231 229 228); }
+
+/* Page backgrounds */
+.dark .bg-stone-50 { background-color: rgb(28 25 23); }    /* page */
+.dark .bg-white     { background-color: rgb(41 37 36); }   /* cards */
+.dark .bg-stone-100 { background-color: rgb(68 64 60); }   /* subtle */
+.dark .hover\:bg-stone-50:hover  { background-color: rgb(41 37 36); }
+.dark .hover\:bg-stone-100:hover { background-color: rgb(68 64 60); }
+
+/* Inverted "dark" primary button → light on dark mode */
+.dark .bg-stone-900 { background-color: rgb(245 245 244); color: rgb(28 25 23); }
+.dark .bg-stone-900.text-white { color: rgb(28 25 23); }
+.dark .hover\:bg-stone-700:hover { background-color: rgb(214 211 209); }
+
+/* Text */
+.dark .text-stone-800 { color: rgb(231 229 228); }
+.dark .text-stone-700 { color: rgb(214 211 209); }
+.dark .text-stone-600 { color: rgb(168 162 158); }
+.dark .text-stone-500 { color: rgb(168 162 158); }
+.dark .text-stone-400 { color: rgb(120 113 108); }
+
+/* Borders */
+.dark .border-stone-200 { border-color: rgb(68 64 60); }
+.dark .border-stone-300 { border-color: rgb(87 83 78); }
+.dark .border-stone-700 { border-color: rgb(214 211 209); }
+
+/* Inputs */
+.dark input,
+.dark select,
+.dark textarea {
+  background-color: rgb(41 37 36);
+  color: rgb(231 229 228);
+  border-color: rgb(87 83 78);
+}
+.dark input:focus,
+.dark select:focus,
+.dark textarea:focus {
+  outline-color: rgb(214 211 209);
+}
+
+/* Status palettes — keep colored but tone down for dark background */
+.dark .bg-emerald-50  { background-color: rgba(6, 78, 59, 0.4); }
+.dark .border-emerald-200 { border-color: rgb(6 95 70); }
+.dark .text-emerald-900 { color: rgb(167 243 208); }
+.dark .text-emerald-700 { color: rgb(110 231 183); }
+.dark .text-emerald-600 { color: rgb(110 231 183); }
+.dark .bg-emerald-100   { background-color: rgba(6, 95, 70, 0.5); }
+
+.dark .bg-red-50  { background-color: rgba(127, 29, 29, 0.35); }
+.dark .border-red-200 { border-color: rgb(153 27 27); }
+.dark .text-red-900 { color: rgb(254 202 202); }
+.dark .text-red-700 { color: rgb(252 165 165); }
+.dark .text-red-600 { color: rgb(252 165 165); }
+.dark .bg-red-100   { background-color: rgba(153, 27, 27, 0.5); }
+.dark .hover\:bg-red-50:hover { background-color: rgba(127, 29, 29, 0.55); }
+
+.dark .bg-amber-50  { background-color: rgba(120, 53, 15, 0.35); }
+.dark .border-amber-200 { border-color: rgb(146 64 14); }
+.dark .text-amber-900 { color: rgb(253 230 138); }
+.dark .text-amber-700 { color: rgb(252 211 77); }
+.dark .bg-amber-100 { background-color: rgba(146, 64, 14, 0.5); }
+.dark .bg-amber-600 { background-color: rgb(180 83 9); }
+.dark .hover\:bg-amber-500:hover { background-color: rgb(202 138 4); }
+
+/* The header / footer chrome */
+.dark header { background-color: rgb(28 25 23); }
+.dark .border-b { border-bottom-color: rgb(68 64 60); }
+
+/* Step icon adjustments in dark mode */
+.dark .step-icon[data-state="pending"] { border-color: rgb(87 83 78); }
+.dark .step-icon[data-state="in_progress"] {
+  border-color: rgb(245 245 244);
+  background-color: rgb(245 245 244);
+  color: rgb(28 25 23);
+}
+.dark .step-icon[data-state="in_progress"]::after { background: rgb(28 25 23); }
+.dark .step-icon[data-state="skipped"] {
+  background-color: rgb(68 64 60);
+  color: rgb(168 162 158);
+}
+
+/* Code blocks inside dark prose */
+.dark code { background-color: rgb(68 64 60); }
+
+/* Stragglers Codex flagged that the cascade above didn't cover */
+.dark .focus\:ring-stone-900:focus { --tw-ring-color: rgb(245 245 244); }
+.dark .focus\:border-stone-900:focus { border-color: rgb(245 245 244); }
+.dark .disabled\:bg-stone-300:disabled { background-color: rgb(68 64 60); }
+.dark .disabled\:cursor-not-allowed:disabled { cursor: not-allowed; }
+.dark .border-red-300 { border-color: rgb(127 29 29); }
+.dark .hover\:bg-red-100:hover { background-color: rgba(153, 27, 27, 0.4); }
+
+/* Theme button group — already inherits dark hover via the .dark .hover\:bg-stone-100
+   rule above. Nothing else needed; the active state uses .bg-stone-900 which the
+   inverted-button rule already handles. */

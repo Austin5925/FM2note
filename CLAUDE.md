@@ -151,7 +151,8 @@ make bump-minor  # 版本号 minor +1
 - **v1.4.1** — Web UI 功能完整：历史/订阅/设置可写 + 阿里云余额徽章（方案 A: BSS OpenAPI + RAM 子账号）+ 桌面快捷方式 + 两阶段提交 + SSRF 加固，171 个测试，Codex Code Review 通过
 - **v1.4.2** — 体验打磨：健康自检页 + 后台服务状态检测（launchctl） + 友好错误文案映射 + 全局异常中间件 + 测试隔离 conftest 修复，310 个测试
 - **v1.4.3** — 收官：`fm2note app` PyWebView 桌面壳 + `install-shortcut --mode app|web` + jinja2 安全 floor + 全部文档更新 + 女友指南改写为 GUI 优先，315 个测试，Codex 二次 Code Review 通过
+- **v1.4.4** — UX 收尾：单图标主题切换（默认跟随系统，点击翻转）+ 暗色模式 CSS 覆盖层 + 余额弹窗一次性提示（sessionStorage）+ QR 图缺失优雅降级 + Tailwind CDN 顺序修正 + localStorage 禁用回退；关闭 CI 自动触发
 
 ## Current Version
 
-v1.4.3 — 桌面应用 + 文档完善（v1.4 大版本收官）
+v1.4.4 — 主题图标切换 + 暗色模式 + 余额提示优化

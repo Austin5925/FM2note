@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.4.4] - 2026-05-24
+
+### Added
+- 单图标主题切换按钮（sun/moon SVG）— 默认跟随系统，点击翻转浅/深色
+- 完整暗色模式 CSS 覆盖层（基于 stone 调色板的 cascade 写法）
+- 阿里云余额过低弹窗一次性提示（sessionStorage 作用域为浏览器标签页/窗口）
+
+### Fixed
+- 余额弹窗的二维码图缺失时优雅降级（onload/onerror + data-loaded，JS 不再无条件 unhide）
+- Tailwind Play CDN 配置写法符合官方文档（config 写在 script 之后）
+- localStorage 被禁用时（隐私窗口）回退仍能跟随系统主题
+
+### Removed
+- 弃用临时的 3 按钮主题切换组（系统/浅/深）
+
+### Chores
+- GitHub Actions CI 关闭 push/PR 自动触发（保留 workflow_dispatch 手动入口）
+- Makefile `lint` target 加上 `ruff format --check`
+
 ## [1.4.3] - 2026-05-24
 
 ### Added

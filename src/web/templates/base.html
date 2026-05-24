@@ -4,7 +4,24 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>{% block title %}FM2note{% endblock %}</title>
+
+  <!-- Apply theme BEFORE first paint to avoid a flash of the wrong color.
+       Storage read is wrapped in try/catch so a private/locked-down window
+       still falls through to the system-preference branch. -->
+  <script>
+    (function () {
+      let stored = 'system';
+      try { stored = localStorage.getItem('fm2note-theme') || 'system'; } catch (_) {}
+      const prefersDark = window.matchMedia
+        && window.matchMedia('(prefers-color-scheme: dark)').matches;
+      const isDark = stored === 'dark' || (stored === 'system' && prefersDark);
+      if (isDark) document.documentElement.classList.add('dark');
+    })();
+  </script>
+
+  <!-- Tailwind Play CDN: config is set AFTER the script tag per official docs. -->
   <script src="https://cdn.tailwindcss.com"></script>
+  <script>tailwind.config = { darkMode: 'class' };</script>
   <link rel="stylesheet" href="/static/app.css" />
 </head>
 <body class="bg-stone-50 text-stone-800 min-h-screen">
@@ -19,6 +36,29 @@
            href="/settings"
            class="hidden text-xs px-2 py-1 rounded-md border border-stone-200 hover:bg-stone-50"
            title="点击查看余额详情"></a>
+        <button id="theme-toggle" type="button"
+                aria-label="切换浅色/深色"
+                title="切换浅色/深色"
+                class="p-1.5 rounded-md text-stone-600 hover:bg-stone-100">
+          <svg id="theme-icon-sun" viewBox="0 0 20 20" width="16" height="16"
+               fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"
+               class="hidden">
+            <circle cx="10" cy="10" r="3.5"/>
+            <line x1="10" y1="1.5" x2="10" y2="3.5"/>
+            <line x1="10" y1="16.5" x2="10" y2="18.5"/>
+            <line x1="1.5" y1="10" x2="3.5" y2="10"/>
+            <line x1="16.5" y1="10" x2="18.5" y2="10"/>
+            <line x1="4" y1="4" x2="5.4" y2="5.4"/>
+            <line x1="14.6" y1="14.6" x2="16" y2="16"/>
+            <line x1="4" y1="16" x2="5.4" y2="14.6"/>
+            <line x1="14.6" y1="5.4" x2="16" y2="4"/>
+          </svg>
+          <svg id="theme-icon-moon" viewBox="0 0 20 20" width="16" height="16"
+               fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"
+               class="hidden">
+            <path d="M16.5 12.5A7 7 0 0 1 7.5 3.5a6.5 6.5 0 1 0 9 9z"/>
+          </svg>
+        </button>
         <nav class="flex items-center gap-1 text-sm">
           {% set tabs = [
             ('transcribe', '/', '转录'),
@@ -50,15 +90,20 @@
       <div class="text-sm text-stone-700 mb-4">
         提醒男朋友给阿里云充值，否则转录可能失败。
       </div>
+      <!-- QR starts visible so the browser loads it eagerly; if the file is
+           absent (fresh checkout without the personal payment-qr.png),
+           onerror hides it and JS won't unconditionally re-show it. -->
       <img id="balance-qr"
            src="/static/payment-qr.png"
            alt="收款码"
-           class="hidden w-full max-w-[240px] mx-auto rounded border border-stone-200"
-           onerror="this.classList.add('hidden')" />
+           data-loaded="0"
+           class="w-full max-w-[240px] mx-auto rounded border border-stone-200"
+           onload="this.dataset.loaded='1'"
+           onerror="this.classList.add('hidden'); this.dataset.loaded='0';" />
       <div class="mt-4 flex justify-end gap-2">
         <button id="balance-modal-close"
                 class="px-3 py-1.5 rounded-md border border-stone-300 text-xs hover:bg-stone-50">
-          知道了
+          本次窗口不再提示
         </button>
       </div>
     </div>
@@ -68,6 +113,7 @@
     FM2note · 本地运行 · 数据不上传
   </footer>
 
+  <script src="/static/theme.js"></script>
   <script src="/static/balance-badge.js"></script>
   {% block scripts %}{% endblock %}
 </body>

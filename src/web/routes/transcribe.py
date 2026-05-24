@@ -3,7 +3,6 @@ from __future__ import annotations
 import asyncio
 import json
 from typing import Any
-from urllib.parse import quote
 
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import StreamingResponse
@@ -14,6 +13,7 @@ from src.transcribe_flow import preview_episode, transcribe_single_url
 from src.web.paths import CONFIG_PATH
 from src.web.progress import ProgressEvent, get_bus
 from src.web.services.error_messages import friendly_transcribe_error
+from src.web.services.obsidian_url import build_obsidian_url
 
 router = APIRouter(prefix="/api")
 
@@ -62,7 +62,7 @@ async def submit_transcribe(payload: dict) -> dict:
     async def _run() -> None:
         try:
             outcome = await transcribe_single_url(url, config, progress_callback=callback)
-            obsidian_url = _make_obsidian_url(config.vault_path, outcome.note_path)
+            obsidian_url = build_obsidian_url(config.vault_path, outcome.note_path)
             bus.update_record(
                 task_id,
                 note_path=str(outcome.note_path),
@@ -140,19 +140,3 @@ async def stream_progress(task_id: str, request: Request) -> StreamingResponse:
             "X-Accel-Buffering": "no",
         },
     )
-
-
-def _make_obsidian_url(vault_path: str, note_path) -> str:
-    """Build an obsidian:// deep link for the just-written note.
-
-    Format: obsidian://open?vault=<vault-name>&file=<relative-path-without-extension>
-    """
-    from pathlib import Path
-
-    vault = Path(vault_path).resolve()
-    note = Path(note_path).resolve()
-    try:
-        rel = note.relative_to(vault).with_suffix("")
-    except ValueError:
-        return ""
-    return f"obsidian://open?vault={quote(vault.name)}&file={quote(str(rel))}"

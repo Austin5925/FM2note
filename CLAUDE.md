@@ -155,7 +155,8 @@ make bump-minor  # 版本号 minor +1
 - **v1.4.5** — 彩蛋：header 嵌入像素风边牧（32×24 SVG · 3 条独立动画轨道：呼吸 / 摇尾 / 眨眼） · 点击触发 "汪!" 气泡 + 身体抖动 · CSS 变量适配暗色（黑色变 stone-600 避免与背景同色）
 - **v1.4.6** — Header 视觉调优：左侧组从 items-baseline 改 items-center，FM2note / 版本号 / 边牧三者垂直居中对齐；"汪!" 气泡从上方挪到狗下方（避免遮挡顶部窗口拖动条）
 - **v1.4.7** — 边牧重画：从 header 挪到 "开始转录" 按钮下方居中，viewBox 改 32×32 显示 128×128（4 倍大小），姿态从侧站改坐姿（更像狗、不像马），头大 + 胸毛蓬松 + 立耳明显 + 黑白配色 + 立尾蜷曲；bark 气泡同步放大字号
+- **v1.4.8** — 修复"看笔记"按钮在 PyWebView 下不工作：obsidian:// 自定义协议必须走 `<a target="_blank">` 才能被 OS 接管（programmatic `window.location.href` 在嵌入 WebKit 里被吞）。 同步：抽取 `src/web/services/obsidian_url.py` 共享给 transcribe + history，history 端点返回 `obsidian_url` 字段，前端用真链接
 
 ## Current Version
 
-v1.4.7 — 边牧重画放大 + 移到转录按钮下方
+v1.4.8 — 修复 "看笔记" 按钮在桌面 app 下点击无效

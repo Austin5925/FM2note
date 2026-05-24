@@ -34,8 +34,11 @@
   function renderEpisodeRow(ep) {
     const statusInfo = statusBadge(ep.status);
     const time = ep.updated_at ? new Date(ep.updated_at).toLocaleString('zh-CN') : '';
-    const openBtn = ep.note_path
-      ? `<a href="#" data-action="open" data-note-path="${escapeHtml(ep.note_path)}"
+    // Real <a target="_blank"> — required for custom obsidian:// scheme to be
+    // handed off to the OS by PyWebView/WebKit. Programmatic window.location
+    // assignments are blocked in embedded webviews.
+    const openBtn = ep.obsidian_url
+      ? `<a href="${escapeHtml(ep.obsidian_url)}" target="_blank" rel="noopener"
             class="text-xs px-2 py-1 rounded-md bg-stone-900 text-white hover:bg-stone-700">看笔记</a>`
       : '';
     const errorRow = ep.error_msg
@@ -111,12 +114,7 @@
     const btn = e.target.closest('[data-action]');
     if (!btn) return;
     const action = btn.dataset.action;
-    if (action === 'open') {
-      e.preventDefault();
-      const notePath = btn.dataset.notePath;
-      const url = await buildObsidianUrl(notePath);
-      if (url) window.location.href = url;
-    } else if (action === 'retry') {
+    if (action === 'retry') {
       btn.disabled = true;
       btn.textContent = '重试中…';
       const resp = await fetch('/api/history/retry-summary', {
@@ -149,22 +147,6 @@
       }, 3000);
     }
   });
-
-  async function buildObsidianUrl(notePath) {
-    // The note path is absolute; ask the server to compute the deep link
-    try {
-      const resp = await fetch('/api/settings');
-      if (!resp.ok) return null;
-      const s = await resp.json();
-      const vaultPath = s.vault_path;
-      if (!vaultPath || !notePath.startsWith(vaultPath)) return null;
-      const rel = notePath.slice(vaultPath.length).replace(/^\//, '').replace(/\.md$/, '');
-      const vaultName = vaultPath.split('/').filter(Boolean).pop();
-      return `obsidian://open?vault=${encodeURIComponent(vaultName)}&file=${encodeURIComponent(rel)}`;
-    } catch (_) {
-      return null;
-    }
-  }
 
   reload();
 })();

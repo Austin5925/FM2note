@@ -18,6 +18,7 @@ from src.summarizer.pending import (
     remove_pending,
 )
 from src.web.paths import CONFIG_PATH
+from src.web.services.obsidian_url import build_obsidian_url
 
 router = APIRouter(prefix="/api")
 
@@ -25,7 +26,7 @@ router = APIRouter(prefix="/api")
 _SAFE_ID = re.compile(r"^[A-Fa-f0-9]{1,32}$")
 
 
-def _from_processed(ep) -> dict[str, Any]:
+def _from_processed(ep, vault_path: str) -> dict[str, Any]:
     return {
         "guid": ep.guid,
         "title": ep.title,
@@ -34,6 +35,7 @@ def _from_processed(ep) -> dict[str, Any]:
         "error_msg": ep.error_msg,
         "retry_count": ep.retry_count,
         "note_path": ep.note_path,
+        "obsidian_url": build_obsidian_url(vault_path, ep.note_path) if ep.note_path else "",
         "updated_at": ep.updated_at.isoformat() if ep.updated_at else None,
     }
 
@@ -73,7 +75,7 @@ async def list_history(limit: int = 20) -> dict:
         await state.close()
 
     rows.sort(key=lambda r: r.updated_at, reverse=True)
-    episodes = [_from_processed(r) for r in rows[: max(1, limit)]]
+    episodes = [_from_processed(r, config.vault_path) for r in rows[: max(1, limit)]]
 
     pending: list[dict[str, Any]] = []
     for item in load_all_pending():

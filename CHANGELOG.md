@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.4.8] - 2026-05-24
+
+### Fixed
+- 历史页"看笔记"按钮在 `fm2note app` (PyWebView) 下点击无反应：
+  - 根因：`window.location.href = "obsidian://..."` 在嵌入 WebKit 里不会触发 OS 协议处理器
+  - 修法：服务端在 history 响应里直接算好 `obsidian_url`，前端用 `<a target="_blank" rel="noopener">`，由 OS 接管自定义协议
+- 转录完成卡片的"在 Obsidian 中打开"也加上 `target="_blank"`（同样的潜在问题，预防性修复）
+
+### Refactored
+- 抽取 `src/web/services/obsidian_url.py::build_obsidian_url()`，供 transcribe 和 history 路由共用（之前 transcribe 内部有 `_make_obsidian_url`，history 在前端 JS 重复实现一次，三处逻辑不一致）
+
 ## [1.4.7] - 2026-05-24
 
 ### Changed

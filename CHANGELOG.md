@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.4.6] - 2026-05-24
+
+### Fixed
+- Header 左侧组（FM2note / 版本号 / 边牧）从 `items-baseline` 改为 `items-center`，
+  与右侧的余额徽章 / 主题切换 / 导航 tab 视觉上水平对齐
+- 边牧 "汪!" 气泡从上方改到狗的下方（避免遮挡桌面应用顶部的窗口拖动条）
+
 ## [1.4.5] - 2026-05-24
 
 ### Added

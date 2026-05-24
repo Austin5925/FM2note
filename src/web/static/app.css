@@ -202,11 +202,12 @@
   80%      { transform: translateX(1px); }
 }
 
-/* "汪!" speech bubble */
+/* "汪!" speech bubble — anchored below the dog */
 .collie-bark {
   position: absolute;
-  bottom: 100%;
+  top: 100%;
   left: 50%;
+  margin-top: 2px;
   background: #fbbf24;            /* amber-400 */
   color: #1c1917;
   font-size: 10px;
@@ -216,15 +217,16 @@
   white-space: nowrap;
   pointer-events: none;
   opacity: 0;
+  z-index: 60;
   transform: translateX(-50%) translateY(0) scale(0.7);
 }
 .collie-bark.collie-bark-visible {
   animation: collie-bark-pop 0.7s ease-out forwards;
 }
 @keyframes collie-bark-pop {
-  0%   { opacity: 0; transform: translateX(-50%) translateY(4px) scale(0.7); }
-  20%  { opacity: 1; transform: translateX(-50%) translateY(-2px) scale(1.1); }
-  70%  { opacity: 1; transform: translateX(-50%) translateY(-6px) scale(1); }
-  100% { opacity: 0; transform: translateX(-50%) translateY(-10px) scale(0.95); }
+  0%   { opacity: 0; transform: translateX(-50%) translateY(-4px) scale(0.7); }
+  20%  { opacity: 1; transform: translateX(-50%) translateY(2px) scale(1.1); }
+  70%  { opacity: 1; transform: translateX(-50%) translateY(6px) scale(1); }
+  100% { opacity: 0; transform: translateX(-50%) translateY(10px) scale(0.95); }
 }
 .dark .collie-bark { background: #f59e0b; color: #1c1917; }

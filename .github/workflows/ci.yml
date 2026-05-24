@@ -1,10 +1,15 @@
 name: CI
 
+# Automatic triggers disabled per project owner request.
+# Re-enable by uncommenting the push/pull_request blocks below.
+# In the meantime you can still trigger this workflow manually from the
+# Actions tab via the "Run workflow" button (workflow_dispatch).
 on:
-  push:
-    branches: [master]
-  pull_request:
-    branches: [master]
+  workflow_dispatch:
+  # push:
+  #   branches: [master]
+  # pull_request:
+  #   branches: [master]
 
 jobs:
   lint:

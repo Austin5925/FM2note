@@ -9,9 +9,9 @@ from loguru import logger
 
 # Default placeholder shown in the Web UI settings page and as the prefill
 # in `fm2note init` when no Obsidian vault auto-detection succeeds. Kept
-# generic on purpose: v1.5.1 audit (Code Review A4) flagged the old
-# hardcoded personal path "/Users/somebody/..." as a privacy leak in the
-# public pip package. On macOS, `_detect_obsidian_vault()` will usually
+# generic on purpose: v1.5.1 audit (Code Review A4) flagged the previously
+# hardcoded developer-specific home path as a privacy leak in the public
+# pip package. On macOS, `_detect_obsidian_vault()` will usually
 # discover a real vault from Obsidian's local config and override this.
 DEFAULT_VAULT_PATH = "~/Documents/Obsidian"
 

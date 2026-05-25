@@ -76,7 +76,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [1.5.1] - 2026-05-25
 
 ### Fixed
-- `DEFAULT_VAULT_PATH` 从硬编码个人路径（`/Users/somebody/...`）改为通用 `~/Documents/Obsidian`，避免 pip 包泄露作者用户名 + 误导新用户写入不存在路径（Code Review A4）
+- `DEFAULT_VAULT_PATH` 从硬编码个人路径改为通用 `~/Documents/Obsidian`，避免 pip 包泄露作者用户名 + 误导新用户写入不存在路径（Code Review A4）
 - `pyproject.toml` 配置 `.env.example` 一起打进 wheel，否则 `fm2note init` 在 pip-installed 环境只生成单 key 的最小 `.env`（Codex 全仓审计）
 - `CHANGELOG.md` 从 v1.4.11 起补完整（pyproject 链接此文件，之前是 stub，新用户点开 PyPI changelog 看不到）
 

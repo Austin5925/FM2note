@@ -229,7 +229,7 @@ make bump-minor  # 版本号 minor +1
   - 420 测试（+15 新增：EpisodeProcessor cache-hit / options / progress callback / mark_status 字段 + Pipeline broadcast 订阅/取消/异常隔离）
 
 - **v1.5.1** — GUI 自启开关 + 删 init 交互 + 修个人路径硬编码
-  - **A4 fix（Code Review）**：`DEFAULT_VAULT_PATH` 从 `"/Users/somebody/..."` 改为通用 `~/Documents/Obsidian`，避免 pip 包泄露作者用户名 + 误导新用户
+  - **A4 fix（Code Review）**：`DEFAULT_VAULT_PATH` 从硬编码个人路径改为通用 `~/Documents/Obsidian`，避免 pip 包泄露作者用户名 + 误导新用户
   - **D1 fix**：`CHANGELOG.md` 从 v1.4.11 起补完整（pyproject 链接此文件，之前是 stub，PyPI changelog 看不到）
   - **Codex fix**：`fm2note init` 的 fallback `.env` 模板现在写完整内容（Poe/OpenAI/Aliyun/Shared cache 全 placeholder），pip-installed 环境拿不到 .env.example 也能生成完整模板
   - **GUI 自启**：设置页"开机自启"开关，调 `POST /api/service/install` / `/uninstall`，子进程跑 `fm2note install-service` 反向化。GUI 用户无须开终端

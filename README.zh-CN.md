@@ -190,6 +190,38 @@ docker compose up -d
 
 在浏览器打开播客页面：`https://www.xiaoyuzhoufm.com/podcast/PODCAST_ID`，复制 PODCAST_ID。
 
+## 配置
+
+### config/config.yaml（非敏感配置）
+
+所有非敏感配置都在这里，也可通过 Web UI 设置页编辑。
+
+| 字段 | 默认 | 说明 |
+|---|---|---|
+| `vault_path` | — | Obsidian Vault 路径（必填） |
+| `podcast_dir` | `Podcasts` | Vault 内笔记子目录 |
+| `poll_interval_hours` | `3` | `serve` 模式轮询间隔 |
+| `asr_engine` | `funasr` | `funasr` / `paraformer` / `tingwu` / `bailian` / `whisper_api` |
+| `max_retries` | `3` | 失败剧集最大重试次数 |
+| `summary_provider` | `auto` | `auto` / `poe` / `openai` / `none` |
+| `summary_model` | — | 覆写模型（默认走 provider 默认） |
+| `summary_cooldown` | `60` | 摘要 API 调用间隔（秒） |
+| `summary_base_url` | — | OpenAI-compatible 端点（DeepSeek/Groq/Ollama） |
+| `log_level` | `INFO` | `DEBUG` / `INFO` / `WARNING` / `ERROR` |
+| `template_path` | — | 自定义 Jinja2 模板路径（可选） |
+
+### .env（敏感凭据）
+
+v1.4.12 起，`.env` **只放** API Key / 凭据。任何非敏感字段放这里会触发启动 warning——它会静默覆盖 Web UI 的修改。
+
+| 变量 | 是否必需 | 说明 |
+|---|---|---|
+| `DASHSCOPE_API_KEY` | DashScope 引擎必需 | 阿里云 DashScope API Key |
+| `POE_API_KEY` | 否 | Poe API Key（用于摘要） |
+| `OPENAI_API_KEY` | 否 | OpenAI API Key（摘要 / Whisper） |
+| `TINGWU_APP_ID` | 仅 `tingwu` 引擎需要 | 通义听悟 App ID |
+| `ALIYUN_ACCESS_KEY_ID` / `ALIYUN_ACCESS_KEY_SECRET` | 否 | RAM 子账号 AK/SK，用于余额徽章 |
+
 ## 成本估算（20 集/月，每集约 1 小时）
 
 | 方案 | 月费 |

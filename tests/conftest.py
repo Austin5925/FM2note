@@ -35,6 +35,24 @@ def _reset_balance_cache():
     _balance.reset_cache()
 
 
+@pytest.fixture(autouse=True)
+def _reset_legacy_env_warning():
+    """Reset the module-level stale-env warning dedup flag between tests.
+
+    v1.4.12 introduced a process-wide flag (``_legacy_env_warning_emitted``)
+    so the warning fires once per process instead of once per request. In
+    tests, that means whichever test calls ``load_config`` first flips the
+    flag and every later test sees no warning — silently breaking tests
+    that assert on warning emission. This fixture restores the "fresh
+    process" precondition between every test.
+    """
+    import src.config as _cfg
+
+    _cfg._legacy_env_warning_emitted = False
+    yield
+    _cfg._legacy_env_warning_emitted = False
+
+
 @pytest.fixture
 def fixtures_dir():
     """测试 fixtures 目录"""

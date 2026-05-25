@@ -98,6 +98,16 @@ def test_vault_path_strips_nested_quotes(client, tmp_path):
     assert str(tmp_path) in text
 
 
+def test_vault_path_relative_paths_are_rejected(client, tmp_path):
+    """Codex audit (v1.4.13) — a literal ``.`` or ``..`` survives
+    _clean_path_input and Path(".") = CWD, which silently passes
+    exists/is_dir/writable. Must be rejected by an absolute-path guard."""
+    for evil in (".", "..", "./vault", "../vault", "relative/path"):
+        r = client.put("/api/settings", json={"vault_path": evil})
+        assert r.status_code == 400, (evil, r.json())
+        assert "绝对路径" in r.json()["detail"]
+
+
 def test_vault_path_collapsed_to_empty_is_rejected(client, tmp_path):
     """Codex audit Finding #3 — without an explicit empty check after
     cleaning, ``" "`` / ``"''"`` / ``"   "`` would collapse to "", and
@@ -231,6 +241,16 @@ def test_two_phase_commit_leaves_no_partial_state(client, tmp_path, monkeypatch)
     # only because the env replace failed. The user can retry safely.
     # The .env file must NOT have been touched.
     assert (tmp_path / ".env").read_text(encoding="utf-8") == original_env
+    # Claude reviewer Bug 4 (v1.4.14): the docstring above claims "YAML did
+    # commit" — assert it explicitly so a future refactor that accidentally
+    # rolls back the yaml replace would fail this test instead of silently
+    # changing observable behavior.
+    yaml_after = (tmp_path / "config" / "config.yaml").read_text(encoding="utf-8")
+    assert "Should_Not_Persist" in yaml_after, (
+        "Two-phase commit currently lets YAML commit even when ENV fails. "
+        "If this assertion fails, behavior changed — update the docstring "
+        "or implement full transactional rollback."
+    )
     # No stray temp files
     stray_env = [
         f.name for f in tmp_path.iterdir() if f.name.startswith(".env.") and f.name != ".env"

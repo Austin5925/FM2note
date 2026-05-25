@@ -167,14 +167,23 @@ make bump-minor  # 版本号 minor +1
   - `fm2note init` 不再写 `OBSIDIAN_VAULT_PATH` 到 `.env`；`.env.example` 删除所有非敏感变量
   - `src/config.py` 新增 `DEFAULT_VAULT_PATH` 常量（单一来源，前后端共享）
   - 329 个测试（+2 个 env override 回归测试）
-- **v1.4.13** — v1.4.12 审计 hotfix：
+- **v1.4.13** — v1.4.12 审计 hotfix（双线第一轮）：
   - `fm2note init` 模板 `.env` 删除残留的 `export LOG_LEVEL=INFO`（不然新用户首次启动就撞 stale-env warning）
   - `scripts/com.fm2note.serve.plist.template` 删除 `OBSIDIAN_VAULT_PATH` / `LOG_LEVEL` env 项
-  - README.md / README.zh-CN.md 同步 v1.4.12 的 env / yaml 边界（quickstart 不再教 `export OBSIDIAN_VAULT_PATH`，配置表拆为 yaml/env 两个）
+  - README.md / README.zh-CN.md 同步 v1.4.12 的 env / yaml 边界
   - `_clean_path_input` / 前端 `cleanPath` 支持多层引号（如 `"'/path'"` 双粘贴场景），上限 4 层防 DoS
   - 健康自检 touch 探针包 `try/finally`，`.fm2note_writetest` 在任何异常路径都会清理
-  - 330 个测试（+1 个 nested quote 回归）
+  - 空 vault_path 漏洞修复 + stale-env warning 模块级去重 + 缺失 YAML 持久化测试
+  - 334 个测试
+- **v1.4.14** — v1.4.13 审计 hotfix（双线第二轮）：
+  - **Critical 测试本身有伪 PASS**：`test_stale_env_warning_fires_only_once` 之前只断言 flag is True（任何 load_config 都会让 flag 翻 True，与 stale env 无关）。改为用 loguru sink 真正统计 warning 调用次数，并补反例测试（无 legacy env 时必须不 warn）
+  - `conftest.py` 加 `_reset_legacy_env_warning` autouse fixture，避免模块级 dedup flag 跨测试泄漏
+  - `devdocs/help.md` 同步：摘要配置从 `export SUMMARY_*` env 改为 `config.yaml` yaml 写法
+  - `README.zh-CN.md` 补完整的「配置」节（yaml-only 字段表 + env-only 字段表），与英文版对齐
+  - `test_two_phase_commit_*` 加 yaml-was-committed assertion，把注释承诺的"yaml did commit"显式化
+  - **Codex MEDIUM**：`_clean_path_input` 后 `Path(".")` / 相对路径仍能过校验 → silently 写到 CWD。新增 `is_absolute()` 守卫
+  - 测试新增覆盖空字符串 / 相对路径 / warning once / no-warning negative case
 
 ## Current Version
 
-v1.4.13 — v1.4.12 双线代码审计后的 hotfix：init/plist 模板/README/多层引号/探针清理
+v1.4.14 — v1.4.13 双线代码审计后第二轮 hotfix：测试假 PASS / 测试隔离 / devdocs / 相对路径守卫

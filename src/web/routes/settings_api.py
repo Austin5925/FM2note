@@ -134,18 +134,29 @@ async def update_settings(payload: dict) -> dict:
     if "vault_path" in yaml_updates:
         raw_vp = str(yaml_updates["vault_path"])
         vp_str = _clean_path_input(raw_vp)
-        # An input that was nothing but whitespace and/or quotes collapses to
-        # "". Path("").expanduser() returns the *current working directory*,
-        # which will then pass every "exists / is_dir / writable" check —
-        # silently corrupting vault_path. Reject before we reach Path().
+        # Reject empty after cleaning. Path("").expanduser() returns the
+        # *current working directory*, which would then pass every
+        # exists / is_dir / writable check and silently corrupt vault_path.
         if not vp_str:
             raise HTTPException(
                 status_code=400,
                 detail="vault_path 不能为空（请填写 Obsidian Vault 的绝对路径）",
             )
-        # Persist the cleaned value so future loads aren't tripped by the same quotes
-        yaml_updates["vault_path"] = vp_str
+        # Codex audit (v1.4.13): a literal "." / ".." / relative path also
+        # resolves to CWD or a subdir thereof — same silent-corruption class
+        # of bug as the empty case. Require an absolute path after expanduser
+        # (~ is supported and expanded).
         vp = Path(vp_str).expanduser()
+        if not vp.is_absolute():
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    f"vault_path 必须是绝对路径：{vp_str} （请填写以 / 开头或 ~ 开头的完整路径）"
+                ),
+            )
+        # Persist the cleaned (but un-expanded) value so future loads aren't
+        # tripped by the same quotes
+        yaml_updates["vault_path"] = vp_str
         if not vp.exists():
             hint = "（路径不存在；如果是从命令行复制的，去掉两端的引号再保存）"
             raise HTTPException(

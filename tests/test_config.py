@@ -74,24 +74,71 @@ class TestLoadConfig:
         assert config.poe_api_key == "test-poe-key"
         assert config.openai_api_key == "test-openai-key"
 
-    def test_stale_env_warning_fires_only_once(self, tmp_config, monkeypatch, caplog):
+    def test_stale_env_warning_fires_only_once(self, tmp_config, monkeypatch):
         """Codex audit Finding #7 — load_config runs per HTTP request, so the
-        stale-env warning must dedupe at module level or it floods the log."""
+        stale-env warning must dedupe at module level or it floods the log.
+
+        v1.4.14 hardening (Claude reviewer Bug 1): we count the *actual*
+        warning emission, not just the dedup flag — a previous version of
+        this test only checked the flag, which flips True on any call
+        regardless of whether legacy env vars were set, so the assertion was
+        trivially true and the dedup logic was untested.
+        """
         import src.config as cfg_mod
 
-        # Reset the module-level flag so we observe the first warning
-        monkeypatch.setattr(cfg_mod, "_legacy_env_warning_emitted", False)
+        # The autouse _reset_legacy_env_warning fixture has already reset the
+        # flag, but be explicit since this test depends on it.
+        cfg_mod._legacy_env_warning_emitted = False
         monkeypatch.setenv("OBSIDIAN_VAULT_PATH", "/old/vault")
         monkeypatch.setenv("LOG_LEVEL", "DEBUG")
 
-        # First call should warn
-        load_config(tmp_config)
-        # Subsequent calls (mimicking per-request reloads) must NOT re-warn
-        load_config(tmp_config)
-        load_config(tmp_config)
-        load_config(tmp_config)
+        # Count actual logger.warning calls (loguru doesn't propagate to
+        # pytest caplog without extra plumbing — easier to wrap the sink).
+        from loguru import logger as _logger
 
-        assert cfg_mod._legacy_env_warning_emitted is True
+        warnings: list[str] = []
+        sink_id = _logger.add(lambda msg: warnings.append(str(msg)), level="WARNING")
+        try:
+            load_config(tmp_config)
+            # Three follow-up calls mimic per-request reloads in the web layer
+            load_config(tmp_config)
+            load_config(tmp_config)
+            load_config(tmp_config)
+        finally:
+            _logger.remove(sink_id)
+
+        # Exactly one warning emitted, and it mentions the legacy var by name
+        legacy_warnings = [w for w in warnings if "v1.4.12" in w]
+        assert len(legacy_warnings) == 1, (
+            f"Expected 1 stale-env warning across 4 load_config calls, "
+            f"got {len(legacy_warnings)}: {legacy_warnings}"
+        )
+        assert "OBSIDIAN_VAULT_PATH" in legacy_warnings[0]
+        assert "LOG_LEVEL" in legacy_warnings[0]
+
+    def test_stale_env_warning_not_emitted_when_no_legacy_env(self, tmp_config, monkeypatch):
+        """Negative case — the warning must NOT fire if no legacy env var
+        is set, even though the dedup flag still flips True after the call.
+        Without this test, Bug 1's original assertion (`assert flag is True`)
+        would have been an always-pass."""
+        import src.config as cfg_mod
+
+        cfg_mod._legacy_env_warning_emitted = False
+        # Ensure none of the legacy vars are set
+        for name in cfg_mod._LEGACY_YAML_ENV_VARS:
+            monkeypatch.delenv(name, raising=False)
+
+        from loguru import logger as _logger
+
+        warnings: list[str] = []
+        sink_id = _logger.add(lambda msg: warnings.append(str(msg)), level="WARNING")
+        try:
+            load_config(tmp_config)
+        finally:
+            _logger.remove(sink_id)
+
+        legacy_warnings = [w for w in warnings if "v1.4.12" in w]
+        assert legacy_warnings == [], f"Expected no stale-env warning, got: {legacy_warnings}"
 
     def test_default_values(self, tmp_path, monkeypatch):
         monkeypatch.delenv("OBSIDIAN_VAULT_PATH", raising=False)

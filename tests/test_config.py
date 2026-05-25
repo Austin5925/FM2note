@@ -74,6 +74,25 @@ class TestLoadConfig:
         assert config.poe_api_key == "test-poe-key"
         assert config.openai_api_key == "test-openai-key"
 
+    def test_stale_env_warning_fires_only_once(self, tmp_config, monkeypatch, caplog):
+        """Codex audit Finding #7 — load_config runs per HTTP request, so the
+        stale-env warning must dedupe at module level or it floods the log."""
+        import src.config as cfg_mod
+
+        # Reset the module-level flag so we observe the first warning
+        monkeypatch.setattr(cfg_mod, "_legacy_env_warning_emitted", False)
+        monkeypatch.setenv("OBSIDIAN_VAULT_PATH", "/old/vault")
+        monkeypatch.setenv("LOG_LEVEL", "DEBUG")
+
+        # First call should warn
+        load_config(tmp_config)
+        # Subsequent calls (mimicking per-request reloads) must NOT re-warn
+        load_config(tmp_config)
+        load_config(tmp_config)
+        load_config(tmp_config)
+
+        assert cfg_mod._legacy_env_warning_emitted is True
+
     def test_default_values(self, tmp_path, monkeypatch):
         monkeypatch.delenv("OBSIDIAN_VAULT_PATH", raising=False)
         monkeypatch.delenv("LOG_LEVEL", raising=False)

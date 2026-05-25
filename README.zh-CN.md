@@ -66,15 +66,21 @@ fm2note init
 
 ### 配置
 
-1. 编辑 `.env` — 填入 API Key：
+1. 编辑 `.env` — 只填 API Key 这类敏感信息（非敏感配置走 `config/config.yaml` 或 Web UI 设置页）：
 
 ```bash
 export DASHSCOPE_API_KEY=sk-xxx          # FunASR/通义听悟必需
-export OBSIDIAN_VAULT_PATH="/path/to/vault"
 
 # AI 摘要（选一个，都不填则跳过摘要）
 export POE_API_KEY=pk-xxx                # Poe 订阅
 export OPENAI_API_KEY=sk-xxx             # OpenAI / DeepSeek / Groq
+```
+
+2. 在 `config/config.yaml`（或 Web UI 设置页）设置 Obsidian vault 路径：
+
+```yaml
+vault_path: "/Users/你/Documents/MyVault"
+podcast_dir: "10_Podcasts"
 ```
 
 2. 添加播客订阅。推荐打开 Web UI 的 **订阅** 页面，直接粘贴小宇宙播客页、剧集页或分享文本；FM2note 会用默认 RSSHub 自动生成订阅地址。
@@ -137,15 +143,15 @@ fm2note install-shortcut   # 桌面生成双击启动图标
 
 ## AI 摘要
 
-FM2note 支持多种 AI 摘要提供商，默认**自动检测**可用的 API Key：
+FM2note 支持多种 AI 摘要提供商，默认**自动检测**可用的 API Key。在 `config/config.yaml`（或 Web UI 设置页）设置：
 
-| 提供商 | 配置 | API Key | 默认模型 |
+| 提供商 | YAML 配置 | API Key（`.env`） | 默认模型 |
 |---|---|---|---|
-| Poe | `SUMMARY_PROVIDER=poe` | `POE_API_KEY` | GPT-5.5 |
-| OpenAI | `SUMMARY_PROVIDER=openai` | `OPENAI_API_KEY` | gpt-4o-mini |
-| DeepSeek/Groq/Ollama | `SUMMARY_PROVIDER=openai` + `SUMMARY_BASE_URL=...` | `OPENAI_API_KEY` | 自定义 |
-| 不使用 | `SUMMARY_PROVIDER=none` | — | — |
-| 自动（默认） | `SUMMARY_PROVIDER=auto` | 任一可用 | 自动 |
+| Poe | `summary_provider: poe` | `POE_API_KEY` | GPT-5.5 |
+| OpenAI | `summary_provider: openai` | `OPENAI_API_KEY` | gpt-4o-mini |
+| DeepSeek/Groq/Ollama | `summary_provider: openai` + `summary_base_url: <url>` | `OPENAI_API_KEY` | 自定义 |
+| 不使用 | `summary_provider: none` | — | — |
+| 自动（默认） | `summary_provider: auto` | 任一可用 | 自动 |
 
 不配置任何摘要 Key 时，仅输出转写文本，不报错。
 

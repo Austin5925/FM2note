@@ -167,7 +167,14 @@ make bump-minor  # 版本号 minor +1
   - `fm2note init` 不再写 `OBSIDIAN_VAULT_PATH` 到 `.env`；`.env.example` 删除所有非敏感变量
   - `src/config.py` 新增 `DEFAULT_VAULT_PATH` 常量（单一来源，前后端共享）
   - 329 个测试（+2 个 env override 回归测试）
+- **v1.4.13** — v1.4.12 审计 hotfix：
+  - `fm2note init` 模板 `.env` 删除残留的 `export LOG_LEVEL=INFO`（不然新用户首次启动就撞 stale-env warning）
+  - `scripts/com.fm2note.serve.plist.template` 删除 `OBSIDIAN_VAULT_PATH` / `LOG_LEVEL` env 项
+  - README.md / README.zh-CN.md 同步 v1.4.12 的 env / yaml 边界（quickstart 不再教 `export OBSIDIAN_VAULT_PATH`，配置表拆为 yaml/env 两个）
+  - `_clean_path_input` / 前端 `cleanPath` 支持多层引号（如 `"'/path'"` 双粘贴场景），上限 4 层防 DoS
+  - 健康自检 touch 探针包 `try/finally`，`.fm2note_writetest` 在任何异常路径都会清理
+  - 330 个测试（+1 个 nested quote 回归）
 
 ## Current Version
 
-v1.4.12 — 环境变量一刀切：非敏感配置走 yaml-only，敏感凭据走 env-only，彻底消除"两本账打架"
+v1.4.13 — v1.4.12 双线代码审计后的 hotfix：init/plist 模板/README/多层引号/探针清理

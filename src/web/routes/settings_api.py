@@ -40,15 +40,21 @@ _YAML_FIELDS = {
 
 
 def _clean_path_input(value: str) -> str:
-    """Normalize a user-typed path: trim whitespace and stripped wrapping quotes.
+    """Normalize a user-typed path: trim whitespace and any wrapping quotes.
 
-    Users sometimes paste paths copied from a shell command or doc that include
-    enclosing ``'…'`` or ``"…"``. Those quotes are not part of the path —
-    silently stripping them avoids a confusing ``does not exist`` error.
+    Users sometimes paste paths copied from a shell command, a YAML file, or a
+    chat message that include enclosing ``'…'`` or ``"…"`` — occasionally even
+    *nested* (``"'/path'"`` from a double-paste). We peel matched outer pairs
+    iteratively (capped to avoid pathological input) so the validation that
+    follows sees the actual filesystem path, not a quoted string.
     """
     cleaned = value.strip()
-    if len(cleaned) >= 2 and cleaned[0] == cleaned[-1] and cleaned[0] in ("'", '"'):
-        cleaned = cleaned[1:-1].strip()
+    # Strip at most a few layers; in practice 1–2 is all anyone produces.
+    for _ in range(4):
+        if len(cleaned) >= 2 and cleaned[0] == cleaned[-1] and cleaned[0] in ("'", '"'):
+            cleaned = cleaned[1:-1].strip()
+        else:
+            break
     return cleaned
 
 
@@ -128,6 +134,15 @@ async def update_settings(payload: dict) -> dict:
     if "vault_path" in yaml_updates:
         raw_vp = str(yaml_updates["vault_path"])
         vp_str = _clean_path_input(raw_vp)
+        # An input that was nothing but whitespace and/or quotes collapses to
+        # "". Path("").expanduser() returns the *current working directory*,
+        # which will then pass every "exists / is_dir / writable" check —
+        # silently corrupting vault_path. Reject before we reach Path().
+        if not vp_str:
+            raise HTTPException(
+                status_code=400,
+                detail="vault_path 不能为空（请填写 Obsidian Vault 的绝对路径）",
+            )
         # Persist the cleaned value so future loads aren't tripped by the same quotes
         yaml_updates["vault_path"] = vp_str
         vp = Path(vp_str).expanduser()

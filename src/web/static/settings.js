@@ -68,12 +68,17 @@
     }
   }
 
-  // Strip whitespace + a single layer of wrapping ' or " quotes (users sometimes
-  // paste paths copied from a shell command that include the surrounding quotes).
+  // Strip whitespace + any matched wrapping ' or " quotes (sometimes nested
+  // from a double-paste like "'/path'"). Caps the loop so pathological input
+  // can't hang the page.
   function cleanPath(v) {
     let s = String(v == null ? '' : v).trim();
-    if (s.length >= 2 && s[0] === s[s.length - 1] && (s[0] === "'" || s[0] === '"')) {
-      s = s.slice(1, -1).trim();
+    for (let i = 0; i < 4; i++) {
+      if (s.length >= 2 && s[0] === s[s.length - 1] && (s[0] === "'" || s[0] === '"')) {
+        s = s.slice(1, -1).trim();
+      } else {
+        break;
+      }
     }
     return s;
   }

@@ -84,6 +84,12 @@ _LEGACY_YAML_ENV_VARS = (
     "SUMMARY_BASE_URL",
 )
 
+# Module-level flag so the stale-env warning fires once per process even if
+# load_config() is invoked on every HTTP request (which it is — see
+# src/web/routes/settings_api.py and src/web/routes/health.py). Without this
+# the user's log would get a fresh warning line for every page load.
+_legacy_env_warning_emitted = False
+
 
 def load_config(path: str | Path = "config/config.yaml") -> AppConfig:
     """Load config from YAML.
@@ -116,14 +122,18 @@ def load_config(path: str | Path = "config/config.yaml") -> AppConfig:
         raise ConfigError("Missing required field in config: vault_path")
 
     # Warn (don't fail) when a legacy env var is still set, so the user knows
-    # their .env entry isn't doing what they think.
-    stale = [name for name in _LEGACY_YAML_ENV_VARS if os.environ.get(name)]
-    if stale:
-        logger.warning(
-            "以下环境变量自 v1.4.12 起不再生效（已迁到 config.yaml）：{}。"
-            "可从 .env 删除以避免混淆。",
-            ", ".join(stale),
-        )
+    # their .env entry isn't doing what they think. Guarded by a module-level
+    # flag because load_config() runs per-request in the web layer.
+    global _legacy_env_warning_emitted
+    if not _legacy_env_warning_emitted:
+        stale = [name for name in _LEGACY_YAML_ENV_VARS if os.environ.get(name)]
+        if stale:
+            logger.warning(
+                "以下环境变量自 v1.4.12 起不再生效（已迁到 config.yaml）：{}。"
+                "可从 .env 删除以避免混淆。",
+                ", ".join(stale),
+            )
+        _legacy_env_warning_emitted = True
 
     config = AppConfig(
         vault_path=raw["vault_path"],

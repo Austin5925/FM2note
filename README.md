@@ -66,15 +66,22 @@ This interactively creates `config/config.yaml`, `config/subscriptions.yaml`, an
 
 ### Configure
 
-1. Edit `.env` — add your API keys:
+1. Edit `.env` — add your API keys (credentials only; non-secret config lives
+   in `config/config.yaml` and is editable from the Web UI):
 
 ```bash
 export DASHSCOPE_API_KEY=sk-xxx          # Required for FunASR/TingWu
-export OBSIDIAN_VAULT_PATH="/path/to/vault"
 
 # AI summary (pick one, or leave both empty to skip summaries)
 export POE_API_KEY=pk-xxx                # Poe subscription
 export OPENAI_API_KEY=sk-xxx             # OpenAI / DeepSeek / Groq
+```
+
+2. Set the Obsidian vault path in `config/config.yaml` (or the Web UI's 设置 page):
+
+```yaml
+vault_path: "/Users/you/Documents/MyVault"
+podcast_dir: "10_Podcasts"
 ```
 
 2. Add podcast subscriptions. The easiest path is the Web UI **Subscriptions** page:
@@ -139,15 +146,15 @@ Set `asr_engine` in `config/config.yaml`. All DashScope engines share the same `
 
 ## AI Summary
 
-FM2note generates AI summaries with chapter breakdowns and keywords. The summary provider is **auto-detected** based on available API keys:
+FM2note generates AI summaries with chapter breakdowns and keywords. Set the provider in `config/config.yaml` (or the Web UI's 设置 page):
 
-| Provider | Config | API Key | Model Default |
+| Provider | YAML | API Key (`.env`) | Model Default |
 |---|---|---|---|
-| Poe | `SUMMARY_PROVIDER=poe` | `POE_API_KEY` | GPT-5.5 |
-| OpenAI | `SUMMARY_PROVIDER=openai` | `OPENAI_API_KEY` | gpt-4o-mini |
-| DeepSeek/Groq/Ollama | `SUMMARY_PROVIDER=openai` + `SUMMARY_BASE_URL=...` | `OPENAI_API_KEY` | varies |
-| None | `SUMMARY_PROVIDER=none` | — | — |
-| Auto (default) | `SUMMARY_PROVIDER=auto` | any available | auto |
+| Poe | `summary_provider: poe` | `POE_API_KEY` | GPT-5.5 |
+| OpenAI | `summary_provider: openai` | `OPENAI_API_KEY` | gpt-4o-mini |
+| DeepSeek/Groq/Ollama | `summary_provider: openai` + `summary_base_url: <url>` | `OPENAI_API_KEY` | varies |
+| None | `summary_provider: none` | — | — |
+| Auto (default) | `summary_provider: auto` | any available | auto |
 
 Without any summary API key, FM2note outputs transcription only (no error).
 
@@ -199,30 +206,35 @@ Copy the `PODCAST_ID` part.
 
 ## Configuration
 
-### config/config.yaml
+### config/config.yaml (non-secret config)
+
+All non-sensitive configuration lives here and is editable from the Web UI's 设置 page.
 
 | Field | Default | Description |
 |---|---|---|
-| `vault_path` | — | Obsidian vault path (override with `OBSIDIAN_VAULT_PATH` env var) |
+| `vault_path` | — | Obsidian vault path (required) |
 | `podcast_dir` | `Podcasts` | Subdirectory in vault for notes |
 | `poll_interval_hours` | `3` | Polling interval for `serve` mode |
 | `asr_engine` | `funasr` | ASR engine: `funasr` / `paraformer` / `tingwu` / `bailian` / `whisper_api` |
 | `max_retries` | `3` | Max retry attempts for failed episodes |
+| `summary_provider` | `auto` | `auto` / `poe` / `openai` / `none` |
+| `summary_model` | — | Override model (default: provider-specific) |
 | `summary_cooldown` | `60` | Seconds between summary API calls |
+| `summary_base_url` | — | OpenAI-compatible endpoint (DeepSeek, Groq, Ollama) |
+| `log_level` | `INFO` | `DEBUG` / `INFO` / `WARNING` / `ERROR` |
 | `template_path` | — | Custom Jinja2 template path (optional) |
 
-### Environment Variables
+### .env (sensitive credentials only)
+
+As of v1.4.12, `.env` holds **only** API keys / credentials. Putting any non-secret field here will trigger a stale-env warning on startup — it would silently shadow Web UI edits.
 
 | Variable | Required | Description |
 |---|---|---|
 | `DASHSCOPE_API_KEY` | Yes (for DashScope engines) | Alibaba DashScope API key |
-| `OBSIDIAN_VAULT_PATH` | Yes | Absolute path to Obsidian vault |
-| `SUMMARY_PROVIDER` | No | `auto` / `poe` / `openai` / `none` (default: `auto`) |
 | `POE_API_KEY` | No | Poe API key for AI summaries |
 | `OPENAI_API_KEY` | No | OpenAI API key (summaries and/or Whisper) |
-| `SUMMARY_MODEL` | No | Override model (default: provider-specific) |
-| `SUMMARY_BASE_URL` | No | OpenAI-compatible endpoint (DeepSeek, Groq, Ollama) |
 | `TINGWU_APP_ID` | No (only for `tingwu`) | TingWu App ID |
+| `ALIYUN_ACCESS_KEY_ID` / `ALIYUN_ACCESS_KEY_SECRET` | No | RAM sub-account AK/SK for balance badge |
 
 ## Commands
 

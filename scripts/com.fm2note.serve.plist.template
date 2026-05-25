@@ -16,16 +16,15 @@
     <key>WorkingDirectory</key>
     <string>/path/to/FM2note</string>
 
+    <!-- As of v1.4.12, only sensitive credentials belong here. Non-secret
+         config (vault_path, log_level, summary_*, etc.) lives in
+         config/config.yaml so Web UI edits can't be silently shadowed. -->
     <key>EnvironmentVariables</key>
     <dict>
         <key>PATH</key>
         <string>/usr/local/bin:/usr/bin:/bin</string>
         <key>DASHSCOPE_API_KEY</key>
         <string>YOUR_DASHSCOPE_API_KEY</string>
-        <key>OBSIDIAN_VAULT_PATH</key>
-        <string>/path/to/obsidian/vault</string>
-        <key>LOG_LEVEL</key>
-        <string>INFO</string>
     </dict>
 
     <key>RunAtLoad</key>

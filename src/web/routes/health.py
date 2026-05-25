@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import contextlib
 import os
 from pathlib import Path
 
@@ -47,11 +48,11 @@ async def health_check() -> dict:
         # inside a TCC-protected location (e.g. ~/Library/Mobile Documents/
         # for iCloud Drive) where the OS itself blocks writes unless the
         # parent process has Full Disk Access. The only way to know is to
-        # actually try a write.
+        # actually try a write. The finally clause guarantees the probe file
+        # never leaks into the user's vault even if the unlink itself fails.
         probe = vault / ".fm2note_writetest"
         try:
             probe.write_text("ok", encoding="utf-8")
-            probe.unlink(missing_ok=True)
             items.append(_check("Obsidian Vault 路径", True, str(vault)))
         except PermissionError:
             items.append(
@@ -64,6 +65,9 @@ async def health_check() -> dict:
             )
         except OSError as e:
             items.append(_check("Obsidian Vault 路径", False, f"写入失败: {type(e).__name__}"))
+        finally:
+            with contextlib.suppress(OSError):
+                probe.unlink(missing_ok=True)
 
     # ---- State DB parent writable ----
     db_parent = Path(config.db_path).expanduser().parent

@@ -88,6 +88,61 @@ def test_vault_path_strips_double_quotes(client, tmp_path):
     assert r.status_code == 200, r.json()
 
 
+def test_vault_path_strips_nested_quotes(client, tmp_path):
+    """A user double-pasting from a YAML file can produce \"'/path/to/vault'\".
+    The strip should peel both layers, not just one."""
+    nested = f"\"'{tmp_path}'\""
+    r = client.put("/api/settings", json={"vault_path": nested})
+    assert r.status_code == 200, r.json()
+    text = (tmp_path / "config" / "config.yaml").read_text(encoding="utf-8")
+    assert str(tmp_path) in text
+
+
+def test_vault_path_collapsed_to_empty_is_rejected(client, tmp_path):
+    """Codex audit Finding #3 — without an explicit empty check after
+    cleaning, ``" "`` / ``"''"`` / ``"   "`` would collapse to "", and
+    ``Path("")`` resolves to the current working directory (which exists,
+    is a dir, and is writable) — silently corrupting vault_path."""
+    for evil in ("   ", "''", "  '  '  ", '" "', "\"''\""):
+        r = client.put("/api/settings", json={"vault_path": evil})
+        assert r.status_code == 400, (evil, r.json())
+        assert "不能为空" in r.json()["detail"]
+    # The on-disk YAML must NOT have been touched — it still points where
+    # the fixture put it.
+    text = (tmp_path / "config" / "config.yaml").read_text(encoding="utf-8")
+    assert str(tmp_path) in text
+
+
+def test_summary_provider_persists_to_yaml_and_survives_reload(client, tmp_path):
+    """Codex audit Finding #6 — verify the v1.4.12 migration actually works:
+    PUT /api/settings with a non-secret field that used to be env-only
+    persists to YAML and is read back from there. Without this test we'd
+    never catch a regression that re-routes the field through .env."""
+    # 1) Save a non-default summary_provider
+    r = client.put("/api/settings", json={"summary_provider": "poe"})
+    assert r.status_code == 200, r.json()
+    assert "summary_provider" in r.json()["yaml_keys_updated"]
+    # 2) It actually landed in YAML, not .env
+    yaml_text = (tmp_path / "config" / "config.yaml").read_text(encoding="utf-8")
+    assert "summary_provider" in yaml_text
+    assert "poe" in yaml_text
+    env_text = (tmp_path / ".env").read_text(encoding="utf-8")
+    assert "SUMMARY_PROVIDER" not in env_text
+    # 3) GET /api/settings reads it back from YAML
+    r2 = client.get("/api/settings")
+    assert r2.json()["summary_provider"] == "poe"
+
+
+def test_log_level_persists_to_yaml(client, tmp_path):
+    """Same regression guard as above for log_level (formerly LOG_LEVEL env)."""
+    r = client.put("/api/settings", json={"log_level": "DEBUG"})
+    assert r.status_code == 200, r.json()
+    yaml_text = (tmp_path / "config" / "config.yaml").read_text(encoding="utf-8")
+    assert "DEBUG" in yaml_text
+    env_text = (tmp_path / ".env").read_text(encoding="utf-8")
+    assert "LOG_LEVEL" not in env_text
+
+
 def test_vault_path_strips_whitespace(client, tmp_path):
     padded = f"  {tmp_path}  "
     r = client.put("/api/settings", json={"vault_path": padded})

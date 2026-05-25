@@ -401,11 +401,13 @@ def init():
             shutil.copy(env_example, env_path)
             click.echo("  Created .env (from .env.example)")
         else:
-            # vault_path is intentionally not written to .env — it would shadow
-            # subsequent edits made via the Web UI. It lives in config.yaml.
+            # As of v1.4.12, .env holds ONLY sensitive credentials. Every
+            # non-secret field (vault_path, log_level, summary_*, etc.) lives
+            # in config.yaml so the Web UI's edits can't be shadowed by a
+            # stale env var. Writing LOG_LEVEL=INFO here would trigger the
+            # stale-env warning on the user's very first run.
             env_content = dedent("""\
                 export DASHSCOPE_API_KEY=sk-xxx
-                export LOG_LEVEL=INFO
             """)
             env_path.write_text(env_content, encoding="utf-8")
             click.echo("  Created .env")

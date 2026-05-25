@@ -187,9 +187,12 @@
         }
         const reasonText = {
           already_exists: '已存在（勾选"覆盖已存在"重试）',
+          already_exists_by_source: '已存在同一来源（不会重复下载）',
           cache_miss: '缓存里找不到',
           write_failed: '写入失败',
           invalid_guid: 'guid 无效',
+          path_escapes_vault: '路径越界，已拒绝写入',
+          path_resolve_failed: '路径解析失败',
         }[it.reason] || it.reason || '失败';
         return `<li>✕ <span class="font-mono">${escapeHtml(it.guid.slice(0, 24))}…</span> · ${escapeHtml(reasonText)}</li>`;
       }).join('');

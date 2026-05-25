@@ -220,6 +220,45 @@ def test_preview_returns_count_and_cost(client_with_state):
     assert len(body["episodes"]) == 2
 
 
+def test_preview_counts_only_unprocessed_episodes(client_with_state, tmp_path):
+    """v1.6.4: preview must await state checks in a normal loop, not inside a
+    generator expression. Otherwise Python builds an async_generator, the
+    endpoint logs TypeError, and the UI falls back to episode_count."""
+    import asyncio
+
+    from src.monitor.state import StateManager
+
+    async def _seed_done():
+        state = StateManager(str(tmp_path / "data" / "state.db"))
+        await state.init()
+        try:
+            await state.mark_status(
+                "g1",
+                "done",
+                podcast_name="Fake Feed",
+                title="Already Done",
+                note_path=str(tmp_path / "note.md"),
+            )
+        finally:
+            await state.close()
+
+    asyncio.run(_seed_done())
+
+    feed = _fake_feed_with_entries(
+        ("g1", "Already Done", "Mon, 01 May 2026 10:00:00 +0000", 3600),
+        ("g2", "Needs Work", "Mon, 08 May 2026 10:00:00 +0000", 1800),
+    )
+    with patch("feedparser.parse", return_value=feed):
+        r = client_with_state.post(
+            "/api/subscriptions/preview",
+            json={"rss_url": "https://feed.example/x"},
+        )
+    assert r.status_code == 200, r.json()
+    body = r.json()
+    assert body["episode_count"] == 2
+    assert body["unprocessed_count"] == 1
+
+
 def test_preview_rejects_non_http(client_with_state):
     r = client_with_state.post(
         "/api/subscriptions/preview",

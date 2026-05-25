@@ -63,6 +63,15 @@ class TestPages:
         # The active tab uses bg-stone-900 styling
         assert "bg-stone-900" in r.text
 
+    def test_header_allows_mobile_wrapping(self, client):
+        """v1.6.4: narrow app/browser windows must wrap header controls instead
+        of squeezing the daemon chip into vertical text or overflowing."""
+        r = client.get("/cloud")
+        assert r.status_code == 200
+        assert "flex flex-wrap items-center justify-between gap-3" in r.text
+        assert "hidden whitespace-nowrap shrink-0 text-xs" in r.text
+        assert "flex flex-wrap items-center justify-end gap-1 text-sm" in r.text
+
 
 class TestHealthz:
     def test_healthz(self, client):
@@ -114,3 +123,9 @@ class TestStaticFiles:
         r = client.get("/static/app.css")
         assert r.status_code == 200
         assert "step-icon" in r.text
+
+    def test_cloud_js_maps_source_dedup_reason(self, client):
+        r = client.get("/static/cloud.js")
+        assert r.status_code == 200
+        assert "already_exists_by_source" in r.text
+        assert "已存在同一来源" in r.text

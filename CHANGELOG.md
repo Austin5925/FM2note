@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.6.4] - 2026-05-25
+
+### Fixed
+- 订阅预览 `unprocessed_count` 统计从 async generator 表达式改为显式 async loop，避免 GUI 预览时记录 `TypeError: 'async_generator' object is not iterable` 并误用默认未处理集数
+- 云端重复下载去重结果不再直接显示内部 `already_exists_by_source` reason，改为中文用户提示
+- 移动/窄窗口 header 允许 badge 和导航换行，避免服务状态竖排与横向溢出
+
 ## [1.6.3] - 2026-05-25
 
 ### Fixed

@@ -360,7 +360,10 @@ async def preview_sub(payload: dict) -> dict:
         config = load_config(CONFIG_PATH)
         # v1.5.2: shared singleton — no more per-preview connection churn
         state = await get_state_manager(config.db_path)
-        unprocessed = sum(1 for e in episodes if not await state.is_processed(e.guid))
+        unprocessed = 0
+        for episode in episodes:
+            if not await state.is_processed(episode.guid):
+                unprocessed += 1
         asr_engine = config.asr_engine
     except Exception as e:
         # Don't fail the preview just because state.db / config is unavailable.

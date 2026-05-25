@@ -477,10 +477,23 @@ def install_service():
     system = platform.system()
     python_path = sys.executable
     workdir = str(Path.cwd())
-    log_dir = str(Path.cwd() / "logs")
 
-    # Ensure log directory exists
-    Path(log_dir).mkdir(exist_ok=True)
+    # v1.6.2 fix: macOS 12+ Sandbox denies xpcproxy (the launchd helper that
+    # sets up stdio for spawned processes) read-data access to ~/Desktop,
+    # ~/Documents, ~/Downloads — so when StandardOutPath / StandardErrorPath
+    # point inside those directories, launchd fails with EX_CONFIG (78)
+    # before the python binary even runs (stderr stays empty, making it
+    # very hard to diagnose). Putting the logs under ~/Library/Logs/fm2note/
+    # — which Apple already trusts launchd children to write — sidesteps it
+    # entirely. We diagnosed this on the dev machine via
+    # `log show --predicate "eventMessage contains 'fm2note'"` showing
+    # `kernel: (Sandbox) System Policy: xpcproxy(...) deny(1) file-read-data
+    # /Users/.../Desktop/.../logs/fm2note-stdout.log`.
+    if system == "Darwin":
+        log_dir = str(Path.home() / "Library" / "Logs" / "fm2note")
+    else:
+        log_dir = str(Path.cwd() / "logs")
+    Path(log_dir).mkdir(parents=True, exist_ok=True)
 
     if system == "Darwin":
         _install_launchd(python_path, workdir, log_dir)

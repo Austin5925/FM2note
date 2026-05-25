@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.6.2] - 2026-05-25
+
+### Fixed
+- **`fm2note install-service` 在 macOS 12+ 静默失败**（launchd exit 78 EX_CONFIG，无 stderr 输出）。根因：launchd 的 `xpcproxy` 辅助进程在 Desktop / Documents / Downloads 下被 macOS Sandbox 拒绝 read-data，无法打开 `StandardOutPath` / `StandardErrorPath` → 进程根本起不来。`log show --predicate "eventMessage contains 'fm2note'"` 才能看到 `kernel: (Sandbox) System Policy: xpcproxy(...) deny(1) file-read-data .../logs/fm2note-stdout.log`。这版把 log 路径改到 macOS 信任的 `~/Library/Logs/fm2note/`（与 Apple 自家 daemon 一致），daemon 启动恢复正常。Linux 路径不变（仍是 `<workdir>/logs/`）
+- 影响范围：任何项目在 `~/Desktop` / `~/Documents` 下的用户跑 `fm2note install-service` 都会撞这个；女朋友机器装"开机自启"开关也会触发，所以必须修
+
 ## [1.6.1] - 2026-05-25
 
 ### Fixed

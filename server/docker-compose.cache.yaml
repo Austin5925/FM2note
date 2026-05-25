@@ -1,0 +1,46 @@
+# FM2note shared-cache sidecar — deploy next to your existing RSSHub stack.
+#
+# Quick start (on the server hosting RSSHub):
+#   1) export SHARED_CACHE_TOKEN=$(python -c 'import secrets; print(secrets.token_hex(32))')
+#      echo $SHARED_CACHE_TOKEN >> ~/.fm2note-cache-token  # save it
+#   2) docker compose -f server/docker-compose.cache.yaml up -d
+#   3) Point your nginx at fm2note-cache:8765 (path prefix /fm2note-cache/)
+#   4) On each FM2note client (.env):
+#        SHARED_CACHE_URL=https://yourhost.example/fm2note-cache
+#        SHARED_CACHE_TOKEN=<the token from step 1>
+#
+# What it does: when one user's pipeline finishes a transcribe+summary, it
+# POSTs the rendered .md to /cache/{guid}. The next user's RSS poller
+# GETs /cache/{guid} for each new episode; on hit, it skips the entire
+# pipeline (no audio download, no DashScope, no Poe) and writes the cached
+# markdown straight into their vault.
+
+services:
+  fm2note-cache:
+    build:
+      context: ..
+      dockerfile: server/Dockerfile.cache
+    image: fm2note-cache:1.4.16
+    container_name: fm2note-cache
+    restart: unless-stopped
+    environment:
+      # REQUIRED — share this exact value with every FM2note client's .env.
+      # Generate with: python -c 'import secrets; print(secrets.token_hex(32))'
+      SHARED_CACHE_TOKEN: ${SHARED_CACHE_TOKEN:?SHARED_CACHE_TOKEN env var must be set}
+      CACHE_DB_PATH: /data/fm2note-cache.db
+      # 5 MB per upload is way more than any reasonable rendered note.
+      CACHE_MAX_BYTES: 5242880
+      LOG_LEVEL: info
+    ports:
+      # Only bind to localhost; the nginx in front handles TLS + public exposure.
+      - "127.0.0.1:8765:8765"
+    volumes:
+      - fm2note_cache_data:/data
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8765/healthz')"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+volumes:
+  fm2note_cache_data:

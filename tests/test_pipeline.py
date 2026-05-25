@@ -48,6 +48,7 @@ def mock_pipeline(mock_config, tmp_path):
     md_generator.render = MagicMock(return_value="# Note content")
     writer = MagicMock()
     writer.search_existing_mcp = AsyncMock(return_value=False)
+    writer.note_exists = MagicMock(return_value=False)  # v1.4.16 cache-hit guard
     note_path = tmp_path / "note.md"
     note_path.write_text("# Note content")
     writer.write_note = MagicMock(return_value=note_path)
@@ -189,6 +190,7 @@ class TestPipeline:
         note_path.write_text("# Note")
         writer = MagicMock()
         writer.search_existing_mcp = AsyncMock(return_value=False)
+        writer.note_exists = MagicMock(return_value=False)  # v1.4.16 cache-hit guard
         writer.write_note = MagicMock(return_value=note_path)
 
         state = AsyncMock()
@@ -219,3 +221,219 @@ class TestPipeline:
         assert pending_dir.exists()
         pending_files = list(pending_dir.glob("*.json"))
         assert len(pending_files) == 1
+
+
+class TestSharedCacheIntegration:
+    """v1.4.16: pipeline integration with the shared-cache short-circuit."""
+
+    @pytest.mark.asyncio
+    async def test_unconfigured_cache_does_not_call_anything(self, mock_pipeline):
+        """When SHARED_CACHE_URL/TOKEN aren't set, no cache attempt happens
+        and the normal pipeline runs to completion."""
+        # mock_pipeline was built with no env vars set → _shared_cache is None
+        assert mock_pipeline._shared_cache is None
+        ep = _make_episode()
+        await mock_pipeline.process_episode(ep)
+        # Transcriber was still called — i.e. no short-circuit
+        mock_pipeline._transcriber.transcribe.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_cache_hit_skips_asr_and_summary(self, mock_config, tmp_path):
+        """Cache HIT must skip transcribe + summarize entirely and write the
+        cached markdown directly to the vault."""
+        from src.shared_cache import SharedCacheClient
+
+        transcriber = AsyncMock()
+        transcriber.transcribe = AsyncMock()  # must NOT be called
+        md_generator = MagicMock()
+        md_generator.render = MagicMock()  # must NOT be called
+        writer = MagicMock()
+        writer.search_existing_mcp = AsyncMock(return_value=False)
+        writer.note_exists = MagicMock(return_value=False)  # v1.4.16 cache-hit guard
+        note_path = tmp_path / "cached_note.md"
+        writer.write_note = MagicMock(return_value=note_path)
+        state = AsyncMock()
+        summarizer = AsyncMock()
+        summarizer.summarize = AsyncMock()  # must NOT be called
+
+        pipeline = Pipeline(
+            config=mock_config,
+            rss_checker=AsyncMock(),
+            downloader=AsyncMock(),
+            transcriber=transcriber,
+            md_generator=md_generator,
+            writer=writer,
+            state=state,
+            summarizer=summarizer,
+        )
+        # Inject a mock cache client that hits
+        mock_client = MagicMock(spec=SharedCacheClient)
+        mock_client.fetch = AsyncMock(return_value="# cached markdown\nfrom another peer")
+        mock_client.upload = AsyncMock()
+        pipeline._shared_cache = mock_client
+
+        ep = _make_episode()
+        path = await pipeline.process_episode(ep)
+
+        assert path == note_path
+        # Critical: NO API calls
+        transcriber.transcribe.assert_not_called()
+        summarizer.summarize.assert_not_called()
+        md_generator.render.assert_not_called()
+        # Writer was called with the cached content, not a freshly-rendered one
+        writer.write_note.assert_called_once()
+        assert writer.write_note.call_args.args[1] == "# cached markdown\nfrom another peer"
+        # And we did NOT re-upload what we just downloaded
+        mock_client.upload.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_cache_miss_runs_pipeline_and_uploads(self, mock_config, tmp_path):
+        """Cache MISS: pipeline runs normally AND the rendered markdown gets
+        uploaded so the next peer can short-circuit."""
+        from src.shared_cache import SharedCacheClient
+
+        transcriber = AsyncMock()
+        transcriber.transcribe = AsyncMock(return_value=_make_transcript())
+        md_generator = MagicMock()
+        md_generator.render = MagicMock(return_value="# freshly rendered")
+        writer = MagicMock()
+        writer.search_existing_mcp = AsyncMock(return_value=False)
+        writer.note_exists = MagicMock(return_value=False)  # v1.4.16 cache-hit guard
+        writer.write_note = MagicMock(return_value=tmp_path / "n.md")
+        state = AsyncMock()
+
+        pipeline = Pipeline(
+            config=mock_config,
+            rss_checker=AsyncMock(),
+            downloader=AsyncMock(),
+            transcriber=transcriber,
+            md_generator=md_generator,
+            writer=writer,
+            state=state,
+        )
+        mock_client = MagicMock(spec=SharedCacheClient)
+        mock_client.fetch = AsyncMock(return_value=None)  # miss
+        mock_client.upload = AsyncMock(return_value=True)
+        pipeline._shared_cache = mock_client
+
+        await pipeline.process_episode(_make_episode())
+
+        # Normal pipeline ran
+        transcriber.transcribe.assert_called_once()
+        # And we uploaded the freshly-rendered markdown
+        mock_client.upload.assert_called_once()
+        upload_args = mock_client.upload.call_args.args
+        assert upload_args[1] == "# freshly rendered"
+
+    @pytest.mark.asyncio
+    async def test_cache_upload_failure_does_not_break_pipeline(self, mock_config, tmp_path):
+        """If upload raises (network error mid-flight), the local note is
+        still written and the user sees success. Cache is best-effort."""
+        from src.shared_cache import SharedCacheClient
+
+        transcriber = AsyncMock()
+        transcriber.transcribe = AsyncMock(return_value=_make_transcript())
+        md_generator = MagicMock()
+        md_generator.render = MagicMock(return_value="# note")
+        writer = MagicMock()
+        writer.search_existing_mcp = AsyncMock(return_value=False)
+        writer.note_exists = MagicMock(return_value=False)  # v1.4.16 cache-hit guard
+        writer.write_note = MagicMock(return_value=tmp_path / "n.md")
+
+        pipeline = Pipeline(
+            config=mock_config,
+            rss_checker=AsyncMock(),
+            downloader=AsyncMock(),
+            transcriber=transcriber,
+            md_generator=md_generator,
+            writer=writer,
+            state=AsyncMock(),
+        )
+        mock_client = MagicMock(spec=SharedCacheClient)
+        mock_client.fetch = AsyncMock(return_value=None)
+        mock_client.upload = AsyncMock(side_effect=RuntimeError("network exploded"))
+        pipeline._shared_cache = mock_client
+
+        # Must not raise — upload failure is swallowed
+        path = await pipeline.process_episode(_make_episode())
+        assert path is not None
+
+    @pytest.mark.asyncio
+    async def test_cache_fetch_failure_falls_through_to_pipeline(self, mock_config, tmp_path):
+        """If fetch raises (network error), the pipeline runs normally as
+        if the cache had returned a miss."""
+        from src.shared_cache import SharedCacheClient
+
+        transcriber = AsyncMock()
+        transcriber.transcribe = AsyncMock(return_value=_make_transcript())
+        md_generator = MagicMock()
+        md_generator.render = MagicMock(return_value="# note")
+        writer = MagicMock()
+        writer.search_existing_mcp = AsyncMock(return_value=False)
+        writer.note_exists = MagicMock(return_value=False)  # v1.4.16 cache-hit guard
+        writer.write_note = MagicMock(return_value=tmp_path / "n.md")
+
+        pipeline = Pipeline(
+            config=mock_config,
+            rss_checker=AsyncMock(),
+            downloader=AsyncMock(),
+            transcriber=transcriber,
+            md_generator=md_generator,
+            writer=writer,
+            state=AsyncMock(),
+        )
+        mock_client = MagicMock(spec=SharedCacheClient)
+        mock_client.fetch = AsyncMock(side_effect=RuntimeError("DNS"))
+        mock_client.upload = AsyncMock(return_value=True)
+        pipeline._shared_cache = mock_client
+
+        await pipeline.process_episode(_make_episode())
+        transcriber.transcribe.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_cache_hit_when_note_already_on_disk_is_idempotent(self, mock_config, tmp_path):
+        """v1.4.16 audit fix (Code Review #3 + Codex #3): if the cache returns
+        a hit AND the local note already exists (e.g. the episode bounced
+        back into the unprocessed queue somehow), write_note would raise
+        FileExistsError and the episode would be wrongly counted as failed.
+        The cache-hit branch must detect note_exists() and treat it as a
+        clean idempotent done."""
+        from src.shared_cache import SharedCacheClient
+
+        transcriber = AsyncMock()
+        transcriber.transcribe = AsyncMock()  # must NOT be called
+        md_generator = MagicMock()
+        writer = MagicMock()
+        writer.search_existing_mcp = AsyncMock(return_value=False)
+        # Critical setup: pretend the note IS already on disk
+        writer.note_exists = MagicMock(return_value=True)
+        existing_path = tmp_path / "already_there.md"
+        writer._build_path = MagicMock(return_value=existing_path)
+        writer.write_note = MagicMock(side_effect=AssertionError("must not be called"))
+        state = AsyncMock()
+
+        pipeline = Pipeline(
+            config=mock_config,
+            rss_checker=AsyncMock(),
+            downloader=AsyncMock(),
+            transcriber=transcriber,
+            md_generator=md_generator,
+            writer=writer,
+            state=state,
+        )
+        mock_client = MagicMock(spec=SharedCacheClient)
+        mock_client.fetch = AsyncMock(return_value="# cached")
+        mock_client.upload = AsyncMock()
+        pipeline._shared_cache = mock_client
+
+        path = await pipeline.process_episode(_make_episode())
+
+        # Returned the existing path (no exception, no failed metric)
+        assert path == existing_path
+        # write_note was NEVER called (otherwise our side_effect would have raised)
+        writer.write_note.assert_not_called()
+        # State was marked done with the existing path
+        state.mark_status.assert_called()
+        last_call = state.mark_status.call_args
+        assert last_call.args[1] == "done"
+        assert last_call.kwargs["note_path"] == str(existing_path)

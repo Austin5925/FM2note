@@ -1,0 +1,27 @@
+# FM2note shared-cache sidecar — minimal FastAPI + SQLite container.
+# Build:   docker build -f server/Dockerfile.cache -t fm2note-cache .
+# Run:     docker run -p 8765:8765 -v /srv/fm2note-cache:/data \
+#            -e SHARED_CACHE_TOKEN=<token> fm2note-cache
+FROM python:3.11-slim
+
+WORKDIR /app
+
+# uvicorn standard pulls in httptools/websockets which we don't need; the
+# slim variant keeps the image around 50 MB. aiosqlite is the only DB dep.
+RUN pip install --no-cache-dir \
+        "fastapi==0.115.*" \
+        "uvicorn==0.32.*" \
+        "aiosqlite==0.20.*"
+
+COPY server/cache_sidecar.py /app/server/cache_sidecar.py
+COPY server/__init__.py /app/server/__init__.py
+
+# Mount-point for the SQLite database. Default DB_PATH in cache_sidecar.py
+# points here; bind /srv/fm2note-cache to /data for persistence.
+VOLUME ["/data"]
+
+EXPOSE 8765
+ENV PORT=8765
+ENV CACHE_DB_PATH=/data/fm2note-cache.db
+
+CMD ["python", "-m", "server.cache_sidecar"]

@@ -202,6 +202,22 @@ make bump-minor  # 版本号 minor +1
     - **I4**：`recent_n` 必须 ≥1（之前 -5 silently 退化成 0 = 全跳）
   - 369 测试（+33 新增：4 种 strategy 端到端 / scheme 校验 / 重复 URL 409 / feedparser 失败 502 / 热加载 / 多边界）
 
+- **v1.4.16** — 转录结果共享上传缓存（多用户去重）
+  - **使用场景**：用户和女朋友各自跑 fm2note 订阅同一批播客。任何一方先转完某集，另一方直接拿现成 .md，零 API 消耗
+  - **服务端**：新增 `server/cache_sidecar.py` — FastAPI + SQLite + Bearer auth。可通过 `server/docker-compose.cache.yaml` 部署到现有 RSSHub 服务器旁边
+  - **客户端**：新增 `src/shared_cache.py`：`SharedCacheClient.from_env()` 读 `SHARED_CACHE_URL` + `SHARED_CACHE_TOKEN`，未配置时返回 None（单用户零开销）
+  - **上传 hook**：`pipeline.py` 写完笔记后 fire-and-forget `client.upload(guid, content)`，失败仅 log
+  - **下载-skip hook**：`pipeline.process_episode` 入口先 `client.fetch(guid)`，命中就直接 `writer.write_note(episode, cached)` + mark done，**跳过 ASR / Summary / Markdown 渲染**
+  - **协议**：`POST /cache/{guid}` upsert（last-write-wins，两人并发 upload 安全）+ `GET /cache/{guid}` 404 on miss
+  - **安全**：Bearer token 常时比较；guid 长度限制；upload 5MB 上限；启动时缺 token 拒绝跑
+  - **双线审计 hotfix（Code Review 主审 2/3 + Codex 1/3）**：
+    - **CRIT #1（CR）**：server 单 aiosqlite 连接并发不安全 → 加 `asyncio.Lock` 包 execute/commit pairs
+    - **CRIT #2（CR）**：`_ct_equal` 早返泄露 token 长度 → 改用 `hmac.compare_digest`
+    - **IMPORTANT #3（CR + Codex 双方都标）**：cache-hit 路径不检查 `note_exists` → 本地已存在时 `write_note` 抛 `FileExistsError` 被算成 failed → 加 idempotent guard
+    - **Codex #6（CR 未提，新发现）**：缺 body-size pre-parse cap，攻击可发 multi-GB body 耗尽 server 内存 → 加 Content-Length middleware 在 FastAPI buffer 前 reject
+    - **Codex #4 + #5**：`_UPLOADER_FP` import-time + 5s × N 串行已知 trade-off，加 docstring 标记，留 v1.5.x 优化
+  - 405 测试（+36 新增：shared_cache 客户端 13 / cache_sidecar 服务端 13 / pipeline cache-hit-skip + miss-upload + idempotent 6 / URL 编码 / 边界）
+
 ## Current Version
 
-v1.4.15 — 订阅 preview + 4 种 backfill 策略 + subscriptions.yaml 热加载，消除"首次烧额度"陷阱（双线审计回收完成）
+v1.4.16 — 共享上传缓存：服务端 sidecar + 客户端 hooks，消除多用户重复转录开销（双线审计回收完成）

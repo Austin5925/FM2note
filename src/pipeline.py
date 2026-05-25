@@ -10,6 +10,7 @@ from src.models import Episode, TranscriptResult
 from src.monitor.rss_checker import RSSChecker
 from src.monitor.state import StateManager
 from src.monitor.subtitle import fetch_subtitle_from_url
+from src.shared_cache import SharedCacheClient
 from src.summarizer.base import Summarizer
 from src.transcriber.base import Transcriber
 from src.writer.markdown import MarkdownGenerator
@@ -38,6 +39,10 @@ class Pipeline:
         self._writer = writer
         self._state = state
         self._summarizer = summarizer
+        # v1.4.16: shared-cache client is None when the user hasn't configured
+        # SHARED_CACHE_URL + SHARED_CACHE_TOKEN. Every call site guards on
+        # ``if self._shared_cache:`` so single-user deployments pay zero overhead.
+        self._shared_cache = SharedCacheClient.from_env()
 
     async def process_episode(self, episode: Episode) -> Path:
         """处理单集的完整流程。
@@ -60,6 +65,58 @@ class Pipeline:
         """
         guid = episode.guid
         try:
+            # v1.4.16: shared-cache short-circuit. If another fm2note instance
+            # has already processed this episode and uploaded the rendered
+            # markdown, just write that to the vault and skip ASR + summary
+            # entirely. Saves the full ¥0.79/hr DashScope + Poe call.
+            if self._shared_cache is not None:
+                try:
+                    cached = await self._shared_cache.fetch(guid)
+                except Exception as e:
+                    logger.debug(
+                        "shared cache fetch raised (treating as miss): {}: {}",
+                        type(e).__name__,
+                        e,
+                    )
+                    cached = None
+                if cached:
+                    logger.info(
+                        "shared cache HIT, skipping ASR+summary: {} ({} bytes)",
+                        episode.title,
+                        len(cached),
+                    )
+                    # v1.4.16 audit fix (Code Review #3 + Codex #3): cache-hit
+                    # branch skips the MCP same-title check, so a local re-run
+                    # where the note already exists on disk would otherwise
+                    # raise FileExistsError from write_note() and bubble up
+                    # as a "failed" episode in run_once metrics — even though
+                    # the user already has the right file. Detect that state
+                    # and treat it as a clean idempotent success.
+                    if self._writer.note_exists(episode):
+                        existing_path = self._writer._build_path(episode)
+                        logger.info(
+                            "cache hit but note already on disk — no-op: {}",
+                            existing_path,
+                        )
+                        await self._state.mark_status(
+                            guid,
+                            "done",
+                            podcast_name=episode.podcast_name,
+                            title=episode.title,
+                            note_path=str(existing_path),
+                        )
+                        return existing_path
+                    note_path = self._writer.write_note(episode, cached)
+                    await self._state.mark_status(
+                        guid,
+                        "done",
+                        podcast_name=episode.podcast_name,
+                        title=episode.title,
+                        note_path=str(note_path),
+                    )
+                    logger.success("cache-only 处理完成: {} → {}", episode.title, note_path)
+                    return note_path
+
             # MCP 去重检查（可选，失败不阻断）
             if await self._writer.search_existing_mcp(episode.title):
                 logger.info("MCP 发现同名笔记，跳过: {}", episode.title)
@@ -128,6 +185,22 @@ class Pipeline:
             # 写入 Obsidian
             note_path = self._writer.write_note(episode, content)
             await self._state.mark_status(guid, "done", note_path=str(note_path))
+
+            # v1.4.16: upload the rendered note to the shared cache (if
+            # configured) so other users sharing this subscription can skip
+            # the ASR + summary work. Failures are logged but not raised —
+            # the cache is an optimization, never blocks the local pipeline.
+            if self._shared_cache is not None:
+                try:
+                    ok = await self._shared_cache.upload(guid, content)
+                    if ok:
+                        logger.debug("shared cache upload OK: {}", guid)
+                except Exception as e:
+                    logger.warning(
+                        "shared cache upload raised (treating as no-op): {}: {}",
+                        type(e).__name__,
+                        e,
+                    )
 
             # 摘要失败时缓存转录结果，后续可用 retry-summaries 补摘要
             if summary_failed:

@@ -133,7 +133,7 @@ class TestPipeline:
         ep = _make_episode(subtitle_url="https://example.com/sub.srt")
 
         with patch(
-            "src.pipeline.fetch_subtitle_from_url",
+            "src.episode_processor.fetch_subtitle_from_url",
             AsyncMock(return_value="字幕文本第一行\n字幕文本第二行"),
         ):
             path = await mock_pipeline.process_episode(ep)
@@ -151,7 +151,7 @@ class TestPipeline:
         ep = _make_episode(subtitle_url="https://example.com/sub.srt")
 
         with patch(
-            "src.pipeline.fetch_subtitle_from_url",
+            "src.episode_processor.fetch_subtitle_from_url",
             AsyncMock(return_value=None),
         ):
             path = await mock_pipeline.process_episode(ep)
@@ -437,3 +437,54 @@ class TestSharedCacheIntegration:
         last_call = state.mark_status.call_args
         assert last_call.args[1] == "done"
         assert last_call.kwargs["note_path"] == str(existing_path)
+
+
+class TestDaemonProgressBroadcast:
+    """v1.5.0: Pipeline fans out per-episode progress events to a module-level
+    subscriber list so the GUI history page can show daemon activity live."""
+
+    @pytest.mark.asyncio
+    async def test_subscribe_receives_events(self, mock_pipeline):
+        from src.pipeline import subscribe_daemon_progress
+
+        events: list = []
+
+        def _cb(stage, status, message, guid):
+            events.append((stage, status, guid))
+
+        unsub = subscribe_daemon_progress(_cb)
+        try:
+            await mock_pipeline.process_episode(_make_episode())
+        finally:
+            unsub()
+
+        assert events, "expected at least one daemon progress event"
+        # All events should carry the same guid
+        assert all(g == "test-guid" for _, _, g in events)
+        # The final write should have come through
+        assert any(s == "write" and st == "done" for s, st, _ in events)
+
+    @pytest.mark.asyncio
+    async def test_unsubscribe_stops_events(self, mock_pipeline):
+        from src.pipeline import subscribe_daemon_progress
+
+        events: list = []
+        unsub = subscribe_daemon_progress(lambda *a: events.append(a))
+        unsub()
+        await mock_pipeline.process_episode(_make_episode())
+        assert events == [], "unsubscribed callback should NOT receive events"
+
+    @pytest.mark.asyncio
+    async def test_subscriber_exception_does_not_break_pipeline(self, mock_pipeline):
+        from src.pipeline import subscribe_daemon_progress
+
+        def _explode(*a):
+            raise RuntimeError("subscriber went wild")
+
+        unsub = subscribe_daemon_progress(_explode)
+        try:
+            # Must not raise — broken subscribers are logged and skipped
+            path = await mock_pipeline.process_episode(_make_episode())
+            assert path is not None
+        finally:
+            unsub()

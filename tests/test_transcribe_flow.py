@@ -69,11 +69,7 @@ async def test_emits_all_five_stages_no_summary(tmp_path):
         ),
         patch("src.transcriber.factory.create_transcriber", return_value=fake_transcriber),
         patch("src.summarizer.factory.create_summarizer", return_value=None),
-        patch("src.writer.obsidian.ObsidianWriter", return_value=fake_writer),
-        patch(
-            "src.transcribe_flow._create_md_generator",
-            return_value=MagicMock(render=MagicMock(return_value="# Note")),
-        ),
+        patch("src.episode_processor.ObsidianWriter", return_value=fake_writer),
     ):
         outcome = await transcribe_single_url(
             "http://audio.example/x.mp3", config, progress_callback=cb
@@ -125,12 +121,8 @@ async def test_summary_error_does_not_abort(tmp_path):
         ),
         patch("src.transcriber.factory.create_transcriber", return_value=fake_transcriber),
         patch("src.summarizer.factory.create_summarizer", return_value=fake_summarizer),
-        patch("src.writer.obsidian.ObsidianWriter", return_value=fake_writer),
+        patch("src.episode_processor.ObsidianWriter", return_value=fake_writer),
         patch("src.summarizer.pending.save_pending"),
-        patch(
-            "src.transcribe_flow._create_md_generator",
-            return_value=MagicMock(render=MagicMock(return_value="# Note")),
-        ),
     ):
         outcome = await transcribe_single_url(
             "http://audio.example/x.mp3", config, progress_callback=cb
@@ -187,11 +179,7 @@ async def test_progress_callback_exception_is_swallowed(tmp_path):
         ),
         patch("src.transcriber.factory.create_transcriber", return_value=fake_transcriber),
         patch("src.summarizer.factory.create_summarizer", return_value=None),
-        patch("src.writer.obsidian.ObsidianWriter", return_value=fake_writer),
-        patch(
-            "src.transcribe_flow._create_md_generator",
-            return_value=MagicMock(render=MagicMock(return_value="# Note")),
-        ),
+        patch("src.episode_processor.ObsidianWriter", return_value=fake_writer),
     ):
         outcome = await transcribe_single_url(
             "http://audio.example/x.mp3", config, progress_callback=cb

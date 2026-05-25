@@ -218,6 +218,16 @@ make bump-minor  # 版本号 minor +1
     - **Codex #4 + #5**：`_UPLOADER_FP` import-time + 5s × N 串行已知 trade-off，加 docstring 标记，留 v1.5.x 优化
   - 405 测试（+36 新增：shared_cache 客户端 13 / cache_sidecar 服务端 13 / pipeline cache-hit-skip + miss-upload + idempotent 6 / URL 编码 / 边界）
 
+- **v1.5.0** — EpisodeProcessor 重构（消除 90% pipeline 代码重复）+ daemon progress 全局广播
+  - **根因**：`transcribe_flow.py`（单 URL）和 `pipeline.py`（订阅 daemon）实现了**几乎完全相同**的"下载 → ASR → 摘要 → 渲染 → 写入"五阶段，每次 bug fix 都得改两份；shared cache 只接进了 pipeline，单 URL 路径不享受
+  - 新增 `src/episode_processor.py` `EpisodeProcessor` 类：核心 episode 处理的单一来源
+  - `Pipeline.process_episode` 现在是 `await self._processor.process(...)` 的薄包装
+  - `transcribe_flow.transcribe_single_url` 现在解析 URL 后构 Episode 也走 processor
+  - `ProcessingOptions` 控制差异化行为：单 URL flow 不 cache fetch（不要 stale）也不 MCP dedup，daemon flow 全开
+  - **Pipeline daemon 进度全局广播**：新增 `subscribe_daemon_progress()` 给 Web 层注册回调，每集 stage 转换实时推到所有订阅者（GUI 历史页 v1.5.3 接入）
+  - **审计 fix**: A2 (Code Review) `mark_status("done")` 缺失的 `podcast_name`/`title` 现在由 processor 统一传；Codex debt `Pipeline._downloader` 死代码删除
+  - 420 测试（+15 新增：EpisodeProcessor cache-hit / options / progress callback / mark_status 字段 + Pipeline broadcast 订阅/取消/异常隔离）
+
 ## Current Version
 
-v1.4.16 — 共享上传缓存：服务端 sidecar + 客户端 hooks，消除多用户重复转录开销（双线审计回收完成）
+v1.5.0 — 核心重构 EpisodeProcessor：消除 transcribe_flow/pipeline 90% 重复 + daemon progress 全局广播

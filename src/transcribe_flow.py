@@ -136,21 +136,26 @@ async def transcribe_single_url(
 
     Shared by the CLI ``transcribe`` command and the Web ``POST /api/transcribe`` route.
     Emits 5 fixed stages via ``progress_callback`` (resolve / subtitle_check / asr / summary
-    / write). Stage ``subtitle_check`` currently always emits ``skipped`` because the
-    single-URL flow does not have RSS-feed subtitle metadata.
+    / write).
+
+    v1.5.0: the actual ASR / summary / render / write work is delegated to
+    :class:`EpisodeProcessor`. This function is now responsible only for the
+    *single-URL-specific* concerns: URL resolution, title fallback, building
+    the synthetic Episode, and packaging the outcome. The v1.4.16 audit
+    duplication between this file and ``pipeline.py`` is finally gone.
 
     Raises:
-        Any exception from the transcriber, summarizer (only summary failure is swallowed),
-        or writer. The corresponding stage will emit an ``error`` event before propagating.
+        Any exception from the transcriber, summarizer (only summary failure
+        is swallowed), or writer. The corresponding stage will emit an
+        ``error`` event before propagating.
     """
-    from src.summarizer.factory import create_summarizer
-    from src.summarizer.pending import save_pending
-    from src.transcriber.factory import create_transcriber
-    from src.writer.obsidian import ObsidianWriter
+    from src.episode_processor import EpisodeProcessor, ProcessingOptions
+    from src.monitor.state import StateManager
 
     started_at = time.monotonic()
 
-    # Stage 1: resolve URL & metadata
+    # Stage 1: resolve URL & metadata (single-URL-specific — no equivalent
+    # in the daemon path, where RSSChecker hands us a fully-built Episode).
     _emit(progress_callback, "resolve", "start", "解析剧集信息...")
     try:
         resolved_url, ep_title, ep_podcast, link, date_pub = await _resolve_episode_url(audio_url)
@@ -163,53 +168,11 @@ async def transcribe_single_url(
         podcast_name = ep_podcast
     _emit(progress_callback, "resolve", "done", title or "")
 
-    # Stage 2: subtitle check (currently always skipped for single-URL flow)
-    _emit(progress_callback, "subtitle_check", "skipped", "无内置字幕，使用 ASR")
-
-    # Stage 3: ASR
-    transcriber = create_transcriber(config)
-    _emit(progress_callback, "asr", "start", "语音转文字中...")
-    try:
-        result = await transcriber.transcribe(resolved_url)
-    except Exception as e:
-        _emit(progress_callback, "asr", "error", f"转写失败: {type(e).__name__}: {e}")
-        raise
-    logger.info(
-        "Transcription done: {} chars, {} paragraphs",
-        len(result.text),
-        len(result.paragraphs),
-    )
-    _emit(
-        progress_callback,
-        "asr",
-        "done",
-        f"{len(result.text)} 字 · {len(result.paragraphs)} 段",
-    )
-
-    # Stage 4: summary (optional, failures don't abort)
-    summary_failed = False
-    summarizer = create_summarizer(config)
-    if summarizer and result.text and not result.summary:
-        _emit(progress_callback, "summary", "start", "生成 AI 摘要中...")
-        try:
-            summary = await summarizer.summarize(result.text, title or "")
-            result.summary = summary.summary
-            result.chapters = summary.chapters
-            result.keywords = summary.keywords
-            _emit(progress_callback, "summary", "done", "")
-        except Exception as e:
-            logger.warning("AI summary failed, continuing without: {}: {}", type(e).__name__, e)
-            summary_failed = True
-            _emit(progress_callback, "summary", "error", f"{type(e).__name__}: {e}")
-    else:
-        _emit(progress_callback, "summary", "skipped", "未配置摘要服务")
-
     # Title fallback when not provided and not auto-detected
     if not title:
         path = urlparse(resolved_url).path
         title = unquote(path.split("/")[-1]).rsplit(".", 1)[0] or "untitled"
 
-    # Stage 5: write
     pub_date = datetime.now()
     if date_pub:
         with contextlib.suppress(ValueError, TypeError):
@@ -226,63 +189,73 @@ async def transcribe_single_url(
         link=link,
     )
 
-    md_generator = _create_md_generator(config)
-    content = md_generator.render(episode, result, asr_engine=config.asr_engine)
-    writer = ObsidianWriter(config.vault_path, config.podcast_dir)
-
-    _emit(progress_callback, "write", "start", "写入笔记...")
+    # Build a transient StateManager so mark_status calls inside the
+    # processor land in the right db. Single-URL transcribes are rare events
+    # (user-triggered), so opening + closing per call is fine.
+    state = StateManager(config.db_path)
     try:
-        note_path = writer.write_note(episode, content)
-    except Exception as e:
-        _emit(progress_callback, "write", "error", f"写入失败: {type(e).__name__}: {e}")
-        raise
-    _emit(progress_callback, "write", "done", str(note_path))
-
-    if summary_failed:
-        save_pending(
-            guid=resolved_url,
-            title=title,
-            text=result.text,
-            note_path=str(note_path),
-            podcast_name=podcast_name,
-        )
-
-    # Best-effort: record this single-URL transcribe in state.db so it shows up
-    # in the history page. Failures here must not abort the pipeline.
-    try:
-        from src.monitor.state import StateManager
-
-        state = StateManager(config.db_path)
         await state.init()
-        try:
-            await state.mark_status(
-                resolved_url,
-                "done",
-                podcast_name=podcast_name,
-                title=title,
-                note_path=str(note_path),
-            )
-        finally:
-            await state.close()
     except Exception as e:
-        logger.warning("state.db write skipped: {}: {}", type(e).__name__, e)
+        # state.db unavailable shouldn't break the user's transcribe; build a
+        # stub that no-ops mark_status calls.
+        logger.warning("state.db unavailable, state writes disabled: {}", e)
+        state = _NullState()
+
+    try:
+        processor = EpisodeProcessor.from_config(config, state)
+        # Single-URL flow: user explicitly asked for fresh work, so don't
+        # short-circuit on shared cache fetch (would silently serve a stale
+        # peer-uploaded note). DO upload our result for peers to benefit.
+        # Skip MCP dedup — user is explicitly transcribing one specific URL.
+        options = ProcessingOptions(
+            use_shared_cache_fetch=False,
+            use_shared_cache_upload=True,
+            do_mcp_dedup=False,
+            save_pending_on_summary_fail=True,
+        )
+        outcome = await processor.process(
+            episode, progress_callback=progress_callback, options=options
+        )
+    finally:
+        if hasattr(state, "close"):
+            with contextlib.suppress(Exception):
+                await state.close()
 
     elapsed_ms = int((time.monotonic() - started_at) * 1000)
     return TranscribeOutcome(
-        note_path=note_path,
+        note_path=outcome.note_path,
         title=title,
         podcast_name=podcast_name,
-        char_count=len(result.text),
-        paragraph_count=len(result.paragraphs),
+        char_count=outcome.char_count,
+        paragraph_count=outcome.paragraph_count,
         elapsed_ms=elapsed_ms,
-        summary_failed=summary_failed,
+        summary_failed=outcome.summary_failed,
     )
 
 
-def _create_md_generator(config: AppConfig):
-    from src.writer.markdown import MarkdownGenerator
+class _NullState:
+    """Stub StateManager-shaped object used when state.db can't be opened —
+    keeps EpisodeProcessor happy without polluting it with optional handling.
+    Every method is an async no-op. Single-URL transcribes still complete,
+    they just don't appear on the history page."""
 
-    if config.template_path:
-        tp = Path(config.template_path)
-        return MarkdownGenerator(template_dir=str(tp.parent), template_name=tp.name)
-    return MarkdownGenerator()
+    async def init(self) -> None:
+        pass
+
+    async def close(self) -> None:
+        pass
+
+    async def mark_status(self, *args, **kwargs) -> None:
+        pass
+
+    async def is_processed(self, *args, **kwargs) -> bool:
+        return False
+
+    async def get_all(self):
+        return []
+
+    async def get_failed(self, *args, **kwargs):
+        return []
+
+    async def mark_backfill_skipped(self, items) -> int:
+        return 0

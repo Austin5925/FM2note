@@ -247,6 +247,13 @@ make bump-minor  # 版本号 minor +1
   - conftest.py 新增 `_reset_app_paths` + `_reset_state_singleton` autouse fixtures，把每个测试的 sandbox 锚到自己的 `tmp_path`
   - 431 测试（+5 新增：get_recent_history limit/排序/filter backfill_skipped/include flag + mark_status 事务重试计数）
 
+- **v1.5.3** — GUI 收尾：日志面板 + 立即检查 + daemon 健康 chip + 端到端验证
+  - **GUI 日志面板**：新增 `src/web/services/log_buffer.py` loguru sink → 环形 buffer（10k 上限）+ `GET /api/logs?after_seq=N` 增量拉取。设置页加 panel，3 秒轮询 auto-refresh。彻底消除 PyWebView 桌面壳"看不见日志"的工程债
+  - **立即检查按钮**：新增 `POST /api/service/poll-now`，detached spawn `fm2note run-once`，fire-and-forget。设置页"立即检查一次"按钮，用户改了订阅不用等 3 小时
+  - **daemon 健康 chip**：header 加 `daemon-chip` 元素，60s 轮询 `/api/service/status` 显示"● 运行中 · 上次 5 分钟前"。`/api/service/status` 扩展返回 `last_run_at` / `next_run_estimate_at` / `poll_interval_hours`
+  - **端到端 smoke test**：本地 uvicorn 启动验证 5 个关键端点（healthz / settings / logs / status / poll-now）全过
+  - 440 测试（+8 新增：log_buffer 幂等/after_seq/上限 + /api/logs 端点 + poll-now spawn + 平台拒绝 + status activity 字段）
+
 ## Current Version
 
-v1.5.2 — AppPaths + StateManager 单例 + audit fix（A1/A3/A5/事务），CWD-relative 路径和并发陷阱清零
+v1.5.3 — GUI 收尾：日志面板 + 立即检查 + daemon 健康 chip + 端到端验证（v1.5.x 重构周期完成）

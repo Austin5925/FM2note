@@ -32,6 +32,10 @@
         <span class="text-xs text-stone-400 leading-none">v{{ version }}</span>
       </div>
       <div class="flex items-center gap-3">
+        <a id="daemon-chip"
+           href="/settings"
+           class="hidden text-xs px-2 py-1 rounded-md border border-stone-200 hover:bg-stone-50"
+           title="点击查看后台服务详情"></a>
         <a id="balance-badge"
            href="/settings"
            class="hidden text-xs px-2 py-1 rounded-md border border-stone-200 hover:bg-stone-50"
@@ -115,6 +119,7 @@
 
   <script src="/static/theme.js"></script>
   <script src="/static/balance-badge.js"></script>
+  <script src="/static/daemon-chip.js"></script>
   <script src="/static/collie.js"></script>
   {% block scripts %}{% endblock %}
 </body>

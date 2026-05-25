@@ -13,12 +13,14 @@ from src.web.routes import (
     balance,
     health,
     history,
+    logs,
     pages,
     service,
     settings_api,
     subscriptions,
     transcribe,
 )
+from src.web.services.log_buffer import ensure_buffer_installed
 from src.web.services.state_singleton import close_state_manager
 
 _STATIC_DIR = Path(__file__).resolve().parent / "static"
@@ -29,7 +31,11 @@ async def _lifespan(app: FastAPI):
     """v1.5.2 Code Review fix #1: actually wire up the singleton teardown
     promised by ``close_state_manager()``'s docstring. Lets SQLite checkpoint
     its WAL cleanly on shutdown and prevents the lazy-created StateManager
-    from leaking past process exit."""
+    from leaking past process exit.
+
+    v1.5.3: also install the loguru-to-ring-buffer sink so the GUI log
+    panel has data the moment the first request hits."""
+    ensure_buffer_installed()
     yield
     await close_state_manager()
 
@@ -48,6 +54,7 @@ def create_app() -> FastAPI:
     app.include_router(balance.router)
     app.include_router(health.router)
     app.include_router(service.router)
+    app.include_router(logs.router)
 
     @app.exception_handler(Exception)
     async def _unhandled(request: Request, exc: Exception) -> JSONResponse:

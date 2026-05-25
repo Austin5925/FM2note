@@ -264,6 +264,108 @@
     }
   }
 
+  // -------- v1.5.3: poll-now button --------
+  const pollBtn = document.getElementById('poll-now-btn');
+  const pollStatusEl = document.getElementById('poll-now-status');
+  if (pollBtn) {
+    pollBtn.addEventListener('click', async () => {
+      pollBtn.disabled = true;
+      if (pollStatusEl) {
+        pollStatusEl.textContent = '触发中…';
+        pollStatusEl.className = 'text-xs text-stone-500 mt-2';
+      }
+      try {
+        const resp = await fetch('/api/service/poll-now', { method: 'POST' });
+        const data = await resp.json();
+        if (resp.ok) {
+          if (pollStatusEl) {
+            pollStatusEl.textContent = '✓ ' + (data.message || '已触发');
+            pollStatusEl.className = 'text-xs text-emerald-700 mt-2';
+          }
+        } else if (pollStatusEl) {
+          pollStatusEl.textContent = '✕ ' + (data.detail || resp.status);
+          pollStatusEl.className = 'text-xs text-red-700 mt-2';
+        }
+      } catch (e) {
+        if (pollStatusEl) {
+          pollStatusEl.textContent = '✕ ' + e.message;
+          pollStatusEl.className = 'text-xs text-red-700 mt-2';
+        }
+      } finally {
+        pollBtn.disabled = false;
+      }
+    });
+  }
+
+  // -------- v1.5.3: log panel --------
+  const logsOutput = document.getElementById('logs-output');
+  const logsAutoEl = document.getElementById('logs-auto');
+  const logsRefreshBtn = document.getElementById('logs-refresh-btn');
+  let lastSeq = 0;
+  const levelColor = {
+    DEBUG: 'text-stone-400',
+    INFO: 'text-stone-700',
+    WARNING: 'text-amber-700',
+    ERROR: 'text-red-700',
+    CRITICAL: 'text-red-700 font-bold',
+  };
+
+  function renderLogs(records, append) {
+    if (!logsOutput) return;
+    // v1.5.3 Code Review I2 fix: only scroll-to-bottom if the user was
+    // already at (or very near) the bottom. Otherwise the auto-refresh
+    // tick would yank them away from whatever they're reading. Snapshot
+    // the position BEFORE we mutate innerHTML.
+    const wasAtBottom = (
+      logsOutput.scrollHeight - logsOutput.scrollTop - logsOutput.clientHeight < 40
+    );
+    const html = records.map((r) => {
+      const cls = levelColor[r.level] || 'text-stone-700';
+      const t = new Date(r.time).toLocaleTimeString('zh-CN', { hour12: false });
+      return `<div class="${cls}">[${escapeHtml(t)}] ${escapeHtml(r.level.padEnd(8))} ${escapeHtml(r.module)}:${r.line} - ${escapeHtml(r.message)}</div>`;
+    }).join('');
+    if (append) {
+      // If "加载中…" was the only thing there, replace it
+      if (logsOutput.textContent.trim() === '加载中…') {
+        logsOutput.innerHTML = html;
+      } else {
+        logsOutput.insertAdjacentHTML('beforeend', html);
+      }
+    } else {
+      logsOutput.innerHTML = html || '<div class="text-stone-400">暂无日志</div>';
+    }
+    // Manual refresh (!append) always snaps to bottom for "fresh view" UX.
+    // Auto-refresh appends — preserve scroll position if user has scrolled up.
+    if (!append || wasAtBottom) {
+      logsOutput.scrollTop = logsOutput.scrollHeight;
+    }
+  }
+
+  async function fetchLogs(reset) {
+    try {
+      const after = reset ? 0 : lastSeq;
+      const resp = await fetch(`/api/logs?after_seq=${after}`);
+      if (!resp.ok) return;
+      const data = await resp.json();
+      if (reset) {
+        lastSeq = 0;
+        renderLogs(data.records || [], false);
+      } else if (data.records && data.records.length) {
+        renderLogs(data.records, true);
+      }
+      if (data.next_after_seq) lastSeq = data.next_after_seq;
+    } catch (_) {
+      // silent
+    }
+  }
+
+  if (logsRefreshBtn) logsRefreshBtn.addEventListener('click', () => fetchLogs(true));
+  fetchLogs(true);
+  // Poll every 3s when "auto" is checked
+  setInterval(() => {
+    if (logsAutoEl && logsAutoEl.checked) fetchLogs(false);
+  }, 3000);
+
   loadSettings();
   loadHealth();
   loadService();

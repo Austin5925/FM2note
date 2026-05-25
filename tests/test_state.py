@@ -100,3 +100,34 @@ class TestStateManager:
 
         all_records = await state.get_all()
         assert len(all_records) == 2
+
+    @pytest.mark.asyncio
+    async def test_mark_backfill_skipped_inserts_new_rows(self, state):
+        """v1.4.15 — bulk-mark feed entries as ``backfill_skipped`` so future
+        polls treat them as processed and skip ASR entirely."""
+        items = [
+            ("g_skip_1", "Pod A", "Episode 1"),
+            ("g_skip_2", "Pod A", "Episode 2"),
+            ("g_skip_3", "Pod A", "Episode 3"),
+        ]
+        inserted = await state.mark_backfill_skipped(items)
+        assert inserted == 3
+        for guid, _, _ in items:
+            assert await state.is_processed(guid) is True
+
+    @pytest.mark.asyncio
+    async def test_mark_backfill_skipped_does_not_clobber_done(self, state):
+        """Existing rows (especially ``done``) must NOT be overwritten by a
+        retroactive backfill mark — that would lose the note_path and history."""
+        await state.mark_status("g1", "done", podcast_name="P", title="T", note_path="/x.md")
+        inserted = await state.mark_backfill_skipped([("g1", "P", "T"), ("g2", "P", "T2")])
+        # Only g2 was new; g1 stays "done"
+        assert inserted == 1
+        records = {r.guid: r for r in await state.get_all()}
+        assert records["g1"].status == "done"
+        assert records["g1"].note_path == "/x.md"
+        assert records["g2"].status == "backfill_skipped"
+
+    @pytest.mark.asyncio
+    async def test_mark_backfill_skipped_empty_is_noop(self, state):
+        assert await state.mark_backfill_skipped([]) == 0

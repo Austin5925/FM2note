@@ -44,15 +44,67 @@ class StateManager:
             await self._db.close()
 
     async def is_processed(self, guid: str, max_retries: int = 3) -> bool:
-        """检查剧集是否已完成处理或已超过最大重试次数"""
+        """检查剧集是否已完成处理或已超过最大重试次数。
+
+        v1.4.15: ``backfill_skipped`` is also treated as "processed" so that
+        episodes the user explicitly opted to skip during onboarding never
+        come back as "new" on the next poll.
+        """
         assert self._db is not None
         cursor = await self._db.execute(
             """SELECT 1 FROM processed_episodes
-               WHERE guid=? AND (status='done' OR (status='failed' AND retry_count >= ?))""",
+               WHERE guid=? AND (
+                 status='done'
+                 OR status='backfill_skipped'
+                 OR (status='failed' AND retry_count >= ?)
+               )""",
             (guid, max_retries),
         )
         row = await cursor.fetchone()
         return row is not None
+
+    async def mark_backfill_skipped(self, items: list[tuple[str, str, str]]) -> int:
+        """Mark a batch of (guid, podcast_name, title) as ``backfill_skipped``
+        in a single transaction.
+
+        Returns the number of rows actually inserted. Uses ``INSERT OR
+        IGNORE`` keyed on the existing PRIMARY KEY (``guid``) so:
+
+          * Existing rows — especially ``done`` — are NEVER clobbered.
+          * Two concurrent ``StateManager`` connections marking the same
+            guid don't race and raise ``IntegrityError`` (Codex audit
+            v1.4.15 BUG 2): the second simply becomes a no-op.
+
+        v1.4.15 hardening (Code Review I3 + Codex BUG 2): the previous
+        SELECT-then-INSERT loop had both a non-transactional retry hazard
+        and a TOCTOU race between concurrent connections; ``INSERT OR
+        IGNORE`` collapses both into a single atomic statement per row.
+        """
+        assert self._db is not None
+        if not items:
+            return 0
+        now = datetime.now().isoformat()
+        inserted = 0
+        try:
+            for guid, podcast_name, title in items:
+                cursor = await self._db.execute(
+                    """INSERT OR IGNORE INTO processed_episodes
+                       (guid, podcast_name, title, status, created_at, updated_at)
+                       VALUES (?, ?, ?, 'backfill_skipped', ?, ?)""",
+                    (guid, podcast_name, title, now, now),
+                )
+                # rowcount is 1 on real insert, 0 when IGNORE fired
+                if cursor.rowcount > 0:
+                    inserted += 1
+            await self._db.commit()
+        except Exception:
+            # Explicit rollback so a mid-loop failure doesn't leave buffered
+            # writes hanging on the connection. aiosqlite's close() would
+            # implicitly discard them, but being explicit beats relying on
+            # close-time behavior.
+            await self._db.rollback()
+            raise
+        return inserted
 
     async def mark_status(
         self,

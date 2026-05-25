@@ -655,7 +655,18 @@ async def _serve(config_path: str, subs_path: str):
     await state.init()
 
     try:
-        rss_checker = RSSChecker(subscriptions, state)
+        # v1.4.15: hot-reload subscriptions every poll so Web UI edits take
+        # effect without restarting the daemon. The provider is sync (called
+        # at the top of check_all); load_subscriptions reads a small YAML
+        # file so the overhead is negligible.
+        def _reload_subscriptions() -> list:
+            try:
+                return load_subscriptions(subs_path)
+            except Exception as e:
+                logger.warning("subscriptions reload failed: {}: {}", type(e).__name__, e)
+                return subscriptions
+
+        rss_checker = RSSChecker(subscriptions, state, subs_provider=_reload_subscriptions)
         downloader = AudioDownloader(config.temp_dir)
         transcriber = create_transcriber(config)
         md_generator = _create_md_generator(config)

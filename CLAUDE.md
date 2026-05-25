@@ -184,6 +184,24 @@ make bump-minor  # 版本号 minor +1
   - **Codex MEDIUM**：`_clean_path_input` 后 `Path(".")` / 相对路径仍能过校验 → silently 写到 CWD。新增 `is_absolute()` 守卫
   - 测试新增覆盖空字符串 / 相对路径 / warning once / no-warning negative case
 
+- **v1.4.15** — 订阅系统改造：消除"首次启动烧光额度"陷阱 + Web UI 加订阅热加载
+  - **根因**：fresh install 时 `state.db` 为空，feed 中所有历史剧集（典型 20-50 集）都被当成"新"全量转录，女朋友拉同一份 yaml 会瞬间烧掉一大笔 DashScope/Poe 额度
+  - 新增 `POST /api/subscriptions/preview`：返回 feed 中 episode count / unprocessed count / 总时长 / 估算成本（按 asr_engine 单价）
+  - `POST /api/subscriptions` 现在 **必填** `backfill_strategy`：`all` / `new_only` / `recent_n` / `since_date`，配套需要的 `recent_n` / `since_date` 字段
+  - state.db 新状态 `backfill_skipped`，被 `is_processed()` 视为已处理，避免下次 poll 重转
+  - `StateManager.mark_backfill_skipped()` 用 `INSERT OR IGNORE`，并发安全且不覆盖已 `done` 的行
+  - GUI 订阅页 add 流程：保存 → preview → 弹策略选择对话框（4 个 radio + N/日期输入）→ 真正 add
+  - `RSSChecker` 加 `subs_provider` 钩子，**每次 poll 重读 yaml**，Web UI 改订阅无须重启 daemon
+  - 新增 `src/web/services/feed_preview.py`（feedparser → EpisodePreview + 成本估算 + backfill 策略过滤）
+  - **双线审计 hotfix（Code Review 主审 + Codex 终审）**：
+    - **C1（CRIT）**：`feedparser.parse` 阻塞 event loop → 包 `asyncio.to_thread`（`/preview` + `_apply_backfill_strategy`）
+    - **C2（CRIT XSS）**：`subscriptions.js` 把 `preview.asr_engine` 直接 innerHTML 注入 → 用 `escapeHtml()` 包
+    - **I1 + BUG 11**：`_apply_backfill_strategy` 移入 yaml_lock 内 + 加重复 URL guard（409 拒绝）+ feedparser 失败时 raise HTTPException（502），不再静默退化成"全部转录"
+    - **BUG 10（SSRF）**：`_validate_payload` 校验 rss_url scheme，只接受 http/https
+    - **I3 + BUG 2**：`mark_backfill_skipped` 改用 `INSERT OR IGNORE` + rowcount 计数，一招解决并发 SELECT-then-INSERT race + 事务问题；加显式 rollback
+    - **I4**：`recent_n` 必须 ≥1（之前 -5 silently 退化成 0 = 全跳）
+  - 369 测试（+33 新增：4 种 strategy 端到端 / scheme 校验 / 重复 URL 409 / feedparser 失败 502 / 热加载 / 多边界）
+
 ## Current Version
 
-v1.4.14 — v1.4.13 双线代码审计后第二轮 hotfix：测试假 PASS / 测试隔离 / devdocs / 相对路径守卫
+v1.4.15 — 订阅 preview + 4 种 backfill 策略 + subscriptions.yaml 热加载，消除"首次烧额度"陷阱（双线审计回收完成）

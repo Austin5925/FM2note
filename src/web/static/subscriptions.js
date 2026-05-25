@@ -204,25 +204,145 @@
     }
     const index = indexInput.value;
     const isEdit = index !== '';
-    const url = isEdit ? `/api/subscriptions/${index}` : '/api/subscriptions';
+    // Edit path is unchanged — backfill strategy is a one-shot thing applied
+    // at create time only.
+    if (isEdit) {
+      saveBtn.disabled = true;
+      try {
+        const resp = await fetch(`/api/subscriptions/${index}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name, rss_url, tags }),
+        });
+        if (!resp.ok) {
+          const err = await resp.json().catch(() => ({}));
+          testResult.textContent = '✕ 保存失败：' + (err.detail || resp.status);
+          testResult.className = 'text-xs text-red-700';
+          return;
+        }
+        closeModal();
+        await reload();
+      } finally {
+        saveBtn.disabled = false;
+      }
+      return;
+    }
+    // Add path — preview first, then open backfill strategy modal.
+    await beginAddWithBackfill({ name, rss_url, tags });
+  });
+
+  // -------- v1.4.15: preview + backfill strategy flow --------
+
+  let pendingAdd = null;  // { name, rss_url, tags, preview }
+
+  async function beginAddWithBackfill(item) {
+    testResult.textContent = '正在统计该 feed 的剧集数 + 预估额度…';
+    testResult.className = 'text-xs text-stone-500';
     saveBtn.disabled = true;
     try {
-      const resp = await fetch(url, {
-        method: isEdit ? 'PUT' : 'POST',
+      const resp = await fetch('/api/subscriptions/preview', {
+        method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, rss_url, tags }),
+        body: JSON.stringify({ rss_url: item.rss_url }),
       });
-      if (!resp.ok) {
-        const err = await resp.json().catch(() => ({}));
-        testResult.textContent = '✕ 保存失败：' + (err.detail || resp.status);
+      const data = await resp.json();
+      if (!data.ok) {
+        testResult.textContent = '✕ 预览失败：' + (data.error || resp.status);
         testResult.className = 'text-xs text-red-700';
-        saveBtn.disabled = false;
         return;
       }
+      pendingAdd = { ...item, preview: data };
+      openBackfillModal(data);
+    } catch (e) {
+      testResult.textContent = '✕ 预览请求失败：' + e.message;
+      testResult.className = 'text-xs text-red-700';
+    } finally {
+      saveBtn.disabled = false;
+    }
+  }
+
+  function openBackfillModal(preview) {
+    const summaryEl = document.getElementById('backfill-summary');
+    const allHintEl = document.getElementById('backfill-all-cost-hint');
+    const totalMin = Math.round((preview.total_duration_sec || 0) / 60);
+    // Code Review C2 (v1.4.15): preview.asr_engine ultimately comes from
+    // user-editable config.yaml, so escapeHtml it before going into innerHTML.
+    // Numbers are safe (toFixed coerces to a numeric string), the engine
+    // name is the only string field interpolated here.
+    const safeEngine = escapeHtml(preview.asr_engine || 'funasr');
+    const costText = preview.estimated_cost_cny > 0
+      ? `约 ¥${preview.estimated_cost_cny.toFixed(2)}（${totalMin} 分钟，${safeEngine}）`
+      : '（feed 未提供 duration，无法估算成本）';
+    summaryEl.innerHTML = `Feed 当前有 <b>${preview.episode_count}</b> 集，其中 <b>${preview.unprocessed_count}</b> 集未在本机处理。<br/>全部转录预计 ${costText}`;
+    allHintEl.textContent = preview.estimated_cost_cny > 0
+      ? `预计消耗约 ¥${preview.estimated_cost_cny.toFixed(2)}（${preview.unprocessed_count} 集）`
+      : '— 这会一次性消耗大量 DashScope / Poe 额度';
+    // Reset radio + secondary inputs
+    document.querySelectorAll('#backfill-form input[name="backfill"]').forEach((el) => {
+      el.checked = el.value === 'new_only';
+    });
+    document.getElementById('backfill-recent-n').disabled = true;
+    document.getElementById('backfill-since-date').disabled = true;
+    document.getElementById('backfill-modal').classList.remove('hidden');
+  }
+
+  function closeBackfillModal() {
+    document.getElementById('backfill-modal').classList.add('hidden');
+    pendingAdd = null;
+  }
+
+  // Enable the secondary input next to the selected radio
+  document.querySelectorAll('#backfill-form input[name="backfill"]').forEach((radio) => {
+    radio.addEventListener('change', () => {
+      document.getElementById('backfill-recent-n').disabled = radio.value !== 'recent_n' || !radio.checked;
+      document.getElementById('backfill-since-date').disabled = radio.value !== 'since_date' || !radio.checked;
+      if (radio.checked && radio.value === 'recent_n') document.getElementById('backfill-recent-n').focus();
+      if (radio.checked && radio.value === 'since_date') document.getElementById('backfill-since-date').focus();
+    });
+  });
+
+  document.getElementById('backfill-cancel-btn').addEventListener('click', closeBackfillModal);
+  document.getElementById('backfill-modal').addEventListener('click', (e) => {
+    if (e.target.id === 'backfill-modal') closeBackfillModal();
+  });
+
+  document.getElementById('backfill-confirm-btn').addEventListener('click', async () => {
+    if (!pendingAdd) return closeBackfillModal();
+    const chosen = document.querySelector('#backfill-form input[name="backfill"]:checked');
+    if (!chosen) return;
+    const strategy = chosen.value;
+    const body = { ...pendingAdd, backfill_strategy: strategy };
+    delete body.preview;
+    if (strategy === 'recent_n') {
+      const n = parseInt(document.getElementById('backfill-recent-n').value, 10);
+      if (!Number.isInteger(n) || n < 1) { alert('请输入有效的 N (≥1)'); return; }
+      body.recent_n = n;
+    }
+    if (strategy === 'since_date') {
+      const d = document.getElementById('backfill-since-date').value;
+      if (!d) { alert('请选择起始日期'); return; }
+      body.since_date = d;
+    }
+    const btn = document.getElementById('backfill-confirm-btn');
+    btn.disabled = true;
+    try {
+      const resp = await fetch('/api/subscriptions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      const data = await resp.json();
+      if (!resp.ok) {
+        testResult.textContent = '✕ 添加失败：' + (data.detail || resp.status);
+        testResult.className = 'text-xs text-red-700';
+        return;
+      }
+      // Success — close both modals and reload
+      closeBackfillModal();
       closeModal();
       await reload();
     } finally {
-      saveBtn.disabled = false;
+      btn.disabled = false;
     }
   });
 

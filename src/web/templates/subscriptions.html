@@ -22,6 +22,60 @@
   <ul id="subs-list" class="hidden space-y-3"></ul>
 </section>
 
+<!-- Backfill strategy dialog (v1.4.15) -->
+<!-- Shown after the user clicks "保存" on a NEW subscription, between the
+     /preview call and the real POST /api/subscriptions. -->
+<div id="backfill-modal" class="hidden fixed inset-0 bg-black/40 flex items-center justify-center z-50">
+  <div class="bg-white rounded-xl max-w-lg w-full p-6 mx-4 shadow-xl">
+    <h3 class="text-lg font-semibold mb-2">这个订阅怎么处理历史剧集？</h3>
+    <div id="backfill-summary" class="text-sm text-stone-700 mb-4"></div>
+    <form id="backfill-form" class="space-y-3" onsubmit="return false;">
+      <label class="flex items-start gap-2 p-3 rounded-md border border-stone-300 hover:bg-stone-50 cursor-pointer">
+        <input type="radio" name="backfill" value="new_only" class="mt-1" checked />
+        <div>
+          <div class="text-sm font-medium">只转之后新发布的（推荐）</div>
+          <div class="text-xs text-stone-500">现有所有剧集都跳过，只在以后有新一集时才转。<b class="text-emerald-700">额度消耗：¥0</b></div>
+        </div>
+      </label>
+      <label class="flex items-start gap-2 p-3 rounded-md border border-stone-300 hover:bg-stone-50 cursor-pointer">
+        <input type="radio" name="backfill" value="recent_n" class="mt-1" />
+        <div class="flex-1">
+          <div class="text-sm font-medium">只转最近 N 集</div>
+          <div class="text-xs text-stone-500 mb-2">保留 N 集最新剧集等待 daemon 转录，其他跳过</div>
+          <input id="backfill-recent-n" type="number" min="1" max="100" value="3" disabled
+                 class="w-24 px-2 py-1 rounded border border-stone-300 text-sm font-mono" />
+        </div>
+      </label>
+      <label class="flex items-start gap-2 p-3 rounded-md border border-stone-300 hover:bg-stone-50 cursor-pointer">
+        <input type="radio" name="backfill" value="since_date" class="mt-1" />
+        <div class="flex-1">
+          <div class="text-sm font-medium">从某个日期之后</div>
+          <div class="text-xs text-stone-500 mb-2">只转该日期当天及之后发布的剧集</div>
+          <input id="backfill-since-date" type="date" disabled
+                 class="px-2 py-1 rounded border border-stone-300 text-sm font-mono" />
+        </div>
+      </label>
+      <label class="flex items-start gap-2 p-3 rounded-md border border-red-200 hover:bg-red-50 cursor-pointer">
+        <input type="radio" name="backfill" value="all" class="mt-1" />
+        <div>
+          <div class="text-sm font-medium text-red-700">全部历史都转（谨慎）</div>
+          <div class="text-xs text-stone-500" id="backfill-all-cost-hint">— 这会一次性消耗大量 DashScope / Poe 额度</div>
+        </div>
+      </label>
+    </form>
+    <div class="flex justify-end gap-2 mt-5">
+      <button id="backfill-cancel-btn" type="button"
+              class="px-3 py-1.5 rounded-md border border-stone-300 text-xs hover:bg-stone-50">
+        取消
+      </button>
+      <button id="backfill-confirm-btn" type="button"
+              class="px-3 py-1.5 rounded-md bg-stone-900 text-white text-xs hover:bg-stone-700">
+        确认添加
+      </button>
+    </div>
+  </div>
+</div>
+
 <!-- Add/Edit dialog -->
 <div id="sub-modal" class="hidden fixed inset-0 bg-black/40 flex items-center justify-center z-50">
   <div class="bg-white rounded-xl max-w-lg w-full p-6 mx-4 shadow-xl">

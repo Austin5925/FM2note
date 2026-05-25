@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+from collections.abc import Callable
 
 import feedparser
 import httpx
@@ -15,9 +16,28 @@ from src.monitor.state import StateManager
 class RSSChecker:
     """RSS 轮询检查器，检测新播客剧集"""
 
-    def __init__(self, subscriptions: list[Subscription], state: StateManager):
+    def __init__(
+        self,
+        subscriptions: list[Subscription],
+        state: StateManager,
+        *,
+        subs_provider: Callable[[], list[Subscription]] | None = None,
+    ):
+        """Construct the checker.
+
+        Args:
+            subscriptions: Initial list, also used as a fallback if
+                ``subs_provider`` raises.
+            state: SQLite state manager.
+            subs_provider: v1.4.15 hot-reload hook — when set, every call to
+                ``check_all`` invokes this to re-read the subscription list.
+                That way Web UI edits to ``subscriptions.yaml`` take effect on
+                the next poll without restarting the daemon. Set to ``None`` to
+                keep the original "load once at construction" behavior.
+        """
         self._subscriptions = subscriptions
         self._state = state
+        self._subs_provider = subs_provider
 
     async def check_all(self) -> list[Episode]:
         """检查所有订阅的 RSS feed，返回未处理的新剧集列表。
@@ -26,6 +46,23 @@ class RSSChecker:
             按 pub_date 排序的新剧集列表
         """
         new_episodes: list[Episode] = []
+
+        if self._subs_provider is not None:
+            try:
+                fresh = self._subs_provider()
+                if fresh != self._subscriptions:
+                    logger.info(
+                        "订阅列表热加载: {} → {} 个订阅",
+                        len(self._subscriptions),
+                        len(fresh),
+                    )
+                self._subscriptions = fresh
+            except Exception as e:
+                logger.warning(
+                    "订阅热加载失败，沿用上一次的列表: {}: {}",
+                    type(e).__name__,
+                    e,
+                )
 
         for sub in self._subscriptions:
             try:

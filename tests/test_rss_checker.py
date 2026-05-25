@@ -127,6 +127,53 @@ class TestRSSChecker:
         # 只返回正常 feed 的剧集
         assert len(episodes) == 1
 
+    @pytest.mark.asyncio
+    async def test_subs_provider_hot_reload(self, mock_state):
+        """v1.4.15 — when ``subs_provider`` is set, each ``check_all`` call
+        re-reads the subscriptions list, so Web UI edits to subscriptions.yaml
+        take effect on the next poll without restarting the daemon."""
+        sub_a = Subscription(name="A", rss_url="http://a", tags=[])
+        sub_b = Subscription(name="B", rss_url="http://b", tags=[])
+
+        # Provider returns a list whose contents change between calls
+        calls = {"n": 0}
+
+        def provider():
+            calls["n"] += 1
+            return [sub_a] if calls["n"] == 1 else [sub_a, sub_b]
+
+        checker = RSSChecker([sub_a], mock_state, subs_provider=provider)
+
+        seen_urls: list[str] = []
+
+        async def fake_fetch(url):
+            seen_urls.append(url)
+            return _make_feed()  # empty feed
+
+        with patch.object(checker, "_fetch_feed", side_effect=fake_fetch):
+            await checker.check_all()
+            await checker.check_all()
+
+        # First call sees just A; second call sees A + B (the new sub)
+        assert seen_urls == ["http://a", "http://a", "http://b"]
+        assert calls["n"] == 2
+
+    @pytest.mark.asyncio
+    async def test_subs_provider_failure_falls_back_to_previous(self, mock_state):
+        """If the provider raises (e.g. yaml is being saved), the checker
+        should reuse the last-known subscription list rather than crash."""
+        sub_a = Subscription(name="A", rss_url="http://a", tags=[])
+
+        def provider():
+            raise RuntimeError("yaml locked")
+
+        checker = RSSChecker([sub_a], mock_state, subs_provider=provider)
+
+        with patch.object(checker, "_fetch_feed", AsyncMock(return_value=_make_feed())):
+            # Must not raise — falls back to the constructor-time list
+            episodes = await checker.check_all()
+        assert episodes == []
+
     def test_detect_subtitle_none(self, subscriptions, mock_state):
         checker = RSSChecker(subscriptions, mock_state)
         entry = _make_entry()

@@ -16,6 +16,14 @@ columns on the ``notes`` table; this router consumes that for two endpoints:
 Both endpoints require the shared cache to be configured (SHARED_CACHE_URL
 + SHARED_CACHE_TOKEN) — otherwise return ``{"ok": False, "reason":
 "cache_unconfigured"}`` so the UI can show a clear empty-state banner.
+
+v1.6.1: download now also dedups by ``frontmatter source`` field, not just
+by target file path. Previously a vault file named ``Ep 25｜油价.md`` (using
+unicode full-width pipe) and an incoming download named ``Ep 25 _ 油价.md``
+(safe-filename sanitized ASCII pipe) had different file paths so both got
+written — same episode, two .md files. The new ``_scan_existing_guids``
+helper builds a {normalized-guid → path} map for the target podcast folder
+and skips downloads whose source URL already exists there under any name.
 """
 
 from __future__ import annotations
@@ -58,6 +66,54 @@ def _safe_filename(name: str, max_len: int = 180) -> str:
     if len(name) > max_len:
         name = name[:max_len].rstrip()
     return name
+
+
+# v1.6.1: server stores guids in "https:/host/..." form (single slash after
+# colon) because FastAPI {guid:path} routing collapses %2F%2F → /, but
+# local .md frontmatter writes the original "https://host/..." (double
+# slash). Normalize both before comparison so the dedup check matches
+# regardless of which form we're holding.
+def _normalize_guid(guid: str) -> str:
+    return guid.replace("://", ":/")
+
+
+# Match the same frontmatter parse the batch-upload scripts use — only need
+# the source field, so a tiny regex over the first ~2 KB is enough (full
+# YAML parse would pull in pyyaml just for this hot loop).
+_FM_BLOCK_RE = re.compile(r"^---\n(.*?)\n---", re.DOTALL)
+_FM_SOURCE_RE = re.compile(r'^source:\s*"?([^"\n]*)"?', re.MULTILINE)
+
+
+def _scan_existing_guids(podcast_dir: Path) -> dict[str, Path]:
+    """Build {normalized-guid: filepath} for every .md in ``podcast_dir``.
+
+    Lets the download endpoint dedup by ``frontmatter.source`` (the
+    episode's RSS guid) instead of just by destination file path — so we
+    don't re-download an episode whose vault counterpart happens to have a
+    different filename shape (e.g. ``｜`` vs ``_`` vs space). Returns an
+    empty dict if ``podcast_dir`` doesn't exist or is empty.
+
+    Only reads the first 2 KB of each file — frontmatter is always at the
+    top, so this is cheap even for 100+ episode folders.
+    """
+    out: dict[str, Path] = {}
+    if not podcast_dir.is_dir():
+        return out
+    for mf in podcast_dir.glob("*.md"):
+        try:
+            head = mf.open("r", encoding="utf-8", errors="ignore").read(2048)
+        except OSError:
+            continue
+        m = _FM_BLOCK_RE.match(head)
+        if not m:
+            continue
+        src_m = _FM_SOURCE_RE.search(m.group(1))
+        if not src_m:
+            continue
+        src = src_m.group(1).strip()
+        if src:
+            out[_normalize_guid(src)] = mf
+    return out
 
 
 @router.get("/list")
@@ -133,6 +189,9 @@ async def cloud_download(payload: dict) -> dict:
 
     results: list[dict] = []
     ok_count = 0
+    # v1.6.1: cache per-podcast guid→path scan so we don't re-scan once per
+    # downloaded file. Lazy populated.
+    existing_by_podcast: dict[Path, dict[str, Path]] = {}
     for guid in raw_guids:
         if not isinstance(guid, str) or not guid.strip():
             results.append({"guid": str(guid), "ok": False, "reason": "invalid_guid"})
@@ -145,12 +204,33 @@ async def cloud_download(payload: dict) -> dict:
         podcast_name = (meta or {}).get("podcast_name") or "（未知）"
         title = (meta or {}).get("title") or guid[:60]
 
+        target_dir = podcast_root / _safe_filename(podcast_name)
+        norm_guid = _normalize_guid(guid)
+
+        # v1.6.1: guid-level dedup BEFORE fetching content (saves a network
+        # round-trip + cache_sidecar load when the episode is already in vault
+        # under a different filename). Only consult the scan when not
+        # overwriting — overwrite=True means user explicitly wants to refresh.
+        if not overwrite:
+            if target_dir not in existing_by_podcast:
+                existing_by_podcast[target_dir] = _scan_existing_guids(target_dir)
+            existing_path = existing_by_podcast[target_dir].get(norm_guid)
+            if existing_path is not None:
+                results.append(
+                    {
+                        "guid": guid,
+                        "ok": False,
+                        "reason": "already_exists_by_source",
+                        "path": str(existing_path),
+                    }
+                )
+                continue
+
         content = await client.fetch(guid)
         if content is None:
             results.append({"guid": guid, "ok": False, "reason": "cache_miss"})
             continue
 
-        target_dir = podcast_root / _safe_filename(podcast_name)
         target_dir.mkdir(parents=True, exist_ok=True)
         target_path = target_dir / f"{_safe_filename(title)}.md"
 

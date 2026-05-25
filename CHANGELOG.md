@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.6.1] - 2026-05-25
+
+### Fixed
+- **GUI【云端】下载 guid-level 去重**：之前 download endpoint 只按 file path 查 vault 是否已有，命名风格不同就 false negative（`Ep 25｜油价` 全角 vs `Ep 25 _ 油价` ASCII 算两份）→ 重复 .md。这版 download 前扫该 podcast 文件夹所有 .md 的 `frontmatter.source`，按 normalized guid 去重；命中返回 `reason=already_exists_by_source`（含已存在文件路径），不发起 fetch、不写第二份
+- 新 helper `_scan_existing_guids(podcast_dir)` 用 frontmatter 头 2KB 正则解 source（不引 pyyaml）+ `_normalize_guid` 把 `https://` 折成 `https:/` 与 server 存储格式对齐
+- `overwrite=True` 仍能强刷（明示意图绕过 dedup）
+
+### Added
+- 5 个新测试：guid-level dedup / overwrite 绕 dedup / 空目录 helper / 无 frontmatter 文件跳过 / normalize idempotent
+- 463 测试（458 + 5）全过
+
 ## [1.6.0] - 2026-05-25
 
 ### Added

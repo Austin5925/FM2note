@@ -6,11 +6,15 @@
 # Vault 路径). This is the single source of truth; the OBSIDIAN_VAULT_PATH
 # env var is no longer honored as of v1.4.12 (it used to silently shadow
 # Web UI edits — see CLAUDE.md Version History).
-vault_path: "/Users/somebody/Library/Mobile Documents/iCloud~md~obsidian/Documents/zhen/10_Podcasts"
+#
+# Common locations:
+#   ~/Documents/Obsidian                                       (local)
+#   ~/Library/Mobile Documents/iCloud~md~obsidian/Documents/<vault>  (iCloud)
+vault_path: "~/Documents/Obsidian"
 
 # Subdirectory within the vault for podcast notes. Leave empty ("") if
-# vault_path already points at the podcast root (the personal default does).
-podcast_dir: ""
+# vault_path already points at the desired write location.
+podcast_dir: "Podcasts"
 
 # RSS polling interval (hours), used in `serve` mode
 poll_interval_hours: 3

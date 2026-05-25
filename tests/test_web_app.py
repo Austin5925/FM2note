@@ -97,8 +97,11 @@ class TestSettingsAPI:
         assert r.status_code == 200
         body = r.json()
         assert body["vault_path_default"] == DEFAULT_VAULT_PATH
-        # Default must look like an absolute path, not a stale env probe value
-        assert body["vault_path_default"].startswith("/")
+        # v1.5.1: default is "~/Documents/Obsidian" (was a hardcoded personal
+        # absolute path). UI prepends Path.expanduser if it cares. Verify the
+        # placeholder is non-empty and either "~"-prefixed or absolute.
+        assert body["vault_path_default"]
+        assert body["vault_path_default"].startswith(("~", "/"))
 
 
 class TestStaticFiles:

@@ -10,74 +10,95 @@ from main import cli
 
 
 class TestInit:
-    def test_init_creates_config_files(self, tmp_path, monkeypatch):
+    """v1.5.1: default is silent skeleton mode (no prompts). The old
+    interactive prompt flow is preserved behind ``--interactive``."""
+
+    def test_init_silent_creates_skeleton(self, tmp_path, monkeypatch):
+        """No input needed — should generate defaults with auto-detected vault."""
         monkeypatch.chdir(tmp_path)
         runner = CliRunner()
-        result = runner.invoke(
-            cli,
-            ["init"],
-            input="/tmp/test-vault\nfunasr\nPodcasts\n3\n\n",
-        )
-        assert result.exit_code == 0
+        result = runner.invoke(cli, ["init"])
+        assert result.exit_code == 0, result.output
         assert (tmp_path / "config" / "config.yaml").exists()
         assert (tmp_path / "config" / "subscriptions.yaml").exists()
-
         config_content = (tmp_path / "config" / "config.yaml").read_text()
-        assert "/tmp/test-vault" in config_content
-        assert "funasr" in config_content
-        assert "Podcasts" in config_content
+        assert "funasr" in config_content  # default
+        assert "Podcasts" in config_content  # default
 
-    def test_init_creates_env_file(self, tmp_path, monkeypatch):
+    def test_init_silent_creates_env_file(self, tmp_path, monkeypatch):
         monkeypatch.chdir(tmp_path)
         runner = CliRunner()
-        result = runner.invoke(
-            cli,
-            ["init"],
-            input="/tmp/vault\nfunasr\nPodcasts\n3\n\n",
-        )
-        assert result.exit_code == 0
+        result = runner.invoke(cli, ["init"])
+        assert result.exit_code == 0, result.output
         assert (tmp_path / ".env").exists()
-
-    def test_init_copies_example_env(self, tmp_path, monkeypatch):
-        monkeypatch.chdir(tmp_path)
-        env_example = tmp_path / ".env.example"
-        env_example.write_text("export DASHSCOPE_API_KEY=sk-xxx\n")
-        runner = CliRunner()
-        result = runner.invoke(
-            cli,
-            ["init"],
-            input="/tmp/vault\nfunasr\nPodcasts\n3\n\n",
-        )
-        assert result.exit_code == 0
         env_content = (tmp_path / ".env").read_text()
+        # v1.5.1 full template includes more than just DashScope
         assert "DASHSCOPE_API_KEY" in env_content
+        assert "POE_API_KEY" in env_content
 
-    def test_init_skip_existing_config(self, tmp_path, monkeypatch):
+    def test_init_silent_does_not_overwrite_existing(self, tmp_path, monkeypatch):
+        """Silent mode is non-destructive — must NOT clobber existing config."""
         monkeypatch.chdir(tmp_path)
         config_dir = tmp_path / "config"
         config_dir.mkdir()
-        (config_dir / "config.yaml").write_text("vault_path: /old\n")
+        (config_dir / "config.yaml").write_text("vault_path: /pre-existing\n")
         runner = CliRunner()
-        # Answer 'n' to overwrite prompt, then provide init inputs
-        result = runner.invoke(
-            cli,
-            ["init"],
-            input="n\nn\n/tmp/vault\nfunasr\nPodcasts\n3\n\n",
-        )
-        assert result.exit_code == 0
-        # Original file should be unchanged
-        assert "/old" in (config_dir / "config.yaml").read_text()
+        result = runner.invoke(cli, ["init"])
+        assert result.exit_code == 0, result.output
+        assert "/pre-existing" in (config_dir / "config.yaml").read_text()
 
-    def test_init_shows_next_steps(self, tmp_path, monkeypatch):
+    def test_init_copies_example_env_when_present(self, tmp_path, monkeypatch):
+        monkeypatch.chdir(tmp_path)
+        env_example = tmp_path / ".env.example"
+        env_example.write_text("export DASHSCOPE_API_KEY=sk-from-example\n")
+        runner = CliRunner()
+        result = runner.invoke(cli, ["init"])
+        assert result.exit_code == 0, result.output
+        env_content = (tmp_path / ".env").read_text()
+        assert "sk-from-example" in env_content
+
+    def test_init_shows_gui_next_steps(self, tmp_path, monkeypatch):
+        monkeypatch.chdir(tmp_path)
+        runner = CliRunner()
+        result = runner.invoke(cli, ["init"])
+        assert result.exit_code == 0, result.output
+        assert "Next steps" in result.output
+        # v1.5.1 next-steps point at the GUI, not the deprecated CLI
+        assert "fm2note app" in result.output or "fm2note web" in result.output
+
+    def test_init_interactive_uses_prompts(self, tmp_path, monkeypatch):
+        """The old prompt flow still works behind --interactive."""
         monkeypatch.chdir(tmp_path)
         runner = CliRunner()
         result = runner.invoke(
             cli,
-            ["init"],
-            input="/tmp/vault\nfunasr\nPodcasts\n3\n\n",
+            ["init", "--interactive"],
+            input="/tmp/typed-vault\nfunasr\nPodcasts\n3\n\n",
         )
-        assert "Next steps" in result.output
-        assert "fm2note run-once" in result.output
+        assert result.exit_code == 0, result.output
+        config_content = (tmp_path / "config" / "config.yaml").read_text()
+        assert "/tmp/typed-vault" in config_content
+
+    def test_init_silent_multi_vault_does_not_block(self, tmp_path, monkeypatch):
+        """v1.5.1 Code Review #4 regression: with multiple Obsidian vaults
+        detected, silent init MUST auto-pick the first one instead of
+        calling click.prompt — otherwise the silent flow hangs waiting on
+        stdin that will never come."""
+        monkeypatch.chdir(tmp_path)
+        from unittest.mock import patch
+
+        with patch(
+            "main._detect_obsidian_vaults",
+            return_value=[Path("/vault/a"), Path("/vault/b"), Path("/vault/c")],
+        ):
+            runner = CliRunner()
+            # Pass NO input — if the prompt fires the runner will EOF and
+            # exit non-zero. A passing run proves silent mode skipped the prompt.
+            result = runner.invoke(cli, ["init"])
+        assert result.exit_code == 0, result.output
+        # And the first vault was picked
+        config_content = (tmp_path / "config" / "config.yaml").read_text()
+        assert "/vault/a" in config_content
 
 
 class TestInstallService:
@@ -274,4 +295,5 @@ class TestHelpText:
         runner = CliRunner()
         result = runner.invoke(cli, ["init", "--help"])
         assert result.exit_code == 0
-        assert "Interactive setup" in result.output
+        # v1.5.1 renamed the command summary; check for a stable English phrase
+        assert "skeleton config" in result.output or "Generate" in result.output

@@ -183,34 +183,84 @@
         el.innerHTML = `<span class="text-stone-500">当前平台暂不支持检测（${escapeHtml(data.platform)}）</span>`;
         return;
       }
+      // v1.5.1: GUI-driven install/uninstall toggle replaces "open terminal
+      // and run fm2note install-service". Subscribers to the daemon need a
+      // running service to be useful.
       if (!data.installed) {
         el.innerHTML = `
-          <div class="text-stone-600">未安装后台服务</div>
-          <div class="text-xs text-stone-400 mt-1">
-            在终端运行 <code class="bg-stone-100 px-1">fm2note install-service</code>
-            即可让 FM2note 在开机时自动启动并定时抓取新剧集
+          <div class="flex items-center justify-between gap-3">
+            <div>
+              <div class="text-stone-600">未安装后台服务</div>
+              <div class="text-xs text-stone-400 mt-1">
+                开启后 FM2note 会在 macOS 开机时自动启动，定时抓取新剧集
+              </div>
+            </div>
+            <button id="svc-install-btn"
+                    class="px-3 py-1.5 rounded-md bg-stone-900 text-white text-xs hover:bg-stone-700 whitespace-nowrap">
+              开机自启
+            </button>
           </div>
         `;
+        const btn = document.getElementById('svc-install-btn');
+        if (btn) btn.addEventListener('click', () => toggleService('install', btn));
         return;
       }
       if (data.running) {
         el.innerHTML = `
-          <div><span class="text-emerald-600">●</span>
-          <span class="text-stone-700">服务运行中</span>
-          <span class="text-xs text-stone-400 ml-2 font-mono">PID ${data.pid}</span></div>
-          <div class="text-xs text-stone-400 mt-1">${escapeHtml(data.plist_path || '')}</div>
+          <div class="flex items-center justify-between gap-3">
+            <div>
+              <div><span class="text-emerald-600">●</span>
+              <span class="text-stone-700">服务运行中</span>
+              <span class="text-xs text-stone-400 ml-2 font-mono">PID ${data.pid}</span></div>
+              <div class="text-xs text-stone-400 mt-1">${escapeHtml(data.plist_path || '')}</div>
+            </div>
+            <button id="svc-uninstall-btn"
+                    class="px-3 py-1.5 rounded-md border border-stone-300 text-xs hover:bg-stone-50 whitespace-nowrap">
+              关闭自启
+            </button>
+          </div>
         `;
       } else {
         el.innerHTML = `
-          <div><span class="text-amber-600">●</span>
-          <span class="text-stone-700">已安装但未运行</span></div>
-          <div class="text-xs text-stone-400 mt-1">
-            终端运行 <code class="bg-stone-100 px-1">launchctl load ${escapeHtml(data.plist_path || '')}</code> 启动
+          <div class="flex items-center justify-between gap-3">
+            <div>
+              <div><span class="text-amber-600">●</span>
+              <span class="text-stone-700">已安装但未运行</span></div>
+              <div class="text-xs text-stone-400 mt-1">
+                终端运行 <code class="bg-stone-100 px-1">launchctl load ${escapeHtml(data.plist_path || '')}</code> 启动
+              </div>
+            </div>
+            <button id="svc-uninstall-btn"
+                    class="px-3 py-1.5 rounded-md border border-stone-300 text-xs hover:bg-stone-50 whitespace-nowrap">
+              关闭自启
+            </button>
           </div>
         `;
       }
+      const offBtn = document.getElementById('svc-uninstall-btn');
+      if (offBtn) offBtn.addEventListener('click', () => toggleService('uninstall', offBtn));
     } catch (e) {
       el.innerHTML = `<span class="text-red-600">检测失败：${escapeHtml(e.message)}</span>`;
+    }
+  }
+
+  async function toggleService(action, btn) {
+    const verb = action === 'install' ? '安装中…' : '卸载中…';
+    btn.disabled = true;
+    btn.textContent = verb;
+    try {
+      const resp = await fetch(`/api/service/${action}`, { method: 'POST' });
+      if (!resp.ok) {
+        const err = await resp.json().catch(() => ({}));
+        alert(`✕ ${err.detail || resp.status}`);
+        return;
+      }
+      // Re-render the panel with the new state
+      await loadService();
+    } catch (e) {
+      alert('✕ ' + e.message);
+    } finally {
+      btn.disabled = false;
     }
   }
 

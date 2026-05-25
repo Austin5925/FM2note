@@ -15,7 +15,13 @@ class ObsidianWriter:
     ILLEGAL_CHARS = re.compile(r'[/\\:*?"<>|]')
 
     def __init__(self, vault_path: str, podcast_dir: str = "Podcasts"):
-        self._vault_path = Path(vault_path).resolve()
+        # v1.5.1 Code Review fix: Path.resolve() does NOT expand ~ — it just
+        # prepends CWD. v1.5.1 changed DEFAULT_VAULT_PATH to
+        # ``~/Documents/Obsidian``, so without expanduser() every note write
+        # would land in ``$CWD/~/Documents/Obsidian/...`` and silently fail
+        # mkdir. health.py and settings_api.py already expanduser; this is
+        # the write-path equivalent.
+        self._vault_path = Path(vault_path).expanduser().resolve()
         self._podcast_dir = podcast_dir
 
     def write_note(self, episode: Episode, content: str) -> Path:

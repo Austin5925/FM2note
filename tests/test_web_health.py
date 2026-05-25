@@ -139,6 +139,52 @@ class TestServiceStatus:
         assert body["installed"] is False
 
 
+class TestServiceInstallToggle:
+    """v1.5.1: GUI 'open at login' toggle calls install/uninstall endpoints
+    so users no longer need to open a terminal."""
+
+    def test_install_macos_success(self, client, monkeypatch):
+        from unittest.mock import patch
+
+        monkeypatch.setattr("platform.system", lambda: "Darwin")
+        with patch(
+            "src.web.routes.service._run_install_service",
+            return_value={"ok": True, "output": "installed"},
+        ):
+            r = client.post("/api/service/install")
+        assert r.status_code == 200
+        assert r.json()["ok"] is True
+
+    def test_install_macos_failure_returns_500(self, client, monkeypatch):
+        from unittest.mock import patch
+
+        monkeypatch.setattr("platform.system", lambda: "Darwin")
+        with patch(
+            "src.web.routes.service._run_install_service",
+            return_value={"ok": False, "error": "launchctl 拒绝"},
+        ):
+            r = client.post("/api/service/install")
+        assert r.status_code == 500
+        assert "launchctl" in r.json()["detail"]
+
+    def test_install_non_darwin_returns_400(self, client, monkeypatch):
+        monkeypatch.setattr("platform.system", lambda: "Linux")
+        r = client.post("/api/service/install")
+        assert r.status_code == 400
+
+    def test_uninstall_macos_success(self, client, monkeypatch):
+        from unittest.mock import patch
+
+        monkeypatch.setattr("platform.system", lambda: "Darwin")
+        with patch(
+            "src.web.routes.service._run_uninstall_service",
+            return_value={"ok": True, "output": "removed"},
+        ):
+            r = client.post("/api/service/uninstall")
+        assert r.status_code == 200
+        assert r.json()["ok"] is True
+
+
 class TestErrorMessages:
     """Verify friendly error mapping."""
 

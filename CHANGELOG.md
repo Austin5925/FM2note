@@ -7,6 +7,92 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.5.1] - 2026-05-25
+
+### Fixed
+- `DEFAULT_VAULT_PATH` 从硬编码个人路径（`/Users/somebody/...`）改为通用 `~/Documents/Obsidian`，避免 pip 包泄露作者用户名 + 误导新用户写入不存在路径（Code Review A4）
+- `pyproject.toml` 配置 `.env.example` 一起打进 wheel，否则 `fm2note init` 在 pip-installed 环境只生成单 key 的最小 `.env`（Codex 全仓审计）
+- `CHANGELOG.md` 从 v1.4.11 起补完整（pyproject 链接此文件，之前是 stub，新用户点开 PyPI changelog 看不到）
+
+### Changed
+- `fm2note init` 不再交互式 prompt，改为静默生成骨架文件并提示打开 GUI（GUI 时代 init 的所有输出 v1.4.12 起都能在设置页改）
+- 设置页新增 "开机自启" 开关，调 `install-service` 后端化，GUI 用户无须开终端
+
+## [1.5.0] - 2026-05-25
+
+### Changed
+- 抽 `src/episode_processor.py::EpisodeProcessor` 作为 episode 处理的唯一来源，消除 `transcribe_flow.py` 和 `pipeline.py` 90% 重复
+- `Pipeline.process_episode` 现在是 `EpisodeProcessor.process` 的薄包装
+- `transcribe_flow.transcribe_single_url` 同样委托给 processor
+- `ProcessingOptions` 控制单 URL vs daemon 的差异化行为（cache fetch / MCP dedup 等）
+
+### Added
+- `subscribe_daemon_progress()` Pipeline daemon 进度全局广播，GUI 历史页可实时显示 daemon 处理进度（v1.5.3 接入）
+- TingWu 等内置摘要引擎现在会发 `summary, skipped, 引擎内置摘要` 事件，GUI 进度条不再卡 asr 阶段
+
+### Fixed
+- `mark_status("done")` 缺失的 `podcast_name` / `title` 字段（Code Review A2），retry edge case 时 history 显示空已修
+- 删除 `Pipeline._downloader` 死代码（Codex 全仓审计）
+
+## [1.4.16] - 2026-05-25
+
+### Added
+- 转录结果共享上传缓存：服务端 sidecar (`server/cache_sidecar.py`, FastAPI + SQLite + Bearer auth) + 客户端 (`src/shared_cache.py`)
+- pipeline 写完笔记后 fire-and-forget upload；rss_checker 处理新集前先 fetch，命中跳过 ASR + 摘要
+- 部署文件 `server/Dockerfile.cache` + `server/docker-compose.cache.yaml`
+
+### Fixed
+- 双线审计：server 单 aiosqlite 连接并发不安全 → 加 lock；`_ct_equal` 时序泄漏 → `hmac.compare_digest`；cache-hit 路径 `FileExistsError` → idempotent guard；body-size pre-parse cap → Content-Length middleware
+
+## [1.4.15] - 2026-05-25
+
+### Added
+- `POST /api/subscriptions/preview` 返回 feed 中 episode count / unprocessed count / 估算成本
+- `POST /api/subscriptions` 必填 `backfill_strategy`：`all` / `new_only` / `recent_n` / `since_date`
+- state.db 新状态 `backfill_skipped`（被 `is_processed` 视为已处理）
+- `RSSChecker` 加 `subs_provider` 钩子，每次 poll 重读 yaml，Web UI 改订阅无须重启 daemon
+- GUI 订阅页 add 流程：保存 → preview → 弹策略选择对话框 → 真正 add
+
+### Fixed
+- 双线审计：feedparser.parse 包 `to_thread`；rss_url 校验 scheme（防 SSRF）；`mark_backfill_skipped` 用 `INSERT OR IGNORE`；空 vault / 相对路径拒绝；多层引号 strip；`StateManager.mark_backfill_skipped` 不覆盖 `done` 行；feedparser 失败时不允许 add（避免静默 reintroduce 烧额度）
+
+## [1.4.14] - 2026-05-25
+
+### Fixed
+- `test_stale_env_warning_fires_only_once` 之前只检查 flag 是 True，但 flag 在任何 `load_config` 都翻 True（与有无 stale env 无关），改为用 loguru sink 真正统计 warning 调用次数
+- `conftest.py` 加 `_reset_legacy_env_warning` autouse fixture，避免模块级 dedup flag 跨测试泄漏
+- `devdocs/help.md` + `README.zh-CN.md` 同步 v1.4.12 的 env/yaml 边界（配置表拆为 yaml-only / env-only 两表）
+- `test_two_phase_commit_*` 加 yaml-was-committed assertion
+- `_clean_path_input` 后 `Path(".")` / 相对路径仍能过校验 → silently 写到 CWD。新增 `is_absolute()` 守卫
+
+## [1.4.13] - 2026-05-25
+
+### Fixed
+- `fm2note init` 模板 `.env` 删除残留的 `export LOG_LEVEL=INFO`
+- `scripts/com.fm2note.serve.plist.template` 删除 `OBSIDIAN_VAULT_PATH` / `LOG_LEVEL` env 项
+- README.md / README.zh-CN.md 同步 v1.4.12 的 env / yaml 边界
+- `_clean_path_input` / 前端 `cleanPath` 支持多层引号 strip
+- 健康自检 touch 探针包 `try/finally`
+- 空 vault_path 漏洞修复 + stale-env warning 模块级去重 + 补 yaml 持久化测试
+
+## [1.4.12] - 2026-05-25
+
+### Changed
+- 环境变量一刀切清理：所有非敏感配置改为 yaml-only（vault_path / podcast_dir / asr_engine / summary_* / log_level）
+- 所有敏感凭据保持 env-only（DashScope/Poe/OpenAI key、Aliyun AK/SK、TingWu AppId）
+- 设置页新增 `vault_path_default` 字段做 placeholder + "使用默认" 按钮
+- `fm2note init` 不再写 `OBSIDIAN_VAULT_PATH` 到 `.env`
+
+### Fixed
+- 核心 bug：vault_path env override 导致 Web UI 改 yaml 后被 env 反向覆盖，用户看到 "保存成功后刷新又变回去"
+
+## [1.4.11] - 2026-05-25
+
+### Fixed
+- 设置页 vault_path 容错：粘贴带 `'…'` / `"…"` 的路径自动去引号（后端 + 前端双保险）
+- `PermissionError` / `FileNotFoundError` 走友好提示（指引 macOS "完全磁盘访问" 权限）
+- 健康自检改为实际 touch 写测试，识别 macOS TCC 沙箱拦截
+
 ## [1.4.10] - 2026-05-24
 
 ### Fixed

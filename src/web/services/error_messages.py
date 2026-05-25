@@ -34,6 +34,17 @@ def friendly_transcribe_error(exc: BaseException) -> str:
         return "无法从小宇宙页面解析音频地址，请确认链接是剧集页"
     if "ConnectionError" in name or "connection" in lower:
         return "网络连接失败，请检查网络后重试"
+    if "PermissionError" in name or "permission denied" in lower:
+        # Most common on macOS: writing into ~/Library/Mobile Documents/ (iCloud
+        # Drive / Obsidian vault) requires Full Disk Access for the parent
+        # process. Terminal / fm2note app must be in the allowlist.
+        return (
+            "无法写入笔记目录（PermissionError）：macOS 用户请到 "
+            "系统设置 → 隐私与安全性 → 完全磁盘访问 → 把 Terminal（或 fm2note）"
+            "加入白名单后重启该终端窗口；也可先用 fm2note app 桌面壳启动"
+        )
+    if "FileNotFoundError" in name or "no such file or directory" in lower:
+        return "笔记目录不存在，请到设置页核对 Obsidian Vault 路径"
 
     # Fallback — show type name only, never the raw message
     return f"转录失败（{name}）"

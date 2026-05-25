@@ -2,11 +2,15 @@
 # Copy this file to config.yaml and modify as needed:
 #   cp config/config.example.yaml config/config.yaml
 
-# Obsidian vault path (can be overridden by OBSIDIAN_VAULT_PATH env var)
-vault_path: "/path/to/obsidian/vault"
+# Obsidian vault path — edit this here or via the Web UI (设置 → Obsidian
+# Vault 路径). This is the single source of truth; the OBSIDIAN_VAULT_PATH
+# env var is no longer honored as of v1.4.12 (it used to silently shadow
+# Web UI edits — see CLAUDE.md Version History).
+vault_path: "/Users/somebody/Library/Mobile Documents/iCloud~md~obsidian/Documents/zhen/10_Podcasts"
 
-# Subdirectory within the vault for podcast notes
-podcast_dir: "Podcasts"
+# Subdirectory within the vault for podcast notes. Leave empty ("") if
+# vault_path already points at the podcast root (the personal default does).
+podcast_dir: ""
 
 # RSS polling interval (hours), used in `serve` mode
 poll_interval_hours: 3
@@ -30,10 +34,18 @@ max_retries: 3
 
 # AI summary provider: auto | poe | openai | none
 # "auto" detects based on available API keys (POE_API_KEY or OPENAI_API_KEY)
-# summary_provider: "auto"
+summary_provider: "auto"
+
+# Summary model (leave empty for provider default)
+# Poe default: GPT-5.5 | OpenAI default: gpt-4o-mini
+summary_model: ""
 
 # Summary API call interval in seconds (rate limiting)
 summary_cooldown: 60
+
+# OpenAI-compatible base URL (for DeepSeek, Groq, Ollama, etc.).
+# Leave empty for the official OpenAI endpoint.
+summary_base_url: ""
 
 # Log level: DEBUG | INFO | WARNING | ERROR
 log_level: "INFO"

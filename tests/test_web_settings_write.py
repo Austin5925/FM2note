@@ -58,7 +58,7 @@ def test_yaml_field_update_preserves_comment(client, tmp_path):
 def test_vault_path_validation_rejects_missing_dir(client):
     r = client.put("/api/settings", json={"vault_path": "/does/not/exist/at/all"})
     assert r.status_code == 400
-    assert "does not exist" in r.json()["detail"]
+    assert "不存在" in r.json()["detail"]
 
 
 def test_vault_path_validation_rejects_file(client, tmp_path):
@@ -66,7 +66,41 @@ def test_vault_path_validation_rejects_file(client, tmp_path):
     file_target.write_text("hi", encoding="utf-8")
     r = client.put("/api/settings", json={"vault_path": str(file_target)})
     assert r.status_code == 400
-    assert "not a directory" in r.json()["detail"]
+    assert "不是目录" in r.json()["detail"]
+
+
+def test_vault_path_strips_single_quotes(client, tmp_path):
+    """Regression — user pasted a path copied from a shell hint that included
+    surrounding ``'…'`` quotes. We must accept it and persist the cleaned value."""
+    quoted = f"'{tmp_path}'"
+    r = client.put("/api/settings", json={"vault_path": quoted})
+    assert r.status_code == 200, r.json()
+    text = (tmp_path / "config" / "config.yaml").read_text(encoding="utf-8")
+    # The quotes are not part of the stored value (we may see YAML's own quoting
+    # for the value, but never the leading-quoted form like 'foo'foo'foo').
+    assert f"'{tmp_path}'" not in text.replace(f"{tmp_path}", "")
+    assert str(tmp_path) in text
+
+
+def test_vault_path_strips_double_quotes(client, tmp_path):
+    quoted = f'"{tmp_path}"'
+    r = client.put("/api/settings", json={"vault_path": quoted})
+    assert r.status_code == 200, r.json()
+
+
+def test_vault_path_strips_whitespace(client, tmp_path):
+    padded = f"  {tmp_path}  "
+    r = client.put("/api/settings", json={"vault_path": padded})
+    assert r.status_code == 200, r.json()
+
+
+def test_podcast_dir_strips_quotes(client, tmp_path):
+    r = client.put("/api/settings", json={"podcast_dir": "'10_Podcasts'"})
+    assert r.status_code == 200, r.json()
+    text = (tmp_path / "config" / "config.yaml").read_text(encoding="utf-8")
+    assert "10_Podcasts" in text
+    # ensure the literal ''...'' (leading apostrophe in the YAML value) is gone
+    assert "''10_Podcasts''" not in text
 
 
 def test_unknown_keys_are_silently_ignored(client, tmp_path):

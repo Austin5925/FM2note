@@ -158,7 +158,16 @@ make bump-minor  # 版本号 minor +1
 - **v1.4.8** — 修复"看笔记"按钮在 PyWebView 下不工作：obsidian:// 自定义协议必须走 `<a target="_blank">` 才能被 OS 接管（programmatic `window.location.href` 在嵌入 WebKit 里被吞）。 同步：抽取 `src/web/services/obsidian_url.py` 共享给 transcribe + history，history 端点返回 `obsidian_url` 字段，前端用真链接
 - **v1.4.9** — 订阅页用户友好化：默认预填 `https://macroclaw.app/rsshub`，支持粘贴小宇宙播客页 / 剧集页 / 分享文本自动生成 RSSHub 订阅地址，保留名称和 RSS URL 手动兜底
 - **v1.4.10** — 测试环境加固：项目 pytest 配置禁用无关的全局 `pytest_ethereum` 插件，解决本机 `web3` / `eth_typing` 不兼容导致 `make test` 启动即失败
+- **v1.4.11** — 设置页 vault_path 容错 + macOS 权限提示：粘贴带 `'…'` / `"…"` 的路径自动去引号（后端 + 前端双保险）；`PermissionError` / `FileNotFoundError` 走友好提示（指引"完全磁盘访问"权限）；健康自检改为实际 touch 写测试以识别 macOS TCC 沙箱拦截。新增 7 个测试
+- **v1.4.12** — 环境变量一刀切清理（修复"设置改了不生效"同款隐患）：
+  - **根因**：`OBSIDIAN_VAULT_PATH` 等 env 变量优先级 > yaml，`fm2note init` 又把 vault_path 写到 `.env`，导致 Web UI 改完 yaml 被 env 反向覆盖
+  - 所有**非敏感**配置（vault_path、podcast_dir、asr_engine、summary_provider、summary_model、summary_cooldown、summary_base_url、log_level）改为 **yaml-only**；启动时若发现旧 env 变量给 warning 提示用户清理
+  - 所有**敏感凭据**（DashScope/Poe/OpenAI key、Aliyun AK/SK、TingWu AppId）保持 **env-only**
+  - 设置页 input 通过 `vault_path_default` 字段显示个人默认路径（女朋友 vault）作为 placeholder + "使用默认" 一键填充按钮
+  - `fm2note init` 不再写 `OBSIDIAN_VAULT_PATH` 到 `.env`；`.env.example` 删除所有非敏感变量
+  - `src/config.py` 新增 `DEFAULT_VAULT_PATH` 常量（单一来源，前后端共享）
+  - 329 个测试（+2 个 env override 回归测试）
 
 ## Current Version
 
-v1.4.10 — 禁用无关 pytest_ethereum 插件，恢复 make test 原命令
+v1.4.12 — 环境变量一刀切：非敏感配置走 yaml-only，敏感凭据走 env-only，彻底消除"两本账打架"

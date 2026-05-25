@@ -39,7 +39,17 @@
       const resp = await fetch('/api/settings');
       if (!resp.ok) throw new Error('HTTP ' + resp.status);
       const s = await resp.json();
-      document.getElementById('vault_path').value = s.vault_path || '';
+      const vaultEl = document.getElementById('vault_path');
+      vaultEl.value = s.vault_path || '';
+      if (s.vault_path_default) {
+        vaultEl.placeholder = s.vault_path_default;
+        // Wire up the "使用默认路径" button to fill the default when the field is blank or wrong
+        const fillBtn = document.getElementById('vault_path_fill_default');
+        if (fillBtn) {
+          fillBtn.dataset.default = s.vault_path_default;
+          fillBtn.classList.remove('hidden');
+        }
+      }
       document.getElementById('podcast_dir').value = s.podcast_dir || '';
       document.getElementById('asr_engine').value = s.asr_engine || 'funasr';
       document.getElementById('summary_provider').value = s.summary_provider || 'auto';
@@ -58,10 +68,26 @@
     }
   }
 
+  // Strip whitespace + a single layer of wrapping ' or " quotes (users sometimes
+  // paste paths copied from a shell command that include the surrounding quotes).
+  function cleanPath(v) {
+    let s = String(v == null ? '' : v).trim();
+    if (s.length >= 2 && s[0] === s[s.length - 1] && (s[0] === "'" || s[0] === '"')) {
+      s = s.slice(1, -1).trim();
+    }
+    return s;
+  }
+
   saveBtn.addEventListener('click', async () => {
+    // Reflect the cleaned value back into the input so the user sees what's being saved
+    const vaultEl = document.getElementById('vault_path');
+    const podcastEl = document.getElementById('podcast_dir');
+    vaultEl.value = cleanPath(vaultEl.value);
+    podcastEl.value = cleanPath(podcastEl.value);
+
     const payload = {
-      vault_path: document.getElementById('vault_path').value.trim(),
-      podcast_dir: document.getElementById('podcast_dir').value.trim(),
+      vault_path: vaultEl.value,
+      podcast_dir: podcastEl.value,
       asr_engine: document.getElementById('asr_engine').value,
       summary_provider: document.getElementById('summary_provider').value,
       summary_model: document.getElementById('summary_model').value.trim(),
@@ -101,6 +127,15 @@
       saveBtn.disabled = false;
     }
   });
+
+  // -------- "使用默认路径" button --------
+  const fillDefaultBtn = document.getElementById('vault_path_fill_default');
+  if (fillDefaultBtn) {
+    fillDefaultBtn.addEventListener('click', () => {
+      const v = fillDefaultBtn.dataset.default;
+      if (v) document.getElementById('vault_path').value = v;
+    });
+  }
 
   // -------- Health check --------
   async function loadHealth() {

@@ -5,6 +5,14 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 import yaml
+from loguru import logger
+
+# Personal default for this fork — used as the placeholder in the Web UI and
+# the fallback in `fm2note init` when no Obsidian vault auto-detection succeeds.
+# Living in one place so we can change it in one place.
+DEFAULT_VAULT_PATH = (
+    "/Users/somebody/Library/Mobile Documents/iCloud~md~obsidian/Documents/zhen/10_Podcasts"
+)
 
 
 @dataclass
@@ -63,14 +71,32 @@ def _hint_example_file(path: Path) -> str:
     return ""
 
 
+# Config fields that USED to be honored from env (pre-v1.4.12) but are now
+# yaml-only. We still detect them on startup so we can tell the user their
+# stale .env entry is being ignored, instead of silently doing the right thing
+# (which is what made the OBSIDIAN_VAULT_PATH bug so hard to spot).
+_LEGACY_YAML_ENV_VARS = (
+    "OBSIDIAN_VAULT_PATH",
+    "LOG_LEVEL",
+    "SUMMARY_PROVIDER",
+    "SUMMARY_MODEL",
+    "SUMMARY_COOLDOWN",
+    "SUMMARY_BASE_URL",
+)
+
+
 def load_config(path: str | Path = "config/config.yaml") -> AppConfig:
-    """Load config from YAML, with env var overrides for sensitive fields.
+    """Load config from YAML.
 
-    Args:
-        path: Path to config YAML file.
+    Non-sensitive fields (vault_path, podcast_dir, asr_engine, log_level,
+    summary_*, etc.) come ONLY from ``config.yaml`` — the Web UI's single
+    editable surface. Sensitive credentials (DashScope/Poe/OpenAI keys,
+    Aliyun AK/SK, TingWu App ID) come ONLY from environment variables (.env)
+    because they shouldn't live in a file that gets synced or committed.
 
-    Returns:
-        AppConfig instance.
+    There is no mixed read path anymore. Pre-v1.4.12 several non-sensitive
+    fields had ``env > yaml`` precedence, which let a stale ``.env`` silently
+    shadow Web UI saves (the OBSIDIAN_VAULT_PATH regression).
 
     Raises:
         ConfigError: If config file is missing, empty, or invalid.
@@ -89,26 +115,35 @@ def load_config(path: str | Path = "config/config.yaml") -> AppConfig:
     if "vault_path" not in raw:
         raise ConfigError("Missing required field in config: vault_path")
 
-    # Environment variable overrides
-    vault_path = os.environ.get("OBSIDIAN_VAULT_PATH", raw["vault_path"])
+    # Warn (don't fail) when a legacy env var is still set, so the user knows
+    # their .env entry isn't doing what they think.
+    stale = [name for name in _LEGACY_YAML_ENV_VARS if os.environ.get(name)]
+    if stale:
+        logger.warning(
+            "以下环境变量自 v1.4.12 起不再生效（已迁到 config.yaml）：{}。"
+            "可从 .env 删除以避免混淆。",
+            ", ".join(stale),
+        )
 
     config = AppConfig(
-        vault_path=vault_path,
+        vault_path=raw["vault_path"],
         podcast_dir=raw.get("podcast_dir", "Podcasts"),
         poll_interval_hours=raw.get("poll_interval_hours", 3),
         asr_engine=raw.get("asr_engine", "funasr"),
         temp_dir=raw.get("temp_dir", "./data/tmp"),
         max_retries=raw.get("max_retries", 3),
-        log_level=os.environ.get("LOG_LEVEL", raw.get("log_level", "INFO")),
+        log_level=raw.get("log_level", "INFO"),
         db_path=raw.get("db_path", "./data/state.db"),
+        # Sensitive — env-only
         dashscope_api_key=os.environ.get("DASHSCOPE_API_KEY", ""),
         tingwu_app_id=os.environ.get("TINGWU_APP_ID", ""),
-        summary_provider=os.environ.get("SUMMARY_PROVIDER", raw.get("summary_provider", "auto")),
-        summary_model=os.environ.get("SUMMARY_MODEL", raw.get("summary_model", "")),
-        summary_cooldown=int(os.environ.get("SUMMARY_COOLDOWN", raw.get("summary_cooldown", 60))),
-        summary_base_url=os.environ.get("SUMMARY_BASE_URL", raw.get("summary_base_url", "")),
         poe_api_key=os.environ.get("POE_API_KEY", ""),
         openai_api_key=os.environ.get("OPENAI_API_KEY", ""),
+        # Non-sensitive — yaml-only (formerly env > yaml, see top of function)
+        summary_provider=raw.get("summary_provider", "auto"),
+        summary_model=raw.get("summary_model", ""),
+        summary_cooldown=int(raw.get("summary_cooldown", 60)),
+        summary_base_url=raw.get("summary_base_url", ""),
         template_path=raw.get("template_path", ""),
     )
 

@@ -88,6 +88,18 @@ class TestSettingsAPI:
         assert body["keys"]["poe"]["configured"] is False
         assert body["keys"]["poe"]["preview"] == ""
 
+    def test_get_settings_exposes_vault_path_default(self, client):
+        """The personal-default vault path is surfaced as a separate field so
+        the frontend can show it as a placeholder / "use default" button."""
+        from src.config import DEFAULT_VAULT_PATH
+
+        r = client.get("/api/settings")
+        assert r.status_code == 200
+        body = r.json()
+        assert body["vault_path_default"] == DEFAULT_VAULT_PATH
+        # Default must look like an absolute path, not a stale env probe value
+        assert body["vault_path_default"].startswith("/")
+
 
 class TestStaticFiles:
     def test_app_js_served(self, client):

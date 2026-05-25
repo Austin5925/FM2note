@@ -31,22 +31,48 @@ class TestLoadConfig:
         with pytest.raises(ConfigError, match="vault_path"):
             load_config(no_vault)
 
-    def test_env_override_vault_path(self, tmp_config, monkeypatch):
+    def test_env_does_not_override_vault_path(self, tmp_config, monkeypatch):
+        """Regression — pre-v1.4.12, OBSIDIAN_VAULT_PATH silently shadowed
+        config.yaml, breaking Web UI saves. The env var is now ignored so the
+        single editable surface (config.yaml) wins."""
         monkeypatch.setenv("OBSIDIAN_VAULT_PATH", "/env/vault")
         config = load_config(tmp_config)
-        assert config.vault_path == "/env/vault"
+        # The YAML value (set by the tmp_config fixture) must win
+        assert config.vault_path == "/tmp/test-vault"
+        assert config.vault_path != "/env/vault"
 
-    def test_env_override_log_level(self, tmp_config, monkeypatch):
+    def test_env_does_not_override_log_level(self, tmp_config, monkeypatch):
+        """v1.4.12 — log_level moved to yaml-only along with vault_path."""
         monkeypatch.setenv("LOG_LEVEL", "WARNING")
         config = load_config(tmp_config)
-        assert config.log_level == "WARNING"
+        # tmp_config fixture sets log_level: "DEBUG" in YAML; env must not win
+        assert config.log_level == "DEBUG"
+        assert config.log_level != "WARNING"
 
-    def test_env_override_api_keys(self, tmp_config, monkeypatch):
+    def test_env_does_not_override_summary_fields(self, tmp_config, monkeypatch):
+        """v1.4.12 one-cut cleanup — SUMMARY_* env vars are no longer honored."""
+        monkeypatch.setenv("SUMMARY_PROVIDER", "openai")
+        monkeypatch.setenv("SUMMARY_MODEL", "gpt-4o-mini")
+        monkeypatch.setenv("SUMMARY_COOLDOWN", "999")
+        monkeypatch.setenv("SUMMARY_BASE_URL", "https://example.com/v1")
+        config = load_config(tmp_config)
+        # All fall back to AppConfig defaults / yaml-omitted values
+        assert config.summary_provider == "auto"
+        assert config.summary_model == ""
+        assert config.summary_cooldown == 60
+        assert config.summary_base_url == ""
+
+    def test_env_still_loads_api_keys(self, tmp_config, monkeypatch):
+        """Sensitive credentials still come from env (and ONLY from env)."""
         monkeypatch.setenv("DASHSCOPE_API_KEY", "test-ds-key")
         monkeypatch.setenv("TINGWU_APP_ID", "test-app-id")
+        monkeypatch.setenv("POE_API_KEY", "test-poe-key")
+        monkeypatch.setenv("OPENAI_API_KEY", "test-openai-key")
         config = load_config(tmp_config)
         assert config.dashscope_api_key == "test-ds-key"
         assert config.tingwu_app_id == "test-app-id"
+        assert config.poe_api_key == "test-poe-key"
+        assert config.openai_api_key == "test-openai-key"
 
     def test_default_values(self, tmp_path, monkeypatch):
         monkeypatch.delenv("OBSIDIAN_VAULT_PATH", raising=False)

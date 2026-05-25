@@ -43,7 +43,27 @@ async def health_check() -> dict:
     elif not os.access(vault, os.W_OK):
         items.append(_check("Obsidian Vault 路径", False, f"无写权限: {vault}"))
     else:
-        items.append(_check("Obsidian Vault 路径", True, str(vault)))
+        # POSIX W_OK only checks file-mode bits — on macOS the path may sit
+        # inside a TCC-protected location (e.g. ~/Library/Mobile Documents/
+        # for iCloud Drive) where the OS itself blocks writes unless the
+        # parent process has Full Disk Access. The only way to know is to
+        # actually try a write.
+        probe = vault / ".fm2note_writetest"
+        try:
+            probe.write_text("ok", encoding="utf-8")
+            probe.unlink(missing_ok=True)
+            items.append(_check("Obsidian Vault 路径", True, str(vault)))
+        except PermissionError:
+            items.append(
+                _check(
+                    "Obsidian Vault 路径",
+                    False,
+                    "macOS 阻止写入：去 系统设置 → 隐私与安全性 → 完全磁盘访问，"
+                    "把 Terminal 或 fm2note 加进白名单",
+                )
+            )
+        except OSError as e:
+            items.append(_check("Obsidian Vault 路径", False, f"写入失败: {type(e).__name__}"))
 
     # ---- State DB parent writable ----
     db_parent = Path(config.db_path).expanduser().parent

@@ -9,6 +9,7 @@ from textwrap import dedent
 import click
 from loguru import logger
 
+from src.config import DEFAULT_VAULT_PATH
 from src.version import VERSION
 
 # --- launchd plist template (macOS) ---
@@ -326,8 +327,11 @@ def init():
         subs_path = None
 
     # Gather settings
-    default_vault = _detect_obsidian_vault()
-    vault_path = click.prompt("Obsidian vault path", default=default_vault or "", type=str)
+    # Default ladder: live-detected vault → personal default for this fork →
+    # blank (let the user type something). The personal default is also what
+    # the Web UI shows as a placeholder, so it stays consistent.
+    default_vault = _detect_obsidian_vault() or DEFAULT_VAULT_PATH
+    vault_path = click.prompt("Obsidian vault path", default=default_vault, type=str)
     asr_engine = click.prompt(
         "ASR engine",
         type=click.Choice(["funasr", "paraformer", "tingwu", "whisper_api"]),
@@ -397,9 +401,10 @@ def init():
             shutil.copy(env_example, env_path)
             click.echo("  Created .env (from .env.example)")
         else:
-            env_content = dedent(f"""\
+            # vault_path is intentionally not written to .env — it would shadow
+            # subsequent edits made via the Web UI. It lives in config.yaml.
+            env_content = dedent("""\
                 export DASHSCOPE_API_KEY=sk-xxx
-                export OBSIDIAN_VAULT_PATH="{vault_path}"
                 export LOG_LEVEL=INFO
             """)
             env_path.write_text(env_content, encoding="utf-8")

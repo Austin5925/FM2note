@@ -6,7 +6,7 @@ from pathlib import Path
 from fastapi import APIRouter, HTTPException
 from loguru import logger
 
-from src.config import load_config
+from src.config import DEFAULT_VAULT_PATH, load_config
 from src.web.paths import CONFIG_PATH, ENV_PATH
 from src.web.services import locks
 from src.web.services.env_writer import build_env_text, stage_atomic_write
@@ -15,7 +15,9 @@ from src.web.services.yaml_writer import dump_yaml_text, load_yaml
 router = APIRouter(prefix="/api")
 
 
-# Map UI setting names → env var names. Keys not in this map are ignored on write.
+# Map UI setting names → env var names. Sensitive credentials only.
+# Non-sensitive fields (vault_path, summary_provider, etc.) go to YAML so a
+# stale .env can't silently shadow Web UI edits — see v1.4.12 changelog.
 _ENV_KEY_MAP = {
     "dashscope_api_key": "DASHSCOPE_API_KEY",
     "poe_api_key": "POE_API_KEY",
@@ -23,12 +25,31 @@ _ENV_KEY_MAP = {
     "tingwu_app_id": "TINGWU_APP_ID",
     "aliyun_access_key_id": "ALIYUN_ACCESS_KEY_ID",
     "aliyun_access_key_secret": "ALIYUN_ACCESS_KEY_SECRET",
-    "summary_provider": "SUMMARY_PROVIDER",
-    "summary_model": "SUMMARY_MODEL",
-    "obsidian_vault_path": "OBSIDIAN_VAULT_PATH",
 }
 
-_YAML_FIELDS = {"vault_path", "podcast_dir", "asr_engine", "summary_cooldown"}
+_YAML_FIELDS = {
+    "vault_path",
+    "podcast_dir",
+    "asr_engine",
+    "summary_provider",
+    "summary_model",
+    "summary_cooldown",
+    "summary_base_url",
+    "log_level",
+}
+
+
+def _clean_path_input(value: str) -> str:
+    """Normalize a user-typed path: trim whitespace and stripped wrapping quotes.
+
+    Users sometimes paste paths copied from a shell command or doc that include
+    enclosing ``'…'`` or ``"…"``. Those quotes are not part of the path —
+    silently stripping them avoids a confusing ``does not exist`` error.
+    """
+    cleaned = value.strip()
+    if len(cleaned) >= 2 and cleaned[0] == cleaned[-1] and cleaned[0] in ("'", '"'):
+        cleaned = cleaned[1:-1].strip()
+    return cleaned
 
 
 def _mask(value: str) -> str:
@@ -56,6 +77,7 @@ async def get_settings() -> dict:
 
     return {
         "vault_path": config.vault_path,
+        "vault_path_default": DEFAULT_VAULT_PATH,
         "podcast_dir": config.podcast_dir,
         "asr_engine": config.asr_engine,
         "summary_provider": config.summary_provider,
@@ -104,14 +126,33 @@ async def update_settings(payload: dict) -> dict:
 
     # Validate up front so a failure can't leave a half-applied state
     if "vault_path" in yaml_updates:
-        vp_str = str(yaml_updates["vault_path"])
+        raw_vp = str(yaml_updates["vault_path"])
+        vp_str = _clean_path_input(raw_vp)
+        # Persist the cleaned value so future loads aren't tripped by the same quotes
+        yaml_updates["vault_path"] = vp_str
         vp = Path(vp_str).expanduser()
         if not vp.exists():
-            raise HTTPException(status_code=400, detail=f"vault_path does not exist: {vp_str}")
+            hint = "（路径不存在；如果是从命令行复制的，去掉两端的引号再保存）"
+            raise HTTPException(
+                status_code=400,
+                detail=f"vault_path 不存在：{vp_str} {hint}",
+            )
         if not vp.is_dir():
-            raise HTTPException(status_code=400, detail=f"vault_path is not a directory: {vp_str}")
+            raise HTTPException(
+                status_code=400,
+                detail=f"vault_path 不是目录：{vp_str}",
+            )
         if not os.access(vp, os.W_OK):
-            raise HTTPException(status_code=400, detail=f"vault_path is not writable: {vp_str}")
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    f"vault_path 不可写：{vp_str}（macOS 用户请到 系统设置 → 隐私与安全性 → "
+                    "完全磁盘访问 把 Terminal 或 fm2note 加入白名单）"
+                ),
+            )
+
+    if "podcast_dir" in yaml_updates:
+        yaml_updates["podcast_dir"] = _clean_path_input(str(yaml_updates["podcast_dir"]))
 
     # Build both new file contents up front, then commit both within the lock.
     # Two-phase ensures we never persist YAML without ENV (or vice versa) on a

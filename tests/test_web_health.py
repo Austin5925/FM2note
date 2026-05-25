@@ -169,6 +169,20 @@ class TestErrorMessages:
         )
         assert "小宇宙" in msg
 
+    def test_permission_error_mapping(self):
+        """macOS users get a hint about Full Disk Access when writing fails."""
+        from src.web.services.error_messages import friendly_transcribe_error
+
+        msg = friendly_transcribe_error(PermissionError("[Errno 13] Permission denied: '/x'"))
+        assert "完全磁盘访问" in msg
+        assert "PermissionError" in msg
+
+    def test_file_not_found_mapping(self):
+        from src.web.services.error_messages import friendly_transcribe_error
+
+        msg = friendly_transcribe_error(FileNotFoundError("[Errno 2] No such file or directory"))
+        assert "Vault" in msg or "目录" in msg
+
 
 class TestGlobalExceptionHandler:
     def test_unhandled_returns_sanitized_500(self, monkeypatch):

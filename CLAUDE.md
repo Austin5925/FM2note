@@ -237,6 +237,16 @@ make bump-minor  # 版本号 minor +1
   - **Codex audit fix**：`/api/service/status` 的 `launchctl list` subprocess 包 `asyncio.to_thread`，不再阻塞 event loop
   - 425 测试（+5 新增：silent init 默认 / interactive flag / GUI install-toggle / non-darwin reject / 完整 env 模板）
 
+- **v1.5.2** — AppPaths + StateManager 单例 + 多项 audit fix（消除多组 CWD/并发陷阱）
+  - **新增 `src/app_paths.py`** AppPaths 单例：所有文件路径（config/subscriptions/.env/db/pending_dir/tmp/logs）从单一来源解析，FM2NOTE_HOME env 可覆盖。替代散落各处的 `Path("data/...")` 类相对路径
+  - **A5 fix（Code Review）**：`src/summarizer/pending.py` `PENDING_DIR` 不再 CWD-relative，改走 AppPaths。修复 `fm2note app` Finder 双击启动时 pending summaries 写到 `/data/...` 的灾难
+  - **新增 `src/web/services/state_singleton.py`**：FastAPI 生命周期内的 StateManager 单例，所有路由共享。替代 history/preview/add_sub 各自 open+close aiosqlite connection（3 处全修）
+  - **A3 fix**：新增 `StateManager.get_recent_history(limit, include_backfill_skipped=False)`，SQL `ORDER BY ... LIMIT` + WHERE filter，history.py 改用。原来的 Python 端全表 sort+slice 退役
+  - **A1+B1+C1 fix**：`POST /api/subscriptions/test` 的 `feedparser.parse` 包 `asyncio.to_thread`（v1.4.15 漏修的最后一处）
+  - **Codex fix**：`StateManager.mark_status` 用 `BEGIN IMMEDIATE` 显式事务包 SELECT+UPDATE/INSERT，并发 connection 时不再丢 retry_count 增量也不会 IntegrityError
+  - conftest.py 新增 `_reset_app_paths` + `_reset_state_singleton` autouse fixtures，把每个测试的 sandbox 锚到自己的 `tmp_path`
+  - 431 测试（+5 新增：get_recent_history limit/排序/filter backfill_skipped/include flag + mark_status 事务重试计数）
+
 ## Current Version
 
-v1.5.1 — GUI 自启开关 + init 默认 silent + 修个人路径硬编码 + CHANGELOG 补完整
+v1.5.2 — AppPaths + StateManager 单例 + audit fix（A1/A3/A5/事务），CWD-relative 路径和并发陷阱清零

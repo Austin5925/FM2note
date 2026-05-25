@@ -9,16 +9,16 @@ from fastapi import APIRouter, HTTPException
 from loguru import logger
 
 from src.config import load_config
-from src.monitor.state import StateManager
 from src.summarizer.factory import create_summarizer
 from src.summarizer.pending import (
-    PENDING_DIR,
+    _get_pending_dir,
     insert_summary_into_note,
     load_all_pending,
     remove_pending,
 )
 from src.web.paths import CONFIG_PATH
 from src.web.services.obsidian_url import build_obsidian_url
+from src.web.services.state_singleton import get_state_manager
 
 router = APIRouter(prefix="/api")
 
@@ -44,8 +44,8 @@ def _resolve_pending(target_id: str) -> Path:
     """Resolve a pending-summary id to its file path, defending against path traversal."""
     if not _SAFE_ID.match(target_id):
         raise HTTPException(status_code=400, detail="invalid id format")
-    candidate = (PENDING_DIR / f"{target_id}.json").resolve()
-    pending_root = PENDING_DIR.resolve()
+    pending_root = _get_pending_dir().resolve()
+    candidate = (pending_root / f"{target_id}.json").resolve()
     try:
         candidate.relative_to(pending_root)
     except ValueError as e:
@@ -67,15 +67,13 @@ async def list_history(limit: int = 20) -> dict:
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"load_config failed: {e}") from e
 
-    state = StateManager(config.db_path)
-    try:
-        await state.init()
-        rows = await state.get_all()
-    finally:
-        await state.close()
-
-    rows.sort(key=lambda r: r.updated_at, reverse=True)
-    episodes = [_from_processed(r, config.vault_path) for r in rows[: max(1, limit)]]
+    # v1.5.2 audit fix (Code Review A3 + StateManager-singleton work): use the
+    # shared FastAPI-lifespan-owned StateManager AND query with SQL LIMIT +
+    # filter so the DB does the sort/slice work instead of pulling every row
+    # (including backfill_skipped) into Python memory.
+    state = await get_state_manager(config.db_path)
+    rows = await state.get_recent_history(limit=max(1, limit))
+    episodes = [_from_processed(r, config.vault_path) for r in rows]
 
     pending: list[dict[str, Any]] = []
     for item in load_all_pending():

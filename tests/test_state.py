@@ -131,3 +131,72 @@ class TestStateManager:
     @pytest.mark.asyncio
     async def test_mark_backfill_skipped_empty_is_noop(self, state):
         assert await state.mark_backfill_skipped([]) == 0
+
+
+class TestGetRecentHistory:
+    """v1.5.2 audit fix (Code Review A3): bounded query for the history page,
+    filters out backfill_skipped rows by default, lets the DB do the sort."""
+
+    @pytest.mark.asyncio
+    async def test_limit_caps_results(self, state):
+        for i in range(20):
+            await state.mark_status(f"g{i}", "done", podcast_name="P", title=f"T{i}")
+        rows = await state.get_recent_history(limit=5)
+        assert len(rows) == 5
+
+    @pytest.mark.asyncio
+    async def test_orders_by_updated_at_desc(self, state):
+        await state.mark_status("first", "done", podcast_name="P", title="first ep")
+        await state.mark_status("second", "done", podcast_name="P", title="second ep")
+        await state.mark_status("third", "done", podcast_name="P", title="third ep")
+        rows = await state.get_recent_history(limit=10)
+        titles = [r.title for r in rows]
+        # Newest first
+        assert titles[0] == "third ep"
+        assert titles[-1] == "first ep"
+
+    @pytest.mark.asyncio
+    async def test_excludes_backfill_skipped_by_default(self, state):
+        await state.mark_status("done1", "done", podcast_name="P", title="real")
+        await state.mark_backfill_skipped([("skip1", "P", "skipped")])
+        rows = await state.get_recent_history(limit=10)
+        assert [r.guid for r in rows] == ["done1"]
+
+    @pytest.mark.asyncio
+    async def test_include_backfill_skipped_when_requested(self, state):
+        await state.mark_status("done1", "done", podcast_name="P", title="real")
+        await state.mark_backfill_skipped([("skip1", "P", "skipped")])
+        rows = await state.get_recent_history(limit=10, include_backfill_skipped=True)
+        guids = {r.guid for r in rows}
+        assert guids == {"done1", "skip1"}
+
+    @pytest.mark.asyncio
+    async def test_filter_and_limit_interact_correctly(self, state):
+        """v1.5.2 Code Review #3 coverage gap: when both done rows AND
+        backfill_skipped rows exist, the LIMIT must apply *after* the
+        WHERE filter — otherwise the response would include skip rows or
+        return fewer than expected. Set up the worst case: 5 done + many
+        backfill_skipped, ask for limit=5, must get exactly the 5 done."""
+        for i in range(5):
+            await state.mark_status(f"done_{i}", "done", podcast_name="P", title=f"real {i}")
+        await state.mark_backfill_skipped([(f"skip_{j}", "P", f"hidden {j}") for j in range(100)])
+        rows = await state.get_recent_history(limit=5)
+        assert len(rows) == 5
+        # Every returned row must be done (no leaked skip rows)
+        assert all(r.status == "done" for r in rows)
+        assert all(r.guid.startswith("done_") for r in rows)
+
+
+class TestMarkStatusTransaction:
+    """v1.5.2 Codex audit fix: mark_status now wraps SELECT+UPDATE in an
+    explicit transaction to prevent lost retry-count increments under
+    concurrent connections."""
+
+    @pytest.mark.asyncio
+    async def test_failed_increment_round_trip(self, state):
+        # Two sequential failures must produce retry_count=2 deterministically
+        await state.mark_status("g1", "pending", podcast_name="P", title="T")
+        await state.mark_status("g1", "failed", error_msg="e1")
+        await state.mark_status("g1", "failed", error_msg="e2")
+        rows = await state.get_recent_history(limit=5)
+        assert rows[0].retry_count == 2

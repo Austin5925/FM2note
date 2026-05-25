@@ -6,9 +6,34 @@ from pathlib import Path
 
 from loguru import logger
 
+from src.app_paths import app_paths
 from src.models import SummaryResult
 
-PENDING_DIR = Path("data/pending_summaries")
+
+def _pending_dir() -> Path:
+    """v1.5.2 Code Review A5 fix: the old module-level
+    ``PENDING_DIR = Path("data/pending_summaries")`` was CWD-relative.
+    When ``fm2note app`` was launched by double-clicking from Finder
+    (CWD becomes ``/``), pending summaries landed in ``/data/...`` and
+    the history page found nothing. Resolve via the AppPaths singleton
+    so the location is always anchored to the project root.
+    """
+    return app_paths().pending_dir
+
+
+# Backward-compat: tests that monkeypatch ``PENDING_DIR`` directly still
+# work via this module-level attribute. Production callers go through
+# ``_get_pending_dir()`` which respects test overrides but defaults to the
+# AppPaths singleton.
+PENDING_DIR: Path | None = None  # tests set this; production reads via getter
+
+
+def _get_pending_dir() -> Path:
+    """Resolve the active pending dir. Test-set ``PENDING_DIR`` wins so
+    existing fixtures keep working without changes."""
+    if PENDING_DIR is not None:
+        return PENDING_DIR
+    return _pending_dir()
 
 
 def save_pending(
@@ -30,10 +55,10 @@ def save_pending(
     Returns:
         保存的 JSON 文件路径
     """
-    PENDING_DIR.mkdir(parents=True, exist_ok=True)
+    _get_pending_dir().mkdir(parents=True, exist_ok=True)
 
     safe_name = hashlib.md5(guid.encode()).hexdigest()[:16]
-    filepath = PENDING_DIR / f"{safe_name}.json"
+    filepath = _get_pending_dir() / f"{safe_name}.json"
 
     data = {
         "guid": guid,
@@ -53,11 +78,11 @@ def load_all_pending() -> list[dict]:
     Returns:
         包含 _filepath 字段的 dict 列表
     """
-    if not PENDING_DIR.exists():
+    if not _get_pending_dir().exists():
         return []
 
     results = []
-    for f in sorted(PENDING_DIR.glob("*.json")):
+    for f in sorted(_get_pending_dir().glob("*.json")):
         try:
             data = json.loads(f.read_text(encoding="utf-8"))
             data["_filepath"] = str(f)

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException, Request
@@ -18,12 +19,23 @@ from src.web.routes import (
     subscriptions,
     transcribe,
 )
+from src.web.services.state_singleton import close_state_manager
 
 _STATIC_DIR = Path(__file__).resolve().parent / "static"
 
 
+@asynccontextmanager
+async def _lifespan(app: FastAPI):
+    """v1.5.2 Code Review fix #1: actually wire up the singleton teardown
+    promised by ``close_state_manager()``'s docstring. Lets SQLite checkpoint
+    its WAL cleanly on shutdown and prevents the lazy-created StateManager
+    from leaking past process exit."""
+    yield
+    await close_state_manager()
+
+
 def create_app() -> FastAPI:
-    app = FastAPI(title="FM2note Web UI", version=VERSION)
+    app = FastAPI(title="FM2note Web UI", version=VERSION, lifespan=_lifespan)
 
     if _STATIC_DIR.is_dir():
         app.mount("/static", StaticFiles(directory=str(_STATIC_DIR)), name="static")

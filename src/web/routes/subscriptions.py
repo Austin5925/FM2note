@@ -9,7 +9,6 @@ from loguru import logger
 from ruamel.yaml.comments import CommentedMap, CommentedSeq
 
 from src.config import load_config
-from src.monitor.state import StateManager
 from src.web.paths import CONFIG_PATH, SUBSCRIPTIONS_PATH
 from src.web.services import locks
 from src.web.services.feed_preview import (
@@ -17,6 +16,7 @@ from src.web.services.feed_preview import (
     filter_for_backfill,
     project_feed,
 )
+from src.web.services.state_singleton import get_state_manager
 from src.web.services.subscription_resolver import detect_rsshub_base, resolve_subscription_input
 from src.web.services.yaml_writer import dump_yaml, load_yaml
 
@@ -230,12 +230,9 @@ async def _apply_backfill_strategy(
         return 0
 
     config = load_config(CONFIG_PATH)
-    state = StateManager(config.db_path)
-    await state.init()
-    try:
-        return await state.mark_backfill_skipped([(e.guid, podcast_name, e.title) for e in to_skip])
-    finally:
-        await state.close()
+    # v1.5.2: shared StateManager singleton (was per-call connection)
+    state = await get_state_manager(config.db_path)
+    return await state.mark_backfill_skipped([(e.guid, podcast_name, e.title) for e in to_skip])
 
 
 @router.put("/subscriptions/{index}")
@@ -317,12 +314,9 @@ async def preview_sub(payload: dict) -> dict:
     unprocessed = len(episodes)
     try:
         config = load_config(CONFIG_PATH)
-        state = StateManager(config.db_path)
-        await state.init()
-        try:
-            unprocessed = sum(1 for e in episodes if not await state.is_processed(e.guid))
-        finally:
-            await state.close()
+        # v1.5.2: shared singleton — no more per-preview connection churn
+        state = await get_state_manager(config.db_path)
+        unprocessed = sum(1 for e in episodes if not await state.is_processed(e.guid))
         asr_engine = config.asr_engine
     except Exception as e:
         # Don't fail the preview just because state.db / config is unavailable.
@@ -369,7 +363,11 @@ async def test_sub(payload: dict) -> dict:
     try:
         import feedparser
 
-        feed = feedparser.parse(url)
+        # v1.5.2 Code Review A1 fix: feedparser.parse is synchronous and
+        # does DNS + HTTP — without to_thread it would freeze the event
+        # loop for up to ~30s on a slow feed (same bug fixed for /preview
+        # in v1.4.15 but was missed here).
+        feed = await asyncio.to_thread(feedparser.parse, url)
     except Exception as e:
         logger.warning("rss test failed for {}: {}", url, type(e).__name__)
         return {"ok": False, "error": f"{type(e).__name__}"}

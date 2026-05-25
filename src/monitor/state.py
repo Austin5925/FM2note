@@ -116,51 +116,60 @@ class StateManager:
         error_msg: str | None = None,
         note_path: str | None = None,
     ):
-        """更新剧集处理状态（INSERT OR REPLACE）"""
+        """更新剧集处理状态.
+
+        v1.5.2 Codex audit fix: previously this was a SELECT-then-UPDATE/
+        INSERT sequence without a transaction. Two concurrent connections
+        could both pass the SELECT on a brand-new guid and both try the
+        INSERT — losing one row to an IntegrityError. Wrap the whole
+        check-and-write in an exclusive transaction so retry_count updates
+        and first-insert races are both safe.
+        """
         assert self._db is not None
         now = datetime.now().isoformat()
-
-        # 先查是否存在
-        cursor = await self._db.execute(
-            "SELECT retry_count FROM processed_episodes WHERE guid=?",
-            (guid,),
-        )
-        row = await cursor.fetchone()
-
-        if row is not None:
-            # 更新
-            retry_count = row[0]
-            if status == "failed":
-                retry_count += 1
-
-            update_fields = ["status=?", "updated_at=?"]
-            update_values: list = [status, now]
-
-            if error_msg is not None:
-                update_fields.append("error_msg=?")
-                update_values.append(error_msg)
-            if note_path is not None:
-                update_fields.append("note_path=?")
-                update_values.append(note_path)
-            if status == "failed":
-                update_fields.append("retry_count=?")
-                update_values.append(retry_count)
-
-            update_values.append(guid)
-            await self._db.execute(
-                f"UPDATE processed_episodes SET {', '.join(update_fields)} WHERE guid=?",
-                update_values,
+        try:
+            await self._db.execute("BEGIN IMMEDIATE")
+            cursor = await self._db.execute(
+                "SELECT retry_count FROM processed_episodes WHERE guid=?",
+                (guid,),
             )
-        else:
-            # 插入
-            await self._db.execute(
-                """INSERT INTO processed_episodes
-                   (guid, podcast_name, title, status, error_msg, note_path, created_at, updated_at)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
-                (guid, podcast_name, title, status, error_msg, note_path, now, now),
-            )
+            row = await cursor.fetchone()
 
-        await self._db.commit()
+            if row is not None:
+                retry_count = row[0]
+                if status == "failed":
+                    retry_count += 1
+
+                update_fields = ["status=?", "updated_at=?"]
+                update_values: list = [status, now]
+
+                if error_msg is not None:
+                    update_fields.append("error_msg=?")
+                    update_values.append(error_msg)
+                if note_path is not None:
+                    update_fields.append("note_path=?")
+                    update_values.append(note_path)
+                if status == "failed":
+                    update_fields.append("retry_count=?")
+                    update_values.append(retry_count)
+
+                update_values.append(guid)
+                await self._db.execute(
+                    f"UPDATE processed_episodes SET {', '.join(update_fields)} WHERE guid=?",
+                    update_values,
+                )
+            else:
+                await self._db.execute(
+                    """INSERT INTO processed_episodes
+                       (guid, podcast_name, title, status, error_msg, note_path,
+                        created_at, updated_at)
+                       VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+                    (guid, podcast_name, title, status, error_msg, note_path, now, now),
+                )
+            await self._db.commit()
+        except Exception:
+            await self._db.rollback()
+            raise
 
     async def get_failed(self, max_retries: int = 3) -> list[ProcessedEpisode]:
         """获取可重试的失败任务"""
@@ -171,6 +180,53 @@ class StateManager:
                FROM processed_episodes
                WHERE status='failed' AND retry_count < ?""",
             (max_retries,),
+        )
+        rows = await cursor.fetchall()
+        return [
+            ProcessedEpisode(
+                guid=r[0],
+                podcast_name=r[1],
+                title=r[2],
+                status=r[3],
+                error_msg=r[4],
+                retry_count=r[5],
+                note_path=r[6],
+                created_at=datetime.fromisoformat(r[7]) if r[7] else datetime.now(),
+                updated_at=datetime.fromisoformat(r[8]) if r[8] else datetime.now(),
+            )
+            for r in rows
+        ]
+
+    async def get_recent_history(
+        self,
+        *,
+        limit: int = 50,
+        include_backfill_skipped: bool = False,
+    ) -> list[ProcessedEpisode]:
+        """Bounded query for the history page.
+
+        v1.5.2 Code Review A3 fix: ``get_all()`` was O(N) full table scan
+        + Python-side sort + slice on every history request. As state.db
+        grows (every ``backfill_skipped`` row from large feeds counts) this
+        wastes memory and time. ``ORDER BY updated_at DESC LIMIT ?`` does
+        the work in the DB and the filter excludes backfill rows which
+        have no note_path and aren't actionable for the user.
+        """
+        assert self._db is not None
+        if include_backfill_skipped:
+            where = ""
+            params: tuple = (limit,)
+        else:
+            where = "WHERE status != 'backfill_skipped'"
+            params = (limit,)
+        cursor = await self._db.execute(
+            f"""SELECT guid, podcast_name, title, status, error_msg, retry_count,
+                       note_path, created_at, updated_at
+                FROM processed_episodes
+                {where}
+                ORDER BY updated_at DESC
+                LIMIT ?""",
+            params,
         )
         rows = await cursor.fetchall()
         return [

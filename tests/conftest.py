@@ -36,6 +36,31 @@ def _reset_balance_cache():
 
 
 @pytest.fixture(autouse=True)
+def _reset_state_singleton():
+    """v1.5.2: drop the shared StateManager between tests so each fixture
+    gets a fresh aiosqlite connection bound to its own tmp_path."""
+    from src.web.services import state_singleton
+
+    state_singleton.reset_for_tests()
+    yield
+    state_singleton.reset_for_tests()
+
+
+@pytest.fixture(autouse=True)
+def _reset_app_paths(tmp_path):
+    """v1.5.2: anchor AppPaths to the per-test ``tmp_path`` so file lookups
+    (pending_dir, state.db, etc.) land in the test's sandbox even when the
+    test doesn't explicitly monkeypatch chdir. Without this, the auto-detect
+    walks up from ``src/app_paths.py`` and lands in the real repo root —
+    tests would pollute (or read from) the developer's actual data dir."""
+    from src import app_paths as _ap
+
+    _ap.configure(tmp_path)
+    yield
+    _ap.reset()
+
+
+@pytest.fixture(autouse=True)
 def _reset_legacy_env_warning():
     """Reset the module-level stale-env warning dedup flag between tests.
 

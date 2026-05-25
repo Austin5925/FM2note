@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.6.3] - 2026-05-25
+
+### Fixed
+- **Codex audit S1 (LOW)**: 恶意 cache row 设 `podcast_name='..'` 时 `_safe_filename` 之前只过滤 `/` 等非法字符不过滤纯 dot → 会让 target_dir 解析到 vault 父目录。修复：(a) `_safe_filename` 把 `"."`/`".."`/全 `.` 输入映射成 `"untitled"`；(b) write 前 `is_relative_to(podcast_root)` defense-in-depth 检查，越界返回 `reason=path_escapes_vault` 不写
+- **Codex audit S2 (LOW)**: `_normalize_guid` 之前用 `str.replace('://', ':/')` 会折叠 guid 任意位置的 `://`，对极少见的 opaque guid（如 `foo://bar://baz`）会误折叠 → 缓存查找静默 miss。修复：改用 `^scheme://` 前缀正则只折叠第一个 URI scheme 分隔符
+
+### Added
+- 3 个新测试：`_normalize_guid` 只折叠 leading scheme / `_safe_filename` 处理纯点输入 / download `podcast_name=".."` 不逃逸 vault
+- 466 测试（463 + 3）全过
+
+### Verified
+- 端到端 smoke test 在本地（v1.6.2 launchd daemon + 新启动 web server）：healthz / cloud list / cloud download 全 PASS。daemon 自动发现 1 集新剧集并上传到云端（云端 66 → 67）
+
 ## [1.6.2] - 2026-05-25
 
 ### Fixed

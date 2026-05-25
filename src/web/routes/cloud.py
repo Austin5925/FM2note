@@ -59,9 +59,16 @@ def _safe_filename(name: str, max_len: int = 180) -> str:
     Mirrors the rules ``ObsidianWriter`` uses when it constructs the
     original ``<date>-<title>.md`` filename. Empty input becomes
     ``"untitled"`` so the resulting path never has a bare extension.
+
+    v1.6.2 fix (Codex S1): if a malicious cache row sets ``podcast_name`` to
+    ``..`` or ``.``, ``_ILLEGAL_FILENAME_CHARS`` lets it through (it only
+    strips ``/`` and friends, not bare dots), and the resulting path would
+    escape ``podcast_root``. Reject pure-dot inputs explicitly. The
+    caller still runs an ``is_relative_to`` check at write time as defense
+    in depth.
     """
     name = _ILLEGAL_FILENAME_CHARS.sub("_", name).strip()
-    if not name:
+    if not name or name in {".", ".."} or set(name) == {"."}:
         return "untitled"
     if len(name) > max_len:
         name = name[:max_len].rstrip()
@@ -71,10 +78,23 @@ def _safe_filename(name: str, max_len: int = 180) -> str:
 # v1.6.1: server stores guids in "https:/host/..." form (single slash after
 # colon) because FastAPI {guid:path} routing collapses %2F%2F → /, but
 # local .md frontmatter writes the original "https://host/..." (double
-# slash). Normalize both before comparison so the dedup check matches
+# slash). Normalize the leading URI scheme so the dedup check matches
 # regardless of which form we're holding.
+#
+# v1.6.2 fix (Codex S2): only collapse the *leading* scheme delimiter, not
+# every ``://`` substring — otherwise an opaque guid like ``foo://bar://baz``
+# (extremely rare but possible in non-URL guids) would get its mid-string
+# ``://`` folded too, breaking comparison and silently masking a missing
+# cache row as "already there". Anchor the regex at start-of-string +
+# match only one ``:/+`` run.
+_SCHEME_PREFIX_RE = re.compile(r"^([A-Za-z][A-Za-z0-9+.\-]*):/{2,}")
+
+
 def _normalize_guid(guid: str) -> str:
-    return guid.replace("://", ":/")
+    """Collapse a URI's leading ``scheme://`` to ``scheme:/`` to match the
+    sidecar's stored form. Non-URI guids and any further ``://`` substrings
+    in the path are left untouched."""
+    return _SCHEME_PREFIX_RE.sub(r"\1:/", guid, count=1)
 
 
 # Match the same frontmatter parse the batch-upload scripts use — only need
@@ -233,6 +253,33 @@ async def cloud_download(payload: dict) -> dict:
 
         target_dir.mkdir(parents=True, exist_ok=True)
         target_path = target_dir / f"{_safe_filename(title)}.md"
+
+        # v1.6.2 fix (Codex S1 defense in depth): even after _safe_filename,
+        # confirm the resolved path lives under podcast_root before any
+        # write. Catches symlink-trickery / absolute-path leakage in
+        # podcast_name or title that the regex didn't anticipate.
+        try:
+            resolved = target_path.resolve()
+            if not resolved.is_relative_to(podcast_root.resolve()):
+                results.append(
+                    {
+                        "guid": guid,
+                        "ok": False,
+                        "reason": "path_escapes_vault",
+                        "detail": f"refused write outside {podcast_root}",
+                    }
+                )
+                continue
+        except (OSError, ValueError) as e:
+            results.append(
+                {
+                    "guid": guid,
+                    "ok": False,
+                    "reason": "path_resolve_failed",
+                    "detail": f"{type(e).__name__}: {e}",
+                }
+            )
+            continue
 
         if target_path.exists() and not overwrite:
             results.append(

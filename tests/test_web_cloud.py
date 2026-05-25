@@ -324,3 +324,82 @@ def test_normalize_guid_collapses_double_slash():
     assert _normalize_guid("https://x/e/1") == "https:/x/e/1"
     assert _normalize_guid("https:/x/e/1") == "https:/x/e/1"  # idempotent
     assert _normalize_guid("local-fallback::p::t") == "local-fallback::p::t"
+
+
+# ----- v1.6.2 hardening: Codex S1 (.. traversal) + S2 (over-greedy normalize) -----
+
+
+def test_normalize_guid_only_collapses_leading_scheme_codex_s2():
+    """Codex S2: ``_normalize_guid`` must only fold the leading URI scheme.
+    Opaque guids with ``://`` later in the path (rare but possible) must
+    NOT have their mid-string ``://`` folded — that would silently change
+    the guid and break cache lookups."""
+    from src.web.routes.cloud import _normalize_guid
+
+    # Normal URLs: leading scheme collapsed
+    assert _normalize_guid("https://host/path") == "https:/host/path"
+    assert _normalize_guid("http://x/e/1") == "http:/x/e/1"
+    # ftp+ scheme name with allowed chars
+    assert _normalize_guid("svn+ssh://h/p") == "svn+ssh:/h/p"
+
+    # Opaque non-URI guids untouched
+    assert _normalize_guid("local-fallback::p::t") == "local-fallback::p::t"
+
+    # The critical case: ``://`` in path stays put after leading scheme is folded
+    # (e.g. some podcast feeds use double-slash markers inside the guid path).
+    assert _normalize_guid("https://host/a://b") == "https:/host/a://b"
+    # idempotent on already-normalized
+    assert _normalize_guid("https:/host/a://b") == "https:/host/a://b"
+
+
+def test_download_rejects_dotdot_podcast_name_codex_s1(client_with_cache, monkeypatch, tmp_path):
+    """Codex S1: a malicious cache row with ``podcast_name='..'`` would
+    otherwise resolve target_dir to vault parent. ``_safe_filename`` now
+    maps pure-dot input to ``untitled``, and the resolved-path is checked
+    against ``podcast_root`` — write must end up inside Podcasts/untitled/,
+    NOT escape to vault root or above."""
+    fake = AsyncMock()
+    fake.list_items = AsyncMock(
+        return_value=[
+            {
+                "guid": "g-evil",
+                "podcast_name": "..",
+                "title": "evil",
+                "size": 10,
+                "updated_at": 1,
+            }
+        ]
+    )
+    fake.fetch = AsyncMock(return_value="should land inside Podcasts/untitled/")
+    monkeypatch.setattr("src.web.routes.cloud._client", lambda: fake)
+
+    r = client_with_cache.post("/api/cloud/download", json={"guids": ["g-evil"]})
+    assert r.status_code == 200, r.json()
+    body = r.json()
+    if body["downloaded"] == 1:
+        written = Path(body["items"][0]["path"])
+        # Confirm path lives under <vault>/Podcasts/ — no escape
+        podcasts_root = tmp_path / "Podcasts"
+        assert written.resolve().is_relative_to(podcasts_root.resolve()), (
+            f"path {written} escaped podcasts root {podcasts_root}"
+        )
+        # And not in vault root itself
+        assert written.parent != tmp_path
+    else:
+        # path_escapes_vault is also an acceptable refusal
+        assert body["items"][0]["reason"] in {"path_escapes_vault", "invalid_guid"}
+
+
+def test_safe_filename_handles_pure_dots():
+    """``_safe_filename`` must not return ``.`` or ``..`` as a filename
+    stem (would collapse to parent / current dir reference)."""
+    from src.web.routes.cloud import _safe_filename
+
+    assert _safe_filename("..") == "untitled"
+    assert _safe_filename(".") == "untitled"
+    assert _safe_filename("...") == "untitled"
+    assert _safe_filename(" .. ") == "untitled"
+    # Normal names untouched
+    assert _safe_filename("Ep 1 normal") == "Ep 1 normal"
+    # Dot-prefixed names with real content survive
+    assert _safe_filename(".env-talk") == ".env-talk"

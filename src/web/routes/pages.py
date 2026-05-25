@@ -36,3 +36,8 @@ async def page_subscriptions(request: Request):
 @router.get("/settings", response_class=HTMLResponse)
 async def page_settings(request: Request):
     return templates.TemplateResponse(request, "settings.html", _ctx("settings"))
+
+
+@router.get("/cloud", response_class=HTMLResponse)
+async def page_cloud(request: Request):
+    return templates.TemplateResponse(request, "cloud.html", _ctx("cloud"))

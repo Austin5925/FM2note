@@ -102,18 +102,37 @@ class SharedCacheClient:
             return None
         return content
 
-    async def upload(self, guid: str, content: str) -> bool:
+    async def upload(
+        self,
+        guid: str,
+        content: str,
+        *,
+        podcast_name: str = "",
+        title: str = "",
+    ) -> bool:
         """Upload ``content`` (rendered Markdown) for ``guid``. Returns True
-        on a successful 2xx, False otherwise. Never raises."""
+        on a successful 2xx, False otherwise. Never raises.
+
+        v1.6: ``podcast_name`` + ``title`` are optional but strongly
+        recommended — they populate the server's cloud-browse list so the
+        other user's UI can render the episode by name (instead of by raw
+        guid). Older server versions silently ignore unknown fields, so
+        passing them is safe even before the server is upgraded.
+        """
         if not content or not content.strip():
             return False
         url = self._url_for(guid)
+        payload: dict = {"content": content, "uploader_fp": _UPLOADER_FP}
+        if podcast_name:
+            payload["podcast_name"] = podcast_name
+        if title:
+            payload["title"] = title
         try:
             async with httpx.AsyncClient(timeout=_TIMEOUT_SEC) as client:
                 resp = await client.post(
                     url,
                     headers=self._auth_headers(),
-                    json={"content": content, "uploader_fp": _UPLOADER_FP},
+                    json=payload,
                 )
         except httpx.HTTPError as e:
             logger.warning("shared cache upload network error for {}: {}", guid, type(e).__name__)
@@ -127,6 +146,46 @@ class SharedCacheClient:
             resp.text[:200],
         )
         return False
+
+    async def list_items(self, prefix: str = "", limit: int = 200) -> list[dict]:
+        """v1.6: list episodes currently in the cache.
+
+        Returns ``[{guid, podcast_name, title, size, updated_at}, ...]`` or
+        an empty list on any error. ``prefix`` filters by
+        ``podcast_name`` LIKE prefix%. ``limit`` is server-clamped.
+
+        Like ``fetch`` and ``upload``, this swallows all transport errors —
+        the cloud-browse UI should treat an empty list as "nothing to show"
+        and inform the user via a UI banner that the cache may be down.
+        Naming note: ``list`` would shadow the builtin; ``list_items`` is
+        the explicit verb.
+        """
+        url = f"{self._base}/cache/list"
+        params = {"limit": int(limit)}
+        if prefix:
+            params["prefix"] = prefix
+        try:
+            async with httpx.AsyncClient(timeout=_TIMEOUT_SEC) as client:
+                resp = await client.get(url, headers=self._auth_headers(), params=params)
+        except httpx.HTTPError as e:
+            logger.debug("shared cache list network error: {}", type(e).__name__)
+            return []
+        if resp.status_code != 200:
+            logger.warning(
+                "shared cache list HTTP {}: {}",
+                resp.status_code,
+                resp.text[:200],
+            )
+            return []
+        try:
+            body = resp.json()
+        except ValueError:
+            logger.warning("shared cache list returned non-JSON")
+            return []
+        items = body.get("items") if isinstance(body, dict) else None
+        if not isinstance(items, list):
+            return []
+        return items
 
     # ---- helpers ----
 

@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.6.0] - 2026-05-25
+
+### Added
+- **GUI【云端】新页面** — 浏览共享缓存里所有已转录剧集，按节目分类显示，单/多选下载到本地 vault
+- `src/web/templates/cloud.html` + `src/web/static/cloud.js` — folder/file 两级视图、全选/反选、覆盖已存在开关、按节目 + 文件夹结构写入 `<vault>/<podcast_dir>/<podcast_name>/<title>.md`
+- `src/web/routes/cloud.py` — `GET /api/cloud/list?prefix=...&limit=...` + `POST /api/cloud/download {guids, overwrite}` (单次 ≤ 100 集)
+- `src/shared_cache.py::SharedCacheClient.list_items(prefix, limit)` — client 端 LIST 调用，错误时返回空列表（与 fetch/upload 一致 swallow-all 风格）
+- `SharedCacheClient.upload(..., podcast_name=, title=)` — 上传时带 metadata
+- `src/episode_processor.py` — pipeline 上传时传 episode.podcast_name + episode.title
+- **server v1.6.0** — `notes` 表新增 `podcast_name` + `title` 列（PRAGMA table_info 守卫的 idempotent migration）；`GET /cache/list` 端点；upsert 接受 metadata 字段（pre-v1.6 client 不带也兼容，旧行 podcast_name=NULL）
+- 9 个新测试覆盖 cloud routes: 未配置 cache 时 GET 返回 reason=cache_unconfigured / POST 503、空 guids 400、>100 集 400、按节目分组写入、覆盖默认 false、文件名 sanitize、cache miss 报告
+
+### Changed
+- 桌面包 `.env` `SHARED_CACHE_URL`/`TOKEN` 默认指向 macroclaw（v1.5.4 已加，v1.6.0 配套 LIST + 下载）
+- 458 测试（+9）全过；端到端 client↔server cloud LIST + 上传 metadata + 批量 backfill 23 集到生产 cache 验证
+
 ## [1.5.4] - 2026-05-25
 
 ### Added

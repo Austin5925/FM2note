@@ -11,6 +11,7 @@ from loguru import logger
 from src.version import VERSION
 from src.web.routes import (
     balance,
+    cloud,
     health,
     history,
     logs,
@@ -55,6 +56,7 @@ def create_app() -> FastAPI:
     app.include_router(health.router)
     app.include_router(service.router)
     app.include_router(logs.router)
+    app.include_router(cloud.router)
 
     @app.exception_handler(Exception)
     async def _unhandled(request: Request, exc: Exception) -> JSONResponse:

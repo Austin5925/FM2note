@@ -48,10 +48,30 @@ CREATE TABLE IF NOT EXISTS notes (
     guid TEXT PRIMARY KEY,
     content TEXT NOT NULL,
     uploader_fp TEXT,
+    podcast_name TEXT,
+    title TEXT,
     created_at REAL NOT NULL,
     updated_at REAL NOT NULL
 );
 """
+
+
+async def _migrate_v1_6_add_metadata_columns(db: aiosqlite.Connection) -> None:
+    """v1.6: add ``podcast_name`` + ``title`` columns for the cloud browse UI.
+
+    Idempotent — uses PRAGMA table_info to detect which columns are already
+    present (SQLite has no ``ADD COLUMN IF NOT EXISTS`` in stable releases).
+    Old rows uploaded by v1.4.16/v1.5.x clients have NULL here; the LIST
+    endpoint exposes them under podcast_name="（旧数据）" so the UI can still
+    render them.
+    """
+    cursor = await db.execute("PRAGMA table_info(notes)")
+    existing = {row[1] for row in await cursor.fetchall()}
+    if "podcast_name" not in existing:
+        await db.execute("ALTER TABLE notes ADD COLUMN podcast_name TEXT")
+    if "title" not in existing:
+        await db.execute("ALTER TABLE notes ADD COLUMN title TEXT")
+    await db.commit()
 
 
 @asynccontextmanager
@@ -71,13 +91,16 @@ async def _lifespan(app: FastAPI):
     app.state.db_lock = asyncio.Lock()
     await app.state.db.execute(_SCHEMA)
     await app.state.db.commit()
+    # v1.6: add the cloud-browse metadata columns. Idempotent — guarded by
+    # PRAGMA table_info inside the helper.
+    await _migrate_v1_6_add_metadata_columns(app.state.db)
     try:
         yield
     finally:
         await app.state.db.close()
 
 
-app = FastAPI(title="FM2note shared cache", version="1.4.16", lifespan=_lifespan)
+app = FastAPI(title="FM2note shared cache", version="1.6.0", lifespan=_lifespan)
 
 
 @app.middleware("http")
@@ -129,7 +152,76 @@ def _validate_guid(guid: str) -> None:
 
 @app.get("/healthz")
 async def healthz() -> dict:
-    return {"ok": True, "version": "1.4.16"}
+    return {"ok": True, "version": "1.6.0"}
+
+
+# Reasonable upper bound for the LIST response — 1k rows = ~100 KB JSON which
+# is fine over LAN, the UI paginates beyond that. Larger would risk OOM on
+# pathological clients asking for the entire history.
+_LIST_HARD_LIMIT = 1000
+
+
+@app.get("/cache/list", response_model=None)
+async def list_cache(
+    prefix: str = "",
+    limit: int = 200,
+    _: None = Depends(_require_auth),
+) -> dict:
+    """v1.6: list cached episodes for the cloud-browse UI.
+
+    Returns ``{ok, total, items: [{guid, podcast_name, title, size, updated_at}]}``.
+
+    Args:
+        prefix: filter episodes whose ``podcast_name`` starts with this string.
+            Empty = all episodes (paginated by ``limit``).
+        limit: max rows returned (server clamped to ``_LIST_HARD_LIMIT``).
+
+    Rows uploaded by pre-v1.6 clients have NULL podcast_name/title; the UI
+    should bucket those under a "（旧数据）" pseudo-folder.
+    """
+    if limit < 1:
+        limit = 1
+    if limit > _LIST_HARD_LIMIT:
+        limit = _LIST_HARD_LIMIT
+
+    where = ""
+    params: list = []
+    if prefix:
+        where = "WHERE podcast_name LIKE ? || '%'"
+        params.append(prefix)
+    params.append(limit)
+
+    async with app.state.db_lock:
+        cursor = await app.state.db.execute(
+            f"""SELECT guid, podcast_name, title, length(content) as size, updated_at
+                FROM notes {where}
+                ORDER BY updated_at DESC
+                LIMIT ?""",
+            params,
+        )
+        rows = await cursor.fetchall()
+
+        # Quick total for the UI pager (separate query — cheap on indexed PK).
+        if prefix:
+            cur2 = await app.state.db.execute(
+                "SELECT COUNT(*) FROM notes WHERE podcast_name LIKE ? || '%'",
+                (prefix,),
+            )
+        else:
+            cur2 = await app.state.db.execute("SELECT COUNT(*) FROM notes")
+        total = (await cur2.fetchone())[0]
+
+    items = [
+        {
+            "guid": r[0],
+            "podcast_name": r[1] or "",
+            "title": r[2] or "",
+            "size": r[3],
+            "updated_at": r[4],
+        }
+        for r in rows
+    ]
+    return {"ok": True, "total": total, "items": items}
 
 
 @app.get("/cache/{guid:path}", response_model=None)
@@ -169,6 +261,10 @@ async def post_cache(guid: str, payload: dict, _: None = Depends(_require_auth))
             status_code=413, detail=f"content exceeds {MAX_CONTENT_BYTES} bytes"
         )
     uploader_fp = str((payload or {}).get("uploader_fp", ""))[:64]
+    # v1.6: optional metadata for the cloud-browse UI. Clients on older
+    # protocol versions don't send these → upserts existing NULL columns.
+    podcast_name = str((payload or {}).get("podcast_name", "") or "")[:256]
+    title = str((payload or {}).get("title", "") or "")[:512]
     now = time.time()
 
     # Upsert with last-write-wins — both users uploading the same episode is
@@ -181,13 +277,16 @@ async def post_cache(guid: str, payload: dict, _: None = Depends(_require_auth))
     # connection and lose one writer's row entirely.
     async with app.state.db_lock:
         await app.state.db.execute(
-            """INSERT INTO notes (guid, content, uploader_fp, created_at, updated_at)
-               VALUES (?, ?, ?, ?, ?)
+            """INSERT INTO notes
+                 (guid, content, uploader_fp, podcast_name, title, created_at, updated_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?)
                ON CONFLICT(guid) DO UPDATE SET
                  content=excluded.content,
                  uploader_fp=excluded.uploader_fp,
+                 podcast_name=COALESCE(excluded.podcast_name, podcast_name),
+                 title=COALESCE(excluded.title, title),
                  updated_at=excluded.updated_at""",
-            (guid, content, uploader_fp, now, now),
+            (guid, content, uploader_fp, podcast_name or None, title or None, now, now),
         )
         await app.state.db.commit()
     return {"ok": True, "guid": guid, "updated_at": now}

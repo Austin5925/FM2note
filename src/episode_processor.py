@@ -219,7 +219,12 @@ class EpisodeProcessor:
 
         # ---- Stage 6: shared cache upload (fire-and-forget) ----
         if opts.use_shared_cache_upload and self.shared_cache is not None:
-            await self._upload_to_cache(guid, content)
+            await self._upload_to_cache(
+                guid,
+                content,
+                podcast_name=episode.podcast_name,
+                title=episode.title,
+            )
 
         # ---- Stage 7: pending-summary cache ----
         if summary_failed and opts.save_pending_on_summary_fail:
@@ -403,9 +408,18 @@ class EpisodeProcessor:
             _emit(progress_callback, "summary", "error", f"{type(e).__name__}: {e}")
             return True
 
-    async def _upload_to_cache(self, guid: str, content: str) -> None:
+    async def _upload_to_cache(
+        self,
+        guid: str,
+        content: str,
+        *,
+        podcast_name: str = "",
+        title: str = "",
+    ) -> None:
         try:
-            ok = await self.shared_cache.upload(guid, content)
+            ok = await self.shared_cache.upload(
+                guid, content, podcast_name=podcast_name, title=title
+            )
             if ok:
                 logger.debug("shared cache upload OK: {}", guid)
         except Exception as e:

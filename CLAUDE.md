@@ -266,6 +266,14 @@ make bump-minor  # 版本号 minor +1
   - 服务器 + 客户端双线文档：`server/README.md` + `macroclaw:/root/fm2note-cache/README.md`
   - 449 测试（+9 新增：has_any_recorded_in 4 + auto-protect 3 + cache lock + preview missing_duration）
 
+- **v1.6.0** — GUI 云端浏览页 + 选择性下载
+  - 新增【云端】tab：浏览共享缓存里所有已转录剧集，按节目（podcast_name）分组显示文件夹卡片 → 点开看 episode 列表 → 复选框 + 全选 + "覆盖已存在" 开关 + 单次最多 100 集批量下载
+  - 后端：`src/web/routes/cloud.py` (`GET /api/cloud/list`、`POST /api/cloud/download`) + `src/web/templates/cloud.html` + `src/web/static/cloud.js`
+  - client: `SharedCacheClient.list_items(prefix, limit)` + `upload(.., podcast_name=, title=)` 新参数；EpisodeProcessor pipeline upload 时传 metadata
+  - server v1.6.0: `notes` 表 idempotent migration 加 `podcast_name` + `title` 列；新增 `GET /cache/list` endpoint（按 updated_at DESC、prefix LIKE 过滤、limit hard cap 1000）；upsert 接受 metadata 字段并 COALESCE 兼容 pre-v1.6 client 上传的 NULL
+  - 部署：server 重 build 推 macroclaw；23 集 v1.5.4 老数据用 v1.6 client backfill 了 podcast_name + title（last-write-wins）
+  - 458 测试（+9 新增：未配置 cache 行为 / 空 guids / >100 限额 / 按节目分组写入 / 不覆盖默认 / 文件名 sanitize / cache miss 报告）
+
 ## Current Version
 
-v1.5.4 — 共享缓存上线 + daemon auto-protect + 女友实测 bug 修复
+v1.6.0 — GUI 云端浏览页 + 选择性下载

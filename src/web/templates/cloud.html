@@ -1,0 +1,72 @@
+{% extends "base.html" %}
+
+{% block title %}云端 · FM2note{% endblock %}
+
+{% block content %}
+<section>
+  <div class="flex items-center justify-between mb-6">
+    <div>
+      <h2 class="text-2xl font-semibold">云端</h2>
+      <p class="text-stone-500 text-sm">
+        共享缓存里已转录的剧集，按节目分类。可选择性下载到本地 Obsidian。
+      </p>
+    </div>
+    <button id="cloud-refresh-btn"
+            class="px-3 py-1.5 rounded-md text-xs text-stone-600 border border-stone-200 hover:bg-stone-50">
+      刷新
+    </button>
+  </div>
+
+  <div id="cloud-loading" class="text-sm text-stone-400">加载中…</div>
+
+  <div id="cloud-error" class="hidden p-4 rounded-lg border border-amber-200 bg-amber-50 text-sm text-amber-800">
+    <span id="cloud-error-msg"></span>
+  </div>
+
+  <div id="cloud-empty" class="hidden p-8 border-2 border-dashed border-stone-300 rounded-lg text-center text-sm text-stone-400">
+    云端还没有缓存任何剧集。
+  </div>
+
+  <!-- Folder (podcast) view -->
+  <div id="cloud-folders" class="hidden">
+    <div class="text-xs text-stone-500 mb-3" id="cloud-folder-summary"></div>
+    <ul id="cloud-folder-list" class="space-y-2"></ul>
+  </div>
+
+  <!-- Episode view (when a folder is opened) -->
+  <div id="cloud-episodes" class="hidden">
+    <div class="flex items-center justify-between mb-4">
+      <div>
+        <button id="cloud-back-btn"
+                class="text-sm text-stone-600 hover:text-stone-900">← 返回</button>
+        <h3 class="text-lg font-semibold mt-1" id="cloud-episodes-title"></h3>
+        <p class="text-xs text-stone-500" id="cloud-episodes-count"></p>
+      </div>
+      <div class="flex items-center gap-2">
+        <label class="text-xs text-stone-500 flex items-center gap-1">
+          <input type="checkbox" id="cloud-overwrite" class="accent-stone-900" />
+          覆盖已存在
+        </label>
+        <button id="cloud-select-all"
+                class="text-xs px-2 py-1 rounded-md border border-stone-200 hover:bg-stone-50">
+          全选 / 全不选
+        </button>
+        <button id="cloud-download-btn"
+                class="text-xs px-3 py-1.5 rounded-md bg-stone-900 text-white disabled:bg-stone-300"
+                disabled>
+          下载选中
+        </button>
+      </div>
+    </div>
+    <ul id="cloud-episode-list" class="space-y-2"></ul>
+  </div>
+
+  <!-- Result panel after download -->
+  <div id="cloud-result" class="hidden mt-6 p-4 rounded-lg border border-stone-200 bg-white">
+    <div class="text-sm font-semibold mb-2" id="cloud-result-summary"></div>
+    <ul class="text-xs text-stone-600 space-y-1" id="cloud-result-list"></ul>
+  </div>
+</section>
+
+<script src="/static/cloud.js" defer></script>
+{% endblock %}

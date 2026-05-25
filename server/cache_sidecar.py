@@ -174,16 +174,22 @@ async def post_cache(guid: str, payload: dict, _: None = Depends(_require_auth))
     # Upsert with last-write-wins — both users uploading the same episode is
     # the documented happy path (Codex v1.4.16 research §6); their notes are
     # functionally identical, so neither client "loses".
-    await app.state.db.execute(
-        """INSERT INTO notes (guid, content, uploader_fp, created_at, updated_at)
-           VALUES (?, ?, ?, ?, ?)
-           ON CONFLICT(guid) DO UPDATE SET
-             content=excluded.content,
-             uploader_fp=excluded.uploader_fp,
-             updated_at=excluded.updated_at""",
-        (guid, content, uploader_fp, now, now),
-    )
-    await app.state.db.commit()
+    #
+    # v1.5.4: serialize through db_lock — v1.4.16 Code Review fix #1 patched
+    # get_cache but missed the upsert path; under concurrent uploads two
+    # execute()/commit() pairs could interleave on the shared aiosqlite
+    # connection and lose one writer's row entirely.
+    async with app.state.db_lock:
+        await app.state.db.execute(
+            """INSERT INTO notes (guid, content, uploader_fp, created_at, updated_at)
+               VALUES (?, ?, ?, ?, ?)
+               ON CONFLICT(guid) DO UPDATE SET
+                 content=excluded.content,
+                 uploader_fp=excluded.uploader_fp,
+                 updated_at=excluded.updated_at""",
+            (guid, content, uploader_fp, now, now),
+        )
+        await app.state.db.commit()
     return {"ok": True, "guid": guid, "updated_at": now}
 
 

@@ -57,16 +57,28 @@ def test_list_returns_existing(client):
     assert subs[0]["index"] == 0
 
 
-def test_add_appends_and_preserves_comment(client, tmp_path):
-    # backfill_strategy="all" is a no-op (no state.db / load_config needed),
-    # so this fixture works without a config.yaml.
+def test_add_appends_and_preserves_comment(client_with_state, tmp_path):
+    # v1.5.4: strategy="all" now seeds 'pending' rows in state.db to defeat
+    # daemon auto-protect (FAIL d). Requires state DB + a valid feed mock.
+    feed = _fake_feed_with_entries(
+        ("g-new-1", "Ep 1", "Mon, 01 May 2026 10:00:00 +0000", 3600),
+    )
+    # Re-seed subscriptions.yaml with the comment we want to verify roundtrip on.
+    (tmp_path / "config" / "subscriptions.yaml").write_text(
+        "# top-level comment\npodcasts:\n"
+        "  - name: existing\n"
+        "    rss_url: https://feed.example/rss\n"
+        "    tags: [x]\n",
+        encoding="utf-8",
+    )
     payload = {
         "name": "new",
         "rss_url": "https://feed.example/new",
         "tags": ["a", "b"],
         "backfill_strategy": "all",
     }
-    r = client.post("/api/subscriptions", json=payload)
+    with patch("feedparser.parse", return_value=feed):
+        r = client_with_state.post("/api/subscriptions", json=payload)
     assert r.status_code == 200, r.json()
     text = (tmp_path / "config" / "subscriptions.yaml").read_text(encoding="utf-8")
     assert "# top-level comment" in text
@@ -343,10 +355,14 @@ def test_add_aborts_when_feed_fails_for_non_all_strategy(client_with_state, tmp_
     assert "fragile" not in text
 
 
-def test_add_all_strategy_succeeds_even_when_feed_fails(client_with_state, tmp_path):
-    """Symmetry check for BUG 11 fix: strategy='all' bypasses the feed
-    fetch entirely (the daemon does the transcription work later), so a
-    flaky feed at add time must NOT block the user."""
+def test_add_all_strategy_502_when_feed_fails(client_with_state, tmp_path):
+    """v1.5.4: strategy='all' now seeds 'pending' rows in state.db to defeat
+    the daemon auto-protect (which would otherwise silently mark every episode
+    as ``backfill_skipped`` on next poll → flipping "all" into "skip all").
+    That seeding requires a valid feed; a flaky feed now raises 502 so the
+    user can retry instead of getting a silent reversal. Symmetric with the
+    non-``all`` strategies, contrary to the v1.4.15 design but required by
+    v1.5.4 daemon auto-protect (Codex audit FAIL d)."""
     from types import SimpleNamespace
 
     bad_feed = SimpleNamespace(
@@ -364,13 +380,24 @@ def test_add_all_strategy_succeeds_even_when_feed_fails(client_with_state, tmp_p
                 "backfill_strategy": "all",
             },
         )
-    assert r.status_code == 200, r.json()
-    assert r.json()["backfill_skipped_count"] == 0
+    assert r.status_code == 502, r.json()
+    # yaml must NOT have been touched
+    text = (tmp_path / "config" / "subscriptions.yaml").read_text(encoding="utf-8")
+    assert "later" not in text
 
 
-def test_add_all_strategy_skips_nothing(client_with_state, tmp_path):
-    """strategy=all must NOT touch state.db (it's a no-op marking-wise)."""
-    feed = _fake_feed_with_entries(("g1", "Ep 1", "Mon, 01 May 2026 10:00:00 +0000", 3600))
+def test_add_all_strategy_seeds_pending_to_defeat_auto_protect(client_with_state, tmp_path):
+    """v1.5.4: strategy='all' writes a ``pending`` row per current feed
+    episode so the daemon auto-protect (which fires when state.db has zero
+    rows for a sub) doesn't subsequently turn "all" into "skip all".
+
+    backfill_skipped_count is still 0 (nothing got skipped — that's the
+    point of strategy=all). But state.db should have N pending rows after.
+    """
+    feed = _fake_feed_with_entries(
+        ("g1", "Ep 1", "Mon, 01 May 2026 10:00:00 +0000", 3600),
+        ("g2", "Ep 2", "Tue, 02 May 2026 10:00:00 +0000", 1800),
+    )
     with patch("feedparser.parse", return_value=feed):
         r = client_with_state.post(
             "/api/subscriptions",
@@ -381,7 +408,24 @@ def test_add_all_strategy_skips_nothing(client_with_state, tmp_path):
             },
         )
     assert r.status_code == 200, r.json()
-    assert r.json()["backfill_skipped_count"] == 0
+    body = r.json()
+    assert body["backfill_skipped_count"] == 0
+
+    # Now hit the same StateManager singleton the route used. The seeded rows
+    # must exist with status=pending so:
+    #  (a) has_any_recorded_in returns True for daemon auto-protect
+    #  (b) is_processed returns False so daemon STILL transcribes them
+    import asyncio
+
+    from src.web.services.state_singleton import get_state_manager
+
+    async def _check():
+        state = await get_state_manager(str(tmp_path / "data" / "state.db"))
+        assert await state.has_any_recorded_in(["g1"]) is True
+        assert await state.is_processed("g1") is False
+        assert await state.is_processed("g2") is False
+
+    asyncio.run(_check())
 
 
 def test_update_modifies_in_place(client, tmp_path):

@@ -7,6 +7,56 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.5.4] - 2026-05-25
+
+### Added
+- **共享转录缓存 sidecar 正式部署到生产**（macroclaw.app/fm2note-cache），完成 v1.4.16 client 端 + server 端的全闭环
+- `src/monitor/state.py::has_any_recorded_in(guids)` — 批量 SQL `IN ?` 查询，supports daemon auto-protect
+- `src/monitor/rss_checker.py::_auto_protect_sub(sub, feed)` — daemon 启动自检：任何 state.db 里完全没记录的 sub → mark 当前 feed 所有集为 `backfill_skipped`，统一手动编辑 yaml 加订阅与 GUI POST `/api/subscriptions` 的语义保护（不再"yaml 加新订阅 → 下次 poll 烧光额度"）
+- preview API 返回新字段 `missing_duration_count`（feed 里没 itunes:duration 的集子数），UI 现在显示"⚠️ 含 N 集未提供时长，实际可能更贵"
+- `server/README.md` — cache_sidecar 部署清单 + 协议参考 + 集成位置 + 故障排查
+- `tests/test_state.py` 加 4 个 `has_any_recorded_in` 用例；`tests/test_rss_checker.py` 加 3 个 `_auto_protect_sub` 用例。共 449 测试
+
+### Fixed
+- **`server/cache_sidecar.py::post_cache`** 没用 `db_lock`（v1.4.16 Code Review fix #1 只 patch 了 GET 路径）→ 并发 upload 可能 interleave aiosqlite execute/commit，丢失一方的写。已加 lock
+- **GUI 加订阅弹窗 z-index 被 sub-modal 遮在下面**（macOS PyWebView 焦点 quirk）→ 打开 backfill modal 前先 `modal.classList.add('hidden')` 让 sub-modal 消失（`src/web/static/subscriptions.js`）
+- **preview 估算 UI 显示不明确**：现在显示"约 ¥X.XX（XX 分钟 · funasr 计价 · 不含 AI 摘要）"，并在 feed 里有 0-duration 集子时加 orange 警告
+- `preview_sub` 的 `try/except` 用 `logger.exception` 代替 `logger.warning("...", type(e).__name__)`，下次再有 TypeError 类的 silent fallback 才能从日志看到完整 stack
+
+### Changed
+- `RSSChecker.check_all` 重构：每个 sub 单次 fetch，feed 复用给 `_auto_protect_sub` + `_extract_new_episodes`（避免引入 auto-protect 后的 double-fetch）。`_check_feed` 保留为 backward-compat thin wrapper
+- 前端 backfill modal 现在显示一行 hint："podcast feed 通常只返回最近 ~15-20 集，更早的历史无法通过订阅抓取（可在【转录】页粘单集链接补转）"
+- 桌面包 `.env` 默认填 `SHARED_CACHE_URL` + `SHARED_CACHE_TOKEN`，开箱即用共享缓存
+
+## [1.5.3] - 2026-05-25
+
+### Added
+- `src/web/services/log_buffer.py` — loguru sink → 10k 上限环形 buffer，`GET /api/logs?after_seq=N` 增量拉
+- 设置页【日志面板】3 秒轮询 auto-refresh，消除 PyWebView 桌面壳"看不见日志"的工程债
+- `POST /api/service/poll-now` — detached spawn `fm2note run-once`，fire-and-forget。设置页新增"立即检查一次"按钮
+- 顶部 daemon 健康徽章 60s 轮询 `/api/service/status`：● 运行中 · 上次 X 分钟前
+- `/api/service/status` 新增 `last_run_at` / `next_run_estimate_at` / `poll_interval_hours` 字段
+
+### Fixed
+- 端到端 smoke test 验证 healthz / settings / logs / status / poll-now 五端点全过
+
+## [1.5.2] - 2026-05-25
+
+### Added
+- `src/app_paths.py` — AppPaths 单例：所有文件路径（config/subscriptions/.env/db/pending/tmp/logs）从单一来源解析，`FM2NOTE_HOME` env 可覆盖
+- `src/web/services/state_singleton.py` — FastAPI 生命周期内的 StateManager 单例
+- `StateManager.get_recent_history(limit, include_backfill_skipped=False)` — SQL `ORDER BY` + `LIMIT` + filter，替代 Python 端全表 sort+slice
+- 共 431 测试（+5 个 history limit / 排序 / filter / mark_status 事务）
+
+### Fixed
+- `src/summarizer/pending.py::PENDING_DIR` 不再 CWD-relative — 修复 `fm2note app` Finder 双击启动时 pending summaries 写到 `/data/...` 的灾难（A5）
+- `POST /api/subscriptions/test` 的 `feedparser.parse` 包 `asyncio.to_thread`（v1.4.15 漏修的最后一处 A1/B1/C1）
+- `StateManager.mark_status` 用 `BEGIN IMMEDIATE` 包 SELECT+UPDATE/INSERT，并发 connection retry_count 增量不再丢、不再 IntegrityError（Codex 找的并发 race）
+- 测试 `conftest.py` 新增 `_reset_app_paths` + `_reset_state_singleton` autouse fixtures
+
+### Changed
+- `history.py` / `subscription preview` / `subscription add` 三处不再各自 open+close aiosqlite，全部走 singleton 复用一条连接
+
 ## [1.5.1] - 2026-05-25
 
 ### Fixed

@@ -262,6 +262,11 @@
   }
 
   function openBackfillModal(preview) {
+    // Close the add-subscription modal first so the backfill modal isn't
+    // stacked behind it. macOS PyWebView z-index ordering on overlapping
+    // dialogs is not always honored; the safer fix is "one modal at a time".
+    modal.classList.add('hidden');
+
     const summaryEl = document.getElementById('backfill-summary');
     const allHintEl = document.getElementById('backfill-all-cost-hint');
     const totalMin = Math.round((preview.total_duration_sec || 0) / 60);
@@ -270,12 +275,17 @@
     // Numbers are safe (toFixed coerces to a numeric string), the engine
     // name is the only string field interpolated here.
     const safeEngine = escapeHtml(preview.asr_engine || 'funasr');
+    const missingDur = preview.missing_duration_count || 0;
+    const missingHint = missingDur > 0
+      ? `<span class="text-orange-600">⚠️ 含 ${missingDur} 集未提供时长，实际可能更贵</span><br/>`
+      : '';
     const costText = preview.estimated_cost_cny > 0
-      ? `约 ¥${preview.estimated_cost_cny.toFixed(2)}（${totalMin} 分钟，${safeEngine}）`
+      ? `约 ¥${preview.estimated_cost_cny.toFixed(2)}（${totalMin} 分钟 · ${safeEngine} 计价 · 不含 AI 摘要）`
       : '（feed 未提供 duration，无法估算成本）';
-    summaryEl.innerHTML = `Feed 当前有 <b>${preview.episode_count}</b> 集，其中 <b>${preview.unprocessed_count}</b> 集未在本机处理。<br/>全部转录预计 ${costText}`;
+    const feedLimitHint = '<br/><span class="text-stone-500">注：podcast feed 通常只返回最近 ~15-20 集，更早的历史无法通过订阅抓取（可在【转录】页粘单集链接补转）。</span>';
+    summaryEl.innerHTML = `Feed 当前有 <b>${preview.episode_count}</b> 集，其中 <b>${preview.unprocessed_count}</b> 集未在本机处理。<br/>${missingHint}全部转录预计 ${costText}${feedLimitHint}`;
     allHintEl.textContent = preview.estimated_cost_cny > 0
-      ? `预计消耗约 ¥${preview.estimated_cost_cny.toFixed(2)}（${preview.unprocessed_count} 集）`
+      ? `预计消耗约 ¥${preview.estimated_cost_cny.toFixed(2)}（${preview.unprocessed_count} 集 · ${safeEngine}）`
       : '— 这会一次性消耗大量 DashScope / Poe 额度';
     // Reset radio + secondary inputs
     document.querySelectorAll('#backfill-form input[name="backfill"]').forEach((el) => {
@@ -331,16 +341,22 @@
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
       });
-      const data = await resp.json();
+      let data = {};
+      try { data = await resp.json(); } catch (_) { /* may be empty */ }
       if (!resp.ok) {
-        testResult.textContent = '✕ 添加失败：' + (data.detail || resp.status);
-        testResult.className = 'text-xs text-red-700';
+        // v1.5.4 Codex audit FAIL i: previously wrote to testResult which
+        // lives inside sub-modal (now hidden), so the user saw nothing and
+        // thought the click was silently dropped. alert() is the only modal
+        // PyWebView reliably surfaces above our own dialogs on macOS.
+        alert('✕ 添加订阅失败：' + (data.detail || `HTTP ${resp.status}`));
         return;
       }
       // Success — close both modals and reload
       closeBackfillModal();
       closeModal();
       await reload();
+    } catch (e) {
+      alert('✕ 添加订阅请求失败：' + (e.message || e));
     } finally {
       btn.disabled = false;
     }

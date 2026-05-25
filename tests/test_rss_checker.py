@@ -40,6 +40,11 @@ def _make_feed(*entries):
 def mock_state():
     state = AsyncMock()
     state.is_processed = AsyncMock(return_value=False)
+    # v1.5.4: auto-protect calls has_any_recorded_in; default to "yes recorded"
+    # so existing tests (which set up specific feeds) don't get their entries
+    # silently marked as backfill_skipped.
+    state.has_any_recorded_in = AsyncMock(return_value=True)
+    state.mark_backfill_skipped = AsyncMock(return_value=0)
     return state
 
 
@@ -191,6 +196,68 @@ class TestRSSChecker:
         entry.subtitle_url = None
         result = checker._detect_subtitle(entry)
         assert result == "https://example.com/sub.srt"
+
+    # ----- v1.5.4: auto-protect yaml-only subscriptions -----
+
+    @pytest.mark.asyncio
+    async def test_auto_protect_marks_brand_new_subscription(self, subscriptions):
+        """A sub with zero rows in state.db gets every current feed entry
+        marked as backfill_skipped (= new_only equivalent)."""
+        state = AsyncMock()
+        state.has_any_recorded_in = AsyncMock(return_value=False)
+        state.is_processed = AsyncMock(return_value=True)  # so check_all returns []
+        state.mark_backfill_skipped = AsyncMock(return_value=2)
+
+        feed = _make_feed(
+            _make_entry(title="历史 1", guid="hist-1"),
+            _make_entry(title="历史 2", guid="hist-2"),
+        )
+        checker = RSSChecker(subscriptions, state)
+        with patch.object(checker, "_fetch_feed", AsyncMock(return_value=feed)):
+            episodes = await checker.check_all()
+
+        # No "new" episodes returned to the pipeline (everything is now marked
+        # skipped, so is_processed=True kept them all out).
+        assert episodes == []
+        # mark_backfill_skipped was called with both historical entries.
+        state.mark_backfill_skipped.assert_awaited_once()
+        items = state.mark_backfill_skipped.await_args.args[0]
+        guids = [g for g, _n, _t in items]
+        assert sorted(guids) == ["hist-1", "hist-2"]
+
+    @pytest.mark.asyncio
+    async def test_auto_protect_skips_already_polled_subscription(self, subscriptions):
+        """Existing sub (at least one guid recorded) → mark_backfill_skipped
+        must NOT be called, otherwise we'd lose the row's actual status."""
+        state = AsyncMock()
+        state.has_any_recorded_in = AsyncMock(return_value=True)
+        state.is_processed = AsyncMock(return_value=True)
+        state.mark_backfill_skipped = AsyncMock(return_value=0)
+
+        feed = _make_feed(_make_entry(title="已存在", guid="recorded-1"))
+        checker = RSSChecker(subscriptions, state)
+        with patch.object(checker, "_fetch_feed", AsyncMock(return_value=feed)):
+            await checker.check_all()
+
+        state.has_any_recorded_in.assert_awaited()
+        state.mark_backfill_skipped.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_auto_protect_swallows_fetch_failure(self, subscriptions):
+        """If the feed is temporarily unreachable, auto-protect must not
+        prevent check_all from proceeding (other subs still get polled)."""
+        state = AsyncMock()
+        state.has_any_recorded_in = AsyncMock(return_value=True)
+        state.is_processed = AsyncMock(return_value=True)
+        state.mark_backfill_skipped = AsyncMock(return_value=0)
+
+        checker = RSSChecker(subscriptions, state)
+        # _fetch_feed raises both in _auto_protect AND in _check_feed —
+        # check_all must still return [] without raising.
+        with patch.object(checker, "_fetch_feed", AsyncMock(side_effect=RuntimeError("net down"))):
+            episodes = await checker.check_all()
+        assert episodes == []
+        state.mark_backfill_skipped.assert_not_awaited()
 
     def test_detect_subtitle_from_transcript_url(self, subscriptions, mock_state):
         checker = RSSChecker(subscriptions, mock_state)

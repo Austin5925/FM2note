@@ -200,3 +200,29 @@ class TestMarkStatusTransaction:
         await state.mark_status("g1", "failed", error_msg="e2")
         rows = await state.get_recent_history(limit=5)
         assert rows[0].retry_count == 2
+
+    # ----- v1.5.4: has_any_recorded_in for auto-protect -----
+
+    @pytest.mark.asyncio
+    async def test_has_any_recorded_in_empty_input(self, state):
+        assert await state.has_any_recorded_in([]) is False
+
+    @pytest.mark.asyncio
+    async def test_has_any_recorded_in_all_missing(self, state):
+        assert await state.has_any_recorded_in(["g1", "g2", "g3"]) is False
+
+    @pytest.mark.asyncio
+    async def test_has_any_recorded_in_one_match_returns_true(self, state):
+        await state.mark_status("g2", "pending", podcast_name="p", title="t")
+        assert await state.has_any_recorded_in(["g1", "g2", "g3"]) is True
+
+    @pytest.mark.asyncio
+    async def test_has_any_recorded_in_matches_any_status(self, state):
+        # Even a 'failed' row counts — auto-protect should not re-mark a sub
+        # that's been polled before regardless of its rows' statuses.
+        await state.mark_status("g1", "failed", error_msg="x")
+        assert await state.has_any_recorded_in(["g1"]) is True
+        # And backfill_skipped rows also count (they were inserted by a previous
+        # auto-protect run or by GUI-POST backfill).
+        await state.mark_backfill_skipped([("g2", "p", "t")])
+        assert await state.has_any_recorded_in(["g2"]) is True

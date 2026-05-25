@@ -254,6 +254,18 @@ make bump-minor  # 版本号 minor +1
   - **端到端 smoke test**：本地 uvicorn 启动验证 5 个关键端点（healthz / settings / logs / status / poll-now）全过
   - 440 测试（+8 新增：log_buffer 幂等/after_seq/上限 + /api/logs 端点 + poll-now spawn + 平台拒绝 + status activity 字段）
 
+- **v1.5.4** — 共享缓存上线 + daemon auto-protect + 女友实测 bug 修复
+  - **共享转录缓存正式部署到生产**：v1.4.16 client 端 + 今天首次部署 server 端到 macroclaw.app/fm2note-cache（nginx 反代 + Docker 容器 + Bearer auth + 端到端 e2e 验证全过）。两人订阅同一批播客时，谁先转完另一方零成本拿现成 .md
+  - **daemon auto-protect**：新增 `StateManager.has_any_recorded_in` + `RSSChecker._auto_protect_sub`，统一手动编辑 yaml 和 GUI POST `/api/subscriptions` 的语义保护——任何 state.db 完全没记录的 sub 首次 poll 自动 mark `backfill_skipped` (= new_only)。解决"yaml 加新订阅 → 下次 poll 烧光额度" trap（v1.4.15 只保护了 GUI 路径）
+  - **cache_sidecar audit fix**：`post_cache` 加 `db_lock`（v1.4.16 Code Review fix #1 漏了 POST 路径，并发 upload 可能 interleave aiosqlite execute/commit 丢写）
+  - **女朋友实测 3 个 bug 修复**：
+    - sub-modal 遮挡 backfill modal（macOS PyWebView z-index quirk）→ 打开 backfill modal 前先 hide sub-modal
+    - 估算 UI 不明确 → 显示"funasr 计价 · 不含 AI 摘要"+ feed 限制说明"通常只返回最近 ~15-20 集" + missing_duration_count 警告
+    - `preview_sub` silent fallback 看不到 stack → `logger.warning` → `logger.exception`
+  - **RSSChecker 重构**：每个 sub 单次 fetch，feed 复用给 auto-protect + extract_new_episodes（避免引入 auto-protect 导致 double-fetch）
+  - 服务器 + 客户端双线文档：`server/README.md` + `macroclaw:/root/fm2note-cache/README.md`
+  - 449 测试（+9 新增：has_any_recorded_in 4 + auto-protect 3 + cache lock + preview missing_duration）
+
 ## Current Version
 
-v1.5.3 — GUI 收尾：日志面板 + 立即检查 + daemon 健康 chip + 端到端验证（v1.5.x 重构周期完成）
+v1.5.4 — 共享缓存上线 + daemon auto-protect + 女友实测 bug 修复

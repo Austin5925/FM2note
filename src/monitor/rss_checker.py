@@ -42,6 +42,12 @@ class RSSChecker:
     async def check_all(self) -> list[Episode]:
         """检查所有订阅的 RSS feed，返回未处理的新剧集列表。
 
+        v1.5.4 refactor: each subscription is fetched exactly once per poll;
+        the result is reused for both auto-protect (mark brand-new sub's
+        history as ``backfill_skipped``) and new-episode extraction. Before
+        this refactor the two responsibilities each ran their own fetch,
+        doubling RSSHub traffic per poll.
+
         Returns:
             按 pub_date 排序的新剧集列表
         """
@@ -66,14 +72,70 @@ class RSSChecker:
 
         for sub in self._subscriptions:
             try:
-                episodes = await self._check_feed(sub)
-                new_episodes.extend(episodes)
+                feed = await self._fetch_feed(sub.rss_url)
             except Exception as e:
                 logger.error("检查 RSS feed 失败: {} — {}", sub.name, e)
+                continue
+            # v1.5.4: unify yaml-hand-edit and GUI-POST paths. The v1.4.15
+            # backfill_strategy was enforced only when subscribers came in via
+            # POST /api/subscriptions; hand-editing yaml bypassed it and the
+            # next poll re-transcribed every historical episode. This idempotent
+            # check marks a brand-new sub's history as backfill_skipped on its
+            # first poll only, after which it's a near-no-op (one extra
+            # ``has_any_recorded_in`` query).
+            await self._auto_protect_sub(sub, feed)
+            new_episodes.extend(await self._extract_new_episodes(sub, feed))
 
         new_episodes.sort(key=lambda ep: ep.pub_date)
         logger.info("发现 {} 个新剧集", len(new_episodes))
         return new_episodes
+
+    async def _auto_protect_sub(self, sub: Subscription, feed) -> None:
+        """If this sub has zero rows in state.db, mark every current feed
+        entry as ``backfill_skipped``. Once it's been polled before
+        (any guid recorded), this is a single SQL ping and returns."""
+        items: list[tuple[str, str, str]] = []
+        for entry in feed.entries:
+            guid = getattr(entry, "id", "") or getattr(entry, "link", "")
+            if not guid:
+                continue
+            title = getattr(entry, "title", "") or "Untitled"
+            items.append((guid, sub.name, title))
+
+        if not items:
+            return
+
+        guids_only = [g for g, _n, _t in items]
+        if await self._state.has_any_recorded_in(guids_only):
+            return  # Subscription has been polled before — leave it alone.
+
+        count = await self._state.mark_backfill_skipped(items)
+        if count > 0:
+            logger.info(
+                "auto-protect: 标记 {} 集为 backfill_skipped（新订阅 '{}'）。"
+                "如需补转，去【转录】页粘单集链接。",
+                count,
+                sub.name,
+            )
+
+    async def _extract_new_episodes(self, sub: Subscription, feed) -> list[Episode]:
+        """Project ``feed`` entries to ``Episode`` and filter out already-processed
+        ones. Split out from ``_check_feed`` so ``check_all`` can reuse a single
+        fetched feed for both auto-protect and extraction (avoids double RSS GET).
+        """
+        episodes = []
+        for entry in feed.entries:
+            episode = self._parse_episode(entry, sub.name, sub.tags)
+            if not episode.audio_url:
+                logger.debug(
+                    "Skipping entry without audio: {} — {}",
+                    sub.name,
+                    getattr(entry, "title", "?"),
+                )
+                continue
+            if not await self._state.is_processed(episode.guid):
+                episodes.append(episode)
+        return episodes
 
     async def _check_feed(self, sub: Subscription) -> list[Episode]:
         """Check a single RSS feed, return unprocessed episodes."""

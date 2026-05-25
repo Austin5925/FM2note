@@ -196,6 +196,50 @@ async def _apply_backfill_strategy(
     (Codex v1.4.15 audit BUG 11).
     """
     if strategy == "all":
+        # v1.5.4 Codex audit FAIL d: with the new daemon auto-protect, leaving
+        # state.db empty here would cause the next poll to mark every episode
+        # as ``backfill_skipped`` (= silently turn the user's "transcribe all"
+        # choice into "skip all"). Write a ``pending`` row per current episode
+        # so:
+        #   * ``has_any_recorded_in`` returns True → auto-protect skips this sub
+        #   * ``is_processed`` returns False on pending → daemon still picks
+        #     them up and transcribes normally on next poll
+        # Fetch the feed once to know what episodes exist; failure raises so
+        # add_sub doesn't commit a yaml entry that would still get auto-marked
+        # by the daemon.
+        import feedparser
+
+        try:
+            feed = await asyncio.to_thread(feedparser.parse, rss_url)
+        except Exception as e:
+            logger.warning(
+                "feedparser raised during all-strategy seed for {}: {}",
+                rss_url,
+                type(e).__name__,
+            )
+            raise HTTPException(
+                status_code=502,
+                detail=(f"无法获取 RSS feed（{type(e).__name__}）；订阅未保存，请稍后重试"),
+            ) from e
+
+        if getattr(feed, "bozo", 0) and not getattr(feed, "entries", None):
+            reason = getattr(feed, "bozo_exception", "unknown parse error")
+            raise HTTPException(
+                status_code=502,
+                detail=f"RSS feed 无法解析（{reason}）；订阅未保存，请检查 URL",
+            )
+
+        episodes = project_feed(feed)
+        if episodes:
+            config = load_config(CONFIG_PATH)
+            state = await get_state_manager(config.db_path)
+            for ep in episodes:
+                await state.mark_status(
+                    ep.guid,
+                    "pending",
+                    podcast_name=podcast_name,
+                    title=ep.title,
+                )
         return 0
 
     import feedparser
@@ -320,10 +364,13 @@ async def preview_sub(payload: dict) -> dict:
         asr_engine = config.asr_engine
     except Exception as e:
         # Don't fail the preview just because state.db / config is unavailable.
-        logger.warning("preview state lookup failed: {}", type(e).__name__)
+        # v1.5.4: full traceback (was just type name) so the next regression
+        # like "TypeError out of nowhere" is debuggable from logs alone.
+        logger.exception("preview state lookup failed: {}", type(e).__name__)
         asr_engine = "funasr"
 
     total_duration_sec = sum(e.duration_sec for e in episodes)
+    missing_duration_count = sum(1 for e in episodes if e.duration_sec == 0)
     estimated_cost_cny = estimate_cost_cny(total_duration_sec, asr_engine)
 
     feed_title = ""
@@ -335,6 +382,10 @@ async def preview_sub(payload: dict) -> dict:
         "episode_count": len(episodes),
         "unprocessed_count": unprocessed,
         "total_duration_sec": total_duration_sec,
+        # v1.5.4: surface count of episodes without itunes:duration so the UI
+        # can warn that the cost estimate is a lower bound (many Xiaoyuzhou
+        # feeds omit duration → those episodes contribute 0 to total_sec).
+        "missing_duration_count": missing_duration_count,
         "estimated_cost_cny": estimated_cost_cny,
         "asr_engine": asr_engine,
         "episodes": [e.to_dict() for e in episodes],

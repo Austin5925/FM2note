@@ -106,6 +106,26 @@ class StateManager:
             raise
         return inserted
 
+    async def has_any_recorded_in(self, guids: list[str]) -> bool:
+        """Return True if at least one of ``guids`` already has a row in
+        ``processed_episodes`` (any status).
+
+        Used by ``RSSChecker._auto_protect_yaml_only_subs`` to decide whether
+        a subscription is "brand new" (no row at all for any of its current
+        feed entries) → if so, mark every current entry as backfill_skipped
+        so the next poll doesn't re-transcribe the whole feed. Matches the
+        v1.4.15 GUI-POST backfill protection for hand-edited yaml additions.
+        """
+        assert self._db is not None
+        if not guids:
+            return False
+        placeholders = ",".join(["?"] * len(guids))
+        cursor = await self._db.execute(
+            f"SELECT 1 FROM processed_episodes WHERE guid IN ({placeholders}) LIMIT 1",
+            guids,
+        )
+        return await cursor.fetchone() is not None
+
     async def mark_status(
         self,
         guid: str,

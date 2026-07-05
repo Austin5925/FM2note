@@ -70,7 +70,8 @@ make run         # python main.py run-once
 make serve       # python main.py serve
 make build       # python -m build (生成 sdist + wheel)
 make macos-app   # python3.11 scripts/build_macos_app.py
-make macos-notarize # python3.11 scripts/build_macos_app.py --notarize
+make macos-dmg   # python3.11 scripts/build_macos_app.py --dmg
+make macos-notarize # python3.11 scripts/build_macos_app.py --notarize --dmg
 make clean       # 清理构建产物
 make install-service   # python main.py install-service
 make uninstall-service # python main.py uninstall-service
@@ -285,6 +286,11 @@ make bump-minor  # 版本号 minor +1
 - **v1.7.1** — macOS 公证 profile 路径修复
   - 修复 `make macos-notarize` 使用 `APPLE_NOTARY_PROFILE` / `--notary-profile` 时，日志脱敏代码引用未定义 `password` 导致 `NameError`，公证提交前崩溃
 
+- **v1.7.2** — macOS DMG 分发包
+  - 新增 `make macos-dmg`，生成带 `/Applications` 快捷方式的拖拽安装 DMG
+  - `make macos-notarize` 改为同时产出已公证并 stapled 的 `dist/FM2note-macos.dmg`
+  - 修复 zip 产物在 app stapler 之前生成的问题：现在 app staple 后会重新生成 `dist/FM2note-macos.zip`
+
 ## Current Version
 
-v1.7.1 — macOS 公证 profile 路径修复
+v1.7.2 — macOS DMG 分发包

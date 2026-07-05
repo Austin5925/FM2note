@@ -133,9 +133,17 @@ python3.11 -m pip install -e ".[app,macos]"
 make macos-app
 ```
 
-This builds `dist/FM2note.app`. If a `Developer ID Application` certificate is
-available in Keychain, the build script signs with hardened runtime. Without a
-Developer ID certificate it falls back to ad-hoc signing for local testing.
+This builds `dist/FM2note.app`. If you want a drag-install disk image for local
+testing, run:
+
+```bash
+make macos-dmg
+```
+
+The distributable artifact is the DMG. If a `Developer ID Application`
+certificate is available in Keychain, the build script signs with hardened
+runtime. Without a Developer ID certificate it falls back to ad-hoc signing for
+local testing.
 
 To notarize a Developer ID signed build, first store credentials once:
 
@@ -143,6 +151,9 @@ To notarize a Developer ID signed build, first store credentials once:
 xcrun notarytool store-credentials fm2note-notary
 APPLE_NOTARY_PROFILE=fm2note-notary make macos-notarize
 ```
+
+This produces `dist/FM2note-macos.dmg` and a backup `dist/FM2note-macos.zip`.
+For normal distribution, share the DMG.
 
 The packaged app stores its runtime config under
 `~/Library/Application Support/FM2note` by default. Set `FM2NOTE_HOME` before

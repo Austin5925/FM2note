@@ -210,7 +210,7 @@ def verify_signature(app_path: Path) -> None:
     run(["spctl", "-a", "-vv", str(app_path)], check=False)
 
 
-def make_notary_zip(app_path: Path) -> Path:
+def make_release_zip(app_path: Path) -> Path:
     archive = app_path.parent / f"{app_path.stem}-macos.zip"
     if archive.exists():
         archive.unlink()
@@ -218,9 +218,37 @@ def make_notary_zip(app_path: Path) -> Path:
     return archive
 
 
-def notarize(app_path: Path, args: argparse.Namespace) -> None:
-    archive = make_notary_zip(app_path)
-    cmd = ["xcrun", "notarytool", "submit", str(archive), "--wait"]
+def make_dmg(app_path: Path, identity: str | None) -> Path:
+    """Create a compressed drag-install DMG from the finalized app bundle."""
+    dmg_path = app_path.parent / f"{app_path.stem}-macos.dmg"
+    staging = ROOT / "build" / "dmg" / app_path.stem
+    shutil.rmtree(staging, ignore_errors=True)
+    staging.mkdir(parents=True)
+    shutil.copytree(app_path, staging / app_path.name, symlinks=True)
+    (staging / "Applications").symlink_to("/Applications")
+    if dmg_path.exists():
+        dmg_path.unlink()
+    run(
+        [
+            "hdiutil",
+            "create",
+            "-volname",
+            app_path.stem,
+            "-srcfolder",
+            str(staging),
+            "-ov",
+            "-format",
+            "UDZO",
+            str(dmg_path),
+        ]
+    )
+    if identity:
+        run(["codesign", "--force", "--timestamp", "--sign", identity, str(dmg_path)])
+    return dmg_path
+
+
+def submit_for_notarization(artifact: Path, args: argparse.Namespace) -> None:
+    cmd = ["xcrun", "notarytool", "submit", str(artifact), "--wait"]
     display_cmd = cmd.copy()
     if args.notary_profile:
         cmd.extend(["--keychain-profile", args.notary_profile])
@@ -237,8 +265,44 @@ def notarize(app_path: Path, args: argparse.Namespace) -> None:
         cmd.extend(["--apple-id", apple_id, "--team-id", team_id, "--password", password])
         display_cmd.extend(["--apple-id", apple_id, "--team-id", team_id, "--password", "********"])
     run(cmd, display_cmd=display_cmd)
+
+
+def staple_and_verify_app(app_path: Path) -> None:
     run(["xcrun", "stapler", "staple", str(app_path)])
+    run(["xcrun", "stapler", "validate", str(app_path)])
     run(["spctl", "-a", "-vv", str(app_path)])
+
+
+def staple_and_verify_dmg(dmg_path: Path) -> None:
+    run(["xcrun", "stapler", "staple", str(dmg_path)])
+    run(["xcrun", "stapler", "validate", str(dmg_path)])
+    run(
+        [
+            "spctl",
+            "-a",
+            "-vv",
+            "-t",
+            "open",
+            "--context",
+            "context:primary-signature",
+            str(dmg_path),
+        ]
+    )
+
+
+def notarize(app_path: Path, args: argparse.Namespace, identity: str | None) -> tuple[Path, Path | None]:
+    """Notarize and staple the app, then build finalized release archives."""
+    archive = make_release_zip(app_path)
+    submit_for_notarization(archive, args)
+    staple_and_verify_app(app_path)
+    archive = make_release_zip(app_path)
+
+    dmg_path = None
+    if args.dmg:
+        dmg_path = make_dmg(app_path, identity)
+        submit_for_notarization(dmg_path, args)
+        staple_and_verify_dmg(dmg_path)
+    return archive, dmg_path
 
 
 def resolve_identity(requested: str | None) -> str | None:
@@ -257,6 +321,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     )
     parser.add_argument("--no-sign", action="store_true", help="Leave the app unsigned")
     parser.add_argument("--notarize", action="store_true", help="Submit signed app to Apple notary")
+    parser.add_argument("--dmg", action="store_true", help="Build a compressed drag-install DMG")
     parser.add_argument("--notary-profile", default=os.environ.get("APPLE_NOTARY_PROFILE", ""))
     parser.add_argument("--apple-id", default="")
     parser.add_argument("--team-id", default="")
@@ -274,14 +339,22 @@ def main(argv: list[str] | None = None) -> None:
     identity = None if args.no_sign else resolve_identity(args.sign_identity)
     signing_mode = sign_app(app_path, identity, no_sign=args.no_sign)
     verify_signature(app_path)
+    archive_path = None
+    dmg_path = None
 
     if args.notarize:
         if signing_mode != "developer-id":
             raise SystemExit("Notarization requires a Developer ID Application signature.")
-        notarize(app_path, args)
+        archive_path, dmg_path = notarize(app_path, args, identity)
+    elif args.dmg:
+        dmg_path = make_dmg(app_path, identity if signing_mode == "developer-id" else None)
 
     print()
     print(f"Built: {app_path}")
+    if archive_path:
+        print(f"ZIP: {archive_path}")
+    if dmg_path:
+        print(f"DMG: {dmg_path}")
     print(f"Signing: {signing_mode}")
     if signing_mode != "developer-id":
         print("Developer ID identity not found; install your certificate before notarizing.")

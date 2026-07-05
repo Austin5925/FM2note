@@ -129,9 +129,14 @@ python3.11 -m pip install -e ".[app,macos]"
 make macos-app
 ```
 
-产物是 `dist/FM2note.app`。如果 Keychain 里已经有 `Developer ID Application`
-证书，脚本会使用 hardened runtime 签名；如果没有证书，会退回 ad-hoc 签名，
-用于本机测试。
+产物是 `dist/FM2note.app`。如果要生成本机测试用的拖拽安装镜像：
+
+```bash
+make macos-dmg
+```
+
+正式分发推荐用 DMG。如果 Keychain 里已经有 `Developer ID Application` 证书，
+脚本会使用 hardened runtime 签名；如果没有证书，会退回 ad-hoc 签名，用于本机测试。
 
 要公证 Developer ID 签名产物，先存一次 notary 凭据：
 
@@ -139,6 +144,9 @@ make macos-app
 xcrun notarytool store-credentials fm2note-notary
 APPLE_NOTARY_PROFILE=fm2note-notary make macos-notarize
 ```
+
+这会产出 `dist/FM2note-macos.dmg`，同时保留备用 `dist/FM2note-macos.zip`。
+正常发给别人时，优先发 DMG。
 
 打包后的桌面 App 默认把配置和数据放在
 `~/Library/Application Support/FM2note`。如果要复用已有配置目录，启动前设置

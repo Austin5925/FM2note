@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.7.2] - 2026-07-05
+
+### Added
+- `make macos-dmg` builds a compressed drag-install DMG with an `/Applications` shortcut.
+- `make macos-notarize` now produces a notarized and stapled `dist/FM2note-macos.dmg` for distribution.
+
+### Fixed
+- The release zip is rebuilt after stapling the app, so `dist/FM2note-macos.zip` no longer contains the pre-staple bundle submitted to Apple.
+
 ## [1.7.1] - 2026-07-05
 
 ### Fixed

@@ -1,6 +1,7 @@
 import importlib.util
 import plistlib
 from pathlib import Path
+from types import SimpleNamespace
 
 
 def _load_build_script():
@@ -70,3 +71,50 @@ def test_run_logs_display_command_without_changing_real_command(monkeypatch, cap
             True,
         )
     ]
+
+
+def test_notarize_with_keychain_profile_does_not_need_password(tmp_path, monkeypatch):
+    module = _load_build_script()
+    app = tmp_path / "FM2note.app"
+    archive = tmp_path / "FM2note-macos.zip"
+    calls = []
+
+    monkeypatch.setattr(module, "make_notary_zip", lambda app_path: archive)
+    monkeypatch.setattr(
+        module,
+        "run",
+        lambda cmd, **kwargs: calls.append((cmd, kwargs)),
+    )
+
+    module.notarize(
+        app,
+        SimpleNamespace(
+            notary_profile="fm2note-notary",
+            apple_id="",
+            team_id="",
+            password="",
+        ),
+    )
+
+    assert calls[0] == (
+        [
+            "xcrun",
+            "notarytool",
+            "submit",
+            str(archive),
+            "--wait",
+            "--keychain-profile",
+            "fm2note-notary",
+        ],
+        {
+            "display_cmd": [
+                "xcrun",
+                "notarytool",
+                "submit",
+                str(archive),
+                "--wait",
+                "--keychain-profile",
+                "fm2note-notary",
+            ]
+        },
+    )

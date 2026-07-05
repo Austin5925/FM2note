@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.7.1] - 2026-07-05
+
+### Fixed
+- `make macos-notarize` no longer crashes with `NameError` when notarization uses `APPLE_NOTARY_PROFILE` / `--notary-profile`.
+
 ## [1.7.0] - 2026-07-05
 
 ### Added

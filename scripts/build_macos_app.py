@@ -221,8 +221,10 @@ def make_notary_zip(app_path: Path) -> Path:
 def notarize(app_path: Path, args: argparse.Namespace) -> None:
     archive = make_notary_zip(app_path)
     cmd = ["xcrun", "notarytool", "submit", str(archive), "--wait"]
+    display_cmd = cmd.copy()
     if args.notary_profile:
         cmd.extend(["--keychain-profile", args.notary_profile])
+        display_cmd.extend(["--keychain-profile", args.notary_profile])
     else:
         apple_id = args.apple_id or os.environ.get("APPLE_ID", "")
         team_id = args.team_id or os.environ.get("APPLE_TEAM_ID", "")
@@ -233,7 +235,7 @@ def notarize(app_path: Path, args: argparse.Namespace) -> None:
                 "and APPLE_APP_SPECIFIC_PASSWORD."
             )
         cmd.extend(["--apple-id", apple_id, "--team-id", team_id, "--password", password])
-    display_cmd = [part if part != password else "********" for part in cmd]
+        display_cmd.extend(["--apple-id", apple_id, "--team-id", team_id, "--password", "********"])
     run(cmd, display_cmd=display_cmd)
     run(["xcrun", "stapler", "staple", str(app_path)])
     run(["spctl", "-a", "-vv", str(app_path)])

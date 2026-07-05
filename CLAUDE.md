@@ -282,6 +282,9 @@ make bump-minor  # 版本号 minor +1
   - `pyproject.toml` 增加 `macos` optional extra；`Makefile` 增加 `macos-app` / `macos-notarize`
   - README / README.zh-CN 增加桌面包构建、Developer ID 签名、公证说明
 
+- **v1.7.1** — macOS 公证 profile 路径修复
+  - 修复 `make macos-notarize` 使用 `APPLE_NOTARY_PROFILE` / `--notary-profile` 时，日志脱敏代码引用未定义 `password` 导致 `NameError`，公证提交前崩溃
+
 ## Current Version
 
-v1.7.0 — macOS 桌面 App 打包 / 签名 / 公证流程
+v1.7.1 — macOS 公证 profile 路径修复

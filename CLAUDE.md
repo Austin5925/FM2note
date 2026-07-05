@@ -69,6 +69,8 @@ make test-integ  # pytest tests/ -v -m integration
 make run         # python main.py run-once
 make serve       # python main.py serve
 make build       # python -m build (生成 sdist + wheel)
+make macos-app   # python3.11 scripts/build_macos_app.py
+make macos-notarize # python3.11 scripts/build_macos_app.py --notarize
 make clean       # 清理构建产物
 make install-service   # python main.py install-service
 make uninstall-service # python main.py uninstall-service
@@ -274,6 +276,12 @@ make bump-minor  # 版本号 minor +1
   - 部署：server 重 build 推 macroclaw；23 集 v1.5.4 老数据用 v1.6 client backfill 了 podcast_name + title（last-write-wins）
   - 458 测试（+9 新增：未配置 cache 行为 / 空 guids / >100 限额 / 按节目分组写入 / 不覆盖默认 / 文件名 sanitize / cache miss 报告）
 
+- **v1.7.0** — macOS 桌面 App 打包 / 签名 / 公证流程
+  - 新增 `src/macos_launcher.py`：Finder 启动 `.app` 时把运行目录固定到 `~/Library/Application Support/FM2note`，首次启动自动生成 `config/` + `.env` 骨架；`FM2NOTE_HOME` 可覆盖
+  - 新增 `scripts/build_macos_app.py`：PyInstaller 生成 `dist/FM2note.app`，自动使用 Keychain 中的 `Developer ID Application` 证书签名；无证书时 ad-hoc 签名用于本机测试；支持 `--notarize`
+  - `pyproject.toml` 增加 `macos` optional extra；`Makefile` 增加 `macos-app` / `macos-notarize`
+  - README / README.zh-CN 增加桌面包构建、Developer ID 签名、公证说明
+
 ## Current Version
 
-v1.6.0 — GUI 云端浏览页 + 选择性下载
+v1.7.0 — macOS 桌面 App 打包 / 签名 / 公证流程

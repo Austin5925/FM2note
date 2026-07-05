@@ -1,4 +1,4 @@
-.PHONY: lint format test test-cov test-integ run serve build clean install-service uninstall-service
+.PHONY: lint format test test-cov test-integ run serve build macos-app macos-notarize clean install-service uninstall-service
 
 lint:
 	ruff check src/ tests/
@@ -25,6 +25,12 @@ serve:
 
 build:
 	python -m build
+
+macos-app:
+	python3.11 scripts/build_macos_app.py
+
+macos-notarize:
+	python3.11 scripts/build_macos_app.py --notarize
 
 clean:
 	rm -rf dist/ build/ *.egg-info/

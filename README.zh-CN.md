@@ -120,6 +120,30 @@ fm2note app          # 桌面窗口（需要 pip install 'fm2note[app]'）
 fm2note install-shortcut   # 桌面生成双击启动图标
 ```
 
+### 签名 macOS 桌面 App
+
+如果要做成 Mac App Store 之外直接分发的 `.app`，先安装桌面和打包依赖：
+
+```bash
+python3.11 -m pip install -e ".[app,macos]"
+make macos-app
+```
+
+产物是 `dist/FM2note.app`。如果 Keychain 里已经有 `Developer ID Application`
+证书，脚本会使用 hardened runtime 签名；如果没有证书，会退回 ad-hoc 签名，
+用于本机测试。
+
+要公证 Developer ID 签名产物，先存一次 notary 凭据：
+
+```bash
+xcrun notarytool store-credentials fm2note-notary
+APPLE_NOTARY_PROFILE=fm2note-notary make macos-notarize
+```
+
+打包后的桌面 App 默认把配置和数据放在
+`~/Library/Application Support/FM2note`。如果要复用已有配置目录，启动前设置
+`FM2NOTE_HOME`。
+
 界面四个页面：
 
 - **转录** — 贴播客 URL → 5 阶段实时进度（解析 / 字幕 / ASR / 摘要 / 写入）→ 一键 `obsidian://` 跳转

@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.7.0] - 2026-07-05
+
+### Added
+- macOS desktop packaging workflow: PyInstaller-based `FM2note.app` build entry, Finder-safe launcher, Makefile targets, and Developer ID signing/notarization script.
+- `fm2note[macos]` optional dependency group for packaging tooling.
+
+### Changed
+- Packaged desktop app runtime state is anchored under `~/Library/Application Support/FM2note` by default, with `FM2NOTE_HOME` as an override for support/development reuse.
+
 ## [1.6.4] - 2026-05-25
 
 ### Fixed

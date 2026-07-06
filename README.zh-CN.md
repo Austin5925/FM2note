@@ -175,9 +175,8 @@ FM2NOTE_ALLOW_VISIBLE_PROFILE=1 APPLE_NOTARY_PROFILE=fm2note-notary make macos-n
 `~/Library/Application Support/FM2note`。如果要复用已有配置目录，启动前设置
 `FM2NOTE_HOME`。
 
-桌面 App 和后台服务是两件事：打开 App 会启动当前窗口所需的本地 GUI 服务；launchd
-后台服务只负责关掉窗口后继续定时检查订阅。设置页里会把它标成“后台自动检查”，避免和
-当前正在运行的 App 窗口混淆。
+打包后的桌面 App 打开时会默认同时启动 launchd 后台自动检查服务，所以关掉窗口后仍会
+继续定时检查订阅。设置页可以关闭后台、重新开启后台，或恢复“已安装但未运行”的服务。
 
 界面四个页面：
 

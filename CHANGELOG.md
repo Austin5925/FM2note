@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.8.3] - 2026-07-06
+
+### Changed
+- Opening the packaged macOS desktop app now also ensures the launchd background auto-check daemon is installed and running, unless the user explicitly turned it off in Settings.
+- Settings now treats the daemon as an immediate background process control: "开启后台" starts/installs it, "启动后台" recovers an installed-but-stopped service, and "关闭后台" unloads it and records the user's disabled preference.
+
+### Fixed
+- Reinstalling the macOS launchd service now unloads any stale plist first, so older source-checkout or broken packaged entries are repaired instead of leaving the daemon pointed at the wrong command.
+- Source-checkout launchd plists now use an absolute `main.py` path instead of a CWD-relative `main.py`.
+
 ## [1.8.2] - 2026-07-06
 
 ### Fixed

@@ -76,12 +76,12 @@ class TestServiceStatus:
     def test_status_no_plist(self, client, monkeypatch):
         # macOS path but no plist file
         monkeypatch.setattr("platform.system", lambda: "Darwin")
-        from src.web.routes import service as svc_mod
+        from src import macos_service as mac_svc
 
         # Point plist to a non-existent location
         nonexistent = "/tmp/__fm2note-no-such-plist__.plist"
         monkeypatch.setattr(
-            svc_mod, "_macos_plist_path", lambda: __import__("pathlib").Path(nonexistent)
+            mac_svc, "launchd_plist_path", lambda: __import__("pathlib").Path(nonexistent)
         )
         r = client.get("/api/service/status")
         assert r.status_code == 200
@@ -89,19 +89,20 @@ class TestServiceStatus:
         assert body["platform"] == "darwin"
         assert body["installed"] is False
         assert body["running"] is False
+        assert body["auto_start_disabled"] is False
 
     def test_status_installed_but_not_running(self, client, monkeypatch, tmp_path):
         plist = tmp_path / "fake.plist"
         plist.write_text("<?xml?>", encoding="utf-8")
-        from src.web.routes import service as svc_mod
+        from src import macos_service as mac_svc
 
         monkeypatch.setattr("platform.system", lambda: "Darwin")
-        monkeypatch.setattr(svc_mod, "_macos_plist_path", lambda: plist)
+        monkeypatch.setattr(mac_svc, "launchd_plist_path", lambda: plist)
         # launchctl list returns nonzero → not running
         from subprocess import CompletedProcess
 
         monkeypatch.setattr(
-            svc_mod.subprocess,
+            mac_svc.subprocess,
             "run",
             lambda *a, **kw: CompletedProcess(args=a[0], returncode=1, stdout="", stderr=""),
         )
@@ -113,15 +114,15 @@ class TestServiceStatus:
     def test_status_running_with_pid(self, client, monkeypatch, tmp_path):
         plist = tmp_path / "fake.plist"
         plist.write_text("<?xml?>", encoding="utf-8")
-        from src.web.routes import service as svc_mod
+        from src import macos_service as mac_svc
 
         monkeypatch.setattr("platform.system", lambda: "Darwin")
-        monkeypatch.setattr(svc_mod, "_macos_plist_path", lambda: plist)
+        monkeypatch.setattr(mac_svc, "launchd_plist_path", lambda: plist)
         stdout = '{\n\t"PID" = 12345;\n\t"Label" = "com.fm2note.serve";\n}'
         from subprocess import CompletedProcess
 
         monkeypatch.setattr(
-            svc_mod.subprocess,
+            mac_svc.subprocess,
             "run",
             lambda *a, **kw: CompletedProcess(args=a[0], returncode=0, stdout=stdout, stderr=""),
         )
@@ -145,6 +146,18 @@ class TestServiceStatus:
         r = client.get("/api/service/status")
         body = r.json()
         assert body["desktop_app"] is True
+
+    def test_status_reports_user_disabled_background(self, client, monkeypatch, tmp_path):
+        monkeypatch.setattr("platform.system", lambda: "Darwin")
+        from src import macos_service as mac_svc
+
+        monkeypatch.setattr(mac_svc, "launchd_plist_path", lambda: tmp_path / "missing.plist")
+        (tmp_path / mac_svc.BACKGROUND_DISABLED_MARKER).write_text("disabled\n")
+
+        r = client.get("/api/service/status")
+        body = r.json()
+        assert body["installed"] is False
+        assert body["auto_start_disabled"] is True
 
 
 class TestServiceInstallToggle:
@@ -192,6 +205,18 @@ class TestServiceInstallToggle:
         assert r.status_code == 200
         assert r.json()["ok"] is True
 
+    def test_start_macos_success(self, client, monkeypatch):
+        from unittest.mock import patch
+
+        monkeypatch.setattr("platform.system", lambda: "Darwin")
+        with patch(
+            "src.web.routes.service._run_start_service",
+            return_value={"ok": True, "output": "started"},
+        ):
+            r = client.post("/api/service/start")
+        assert r.status_code == 200
+        assert r.json()["ok"] is True
+
     def test_frozen_desktop_cli_command_uses_current_executable(self, monkeypatch):
         from src.web.routes import service as svc_mod
 
@@ -202,6 +227,11 @@ class TestServiceInstallToggle:
         assert svc_mod._fm2note_cli_cmd("run-once") == [
             "/App/FM2note.app/Contents/MacOS/FM2note",
             "run-once",
+        ]
+
+        assert svc_mod._fm2note_cli_cmd("start-service") == [
+            "/App/FM2note.app/Contents/MacOS/FM2note",
+            "start-service",
         ]
 
     def test_source_checkout_cli_command_prefers_console_script(self, monkeypatch):

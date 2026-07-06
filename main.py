@@ -11,6 +11,11 @@ import click
 from loguru import logger
 
 from src.config import DEFAULT_VAULT_PATH
+from src.macos_service import (
+    SERVICE_LABEL,
+    launchd_plist_path,
+    set_background_auto_start_disabled,
+)
 from src.version import VERSION
 
 # --- launchd plist template (macOS) ---
@@ -21,7 +26,7 @@ LAUNCHD_PLIST_TEMPLATE = """\
 <plist version="1.0">
 <dict>
     <key>Label</key>
-    <string>com.fm2note.serve</string>
+    <string>{service_label}</string>
 
     <key>ProgramArguments</key>
     <array>
@@ -473,7 +478,7 @@ def init(interactive: bool):
     click.echo("     fm2note web           # GUI in a browser tab")
     click.echo("  2. Fill in API keys + Obsidian path in the 设置 page")
     click.echo("  3. Add subscriptions in the 订阅 page (强烈推荐用 GUI 而非编辑 yaml)")
-    click.echo("  4. Use the 'open at login' toggle in 设置 to start daemon at boot")
+    click.echo("  4. Use the background toggle in 设置 to start daemon auto-check")
 
 
 @cli.command("install-service")
@@ -502,6 +507,7 @@ def install_service():
 
     if system == "Darwin":
         _install_launchd(python_path, workdir, log_dir)
+        set_background_auto_start_disabled(False)
     elif system == "Linux":
         _install_systemd(python_path, workdir)
     else:
@@ -513,15 +519,23 @@ def _install_launchd(python_path: str, workdir: str, log_dir: str):
     """Install macOS launchd service."""
     path_env = os.environ.get("PATH", "/usr/local/bin:/usr/bin:/bin")
     plist_content = LAUNCHD_PLIST_TEMPLATE.format(
+        service_label=SERVICE_LABEL,
         program_args_xml=_launchd_program_args_xml(_launchd_program_args(python_path)),
         workdir=workdir,
         log_dir=log_dir,
         path_env=path_env,
     )
 
-    plist_dir = Path.home() / "Library" / "LaunchAgents"
+    plist_dir = launchd_plist_path().parent
     plist_dir.mkdir(parents=True, exist_ok=True)
-    plist_path = plist_dir / "com.fm2note.serve.plist"
+    plist_path = launchd_plist_path()
+
+    # Reinstall is intentionally idempotent: the packaged app calls this on
+    # launch to repair stale plists from older builds or source-checkout tests.
+    if plist_path.exists():
+        import subprocess
+
+        subprocess.run(["launchctl", "unload", str(plist_path)], check=False)
 
     # API keys are NOT embedded in the plist — they stay in .env
     # The CLI auto-loads .env at startup via _load_dotenv()
@@ -539,11 +553,42 @@ def _launchd_program_args(python_path: str) -> list[str]:
     """Return launchd ProgramArguments for source and frozen desktop installs."""
     if getattr(sys, "frozen", False):
         return [python_path, "serve"]
-    return [python_path, "main.py", "serve"]
+    return [python_path, str(Path(__file__).resolve()), "serve"]
 
 
 def _launchd_program_args_xml(args: list[str]) -> str:
     return "\n".join(f"        <string>{html.escape(arg)}</string>" for arg in args)
+
+
+@cli.command("start-service")
+def start_service():
+    """Start the installed background service, installing it if missing."""
+    system = platform.system()
+    if system != "Darwin":
+        click.echo("start-service is only supported on macOS.", err=True)
+        sys.exit(1)
+
+    plist_path = launchd_plist_path()
+    if not plist_path.exists():
+        log_dir = str(Path.home() / "Library" / "Logs" / "fm2note")
+        Path(log_dir).mkdir(parents=True, exist_ok=True)
+        _install_launchd(sys.executable, str(Path.cwd()), log_dir)
+        set_background_auto_start_disabled(False)
+        return
+
+    import subprocess
+
+    result = subprocess.run(["launchctl", "load", str(plist_path)], check=False)
+    if result.returncode != 0:
+        result = subprocess.run(
+            ["launchctl", "kickstart", "-k", f"gui/{os.getuid()}/{SERVICE_LABEL}"],
+            check=False,
+        )
+    if result.returncode != 0:
+        click.echo("  Failed to start service via launchctl.", err=True)
+        sys.exit(result.returncode)
+    set_background_auto_start_disabled(False)
+    click.echo("  Service started.")
 
 
 def _install_systemd(python_path: str, workdir: str):
@@ -574,7 +619,7 @@ def uninstall_service():
     system = platform.system()
 
     if system == "Darwin":
-        plist_path = Path.home() / "Library" / "LaunchAgents" / "com.fm2note.serve.plist"
+        plist_path = launchd_plist_path()
         if plist_path.exists():
             import subprocess
 
@@ -583,6 +628,7 @@ def uninstall_service():
             click.echo("  Service uninstalled.")
         else:
             click.echo("  Service not found (already uninstalled?).")
+        set_background_auto_start_disabled(True)
     elif system == "Linux":
         unit_path = Path.home() / ".config" / "systemd" / "user" / "fm2note.service"
         if unit_path.exists():

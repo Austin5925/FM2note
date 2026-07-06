@@ -134,14 +134,18 @@ class TestStaticFiles:
         r = client.get("/static/settings.js")
         assert r.status_code == 200
         assert "后台自动检查" in r.text
-        assert "当前桌面窗口已经在运行" in r.text
+        assert "开启后台" in r.text
+        assert "关闭后台" in r.text
+        assert "启动后台" in r.text
 
     def test_settings_js_background_buttons_do_not_submit_or_open_new_windows(self, client):
         r = client.get("/static/settings.js")
         assert r.status_code == 200
         assert 'id="svc-install-btn"\n                    type="button"' in r.text
+        assert 'id="svc-start-btn"\n                      type="button"' in r.text
         assert 'id="svc-uninstall-btn"\n                    type="button"' in r.text
         assert "toggleService('install', btn, event)" in r.text
+        assert "toggleService('start', startBtn, event)" in r.text
         assert "toggleService('uninstall', offBtn, event)" in r.text
         assert "if (event) event.preventDefault();" in r.text
         assert "pollBtn.addEventListener('click', async (event)" in r.text

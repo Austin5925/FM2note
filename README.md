@@ -183,10 +183,10 @@ The packaged app stores its runtime config under
 `~/Library/Application Support/FM2note` by default. Set `FM2NOTE_HOME` before
 launching if you want it to reuse another config directory.
 
-The desktop app and the background service are separate. Opening the app starts
-the local GUI server for the current window. The launchd background service is
-only for scheduled feed polling when the window is closed; Settings calls it
-"background auto-check" to keep that distinction visible.
+Opening the packaged desktop app also starts the launchd background auto-check
+daemon by default, so scheduled feed polling keeps working after the window is
+closed. Settings can turn the background daemon off, start it again, or recover
+an installed-but-stopped service.
 
 The UI ships four pages:
 

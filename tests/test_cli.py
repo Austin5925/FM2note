@@ -116,6 +116,22 @@ class TestInstallService:
             assert result.exit_code == 0
             mock_launchd.assert_called_once()
 
+    def test_install_service_clears_disabled_marker(self, tmp_path, monkeypatch):
+        monkeypatch.chdir(tmp_path)
+        from src.macos_service import BACKGROUND_DISABLED_MARKER
+
+        (tmp_path / BACKGROUND_DISABLED_MARKER).write_text("disabled\n")
+
+        with (
+            patch("platform.system", return_value="Darwin"),
+            patch("main._install_launchd"),
+        ):
+            runner = CliRunner()
+            result = runner.invoke(cli, ["install-service"])
+
+        assert result.exit_code == 0
+        assert not (tmp_path / BACKGROUND_DISABLED_MARKER).exists()
+
     def test_install_service_linux(self, tmp_path, monkeypatch):
         monkeypatch.chdir(tmp_path)
         (tmp_path / "logs").mkdir()
@@ -164,7 +180,11 @@ class TestInstallService:
         assert str(tmp_path) in content
         assert "com.fm2note.serve" in content
         assert "RunAtLoad" in content
-        assert data["ProgramArguments"] == ["/usr/bin/python3", "main.py", "serve"]
+        assert data["ProgramArguments"] == [
+            "/usr/bin/python3",
+            str(Path(__file__).resolve().parents[1] / "main.py"),
+            "serve",
+        ]
         # API keys must NOT be embedded in plist
         assert "DASHSCOPE_API_KEY" not in content
         assert "POE_API_KEY" not in content
@@ -195,6 +215,27 @@ class TestInstallService:
         ]
         assert "main.py" not in plist_path.read_text()
 
+    def test_launchd_reinstall_unloads_existing_plist(self, tmp_path, monkeypatch):
+        monkeypatch.chdir(tmp_path)
+        monkeypatch.setattr(Path, "home", lambda: tmp_path)
+        plist_dir = tmp_path / "Library" / "LaunchAgents"
+        plist_dir.mkdir(parents=True)
+        plist_path = plist_dir / "com.fm2note.serve.plist"
+        plist_path.write_text("old plist\n")
+        calls: list[list[str]] = []
+
+        import main
+
+        with patch("subprocess.run", side_effect=lambda cmd, **kwargs: calls.append(cmd)):
+            main._install_launchd(
+                python_path="/usr/bin/python3",
+                workdir=str(tmp_path),
+                log_dir=str(tmp_path / "logs"),
+            )
+
+        assert calls[0] == ["launchctl", "unload", str(plist_path)]
+        assert calls[1] == ["launchctl", "load", str(plist_path)]
+
     def test_systemd_unit_generation(self, tmp_path, monkeypatch):
         """Test that systemd unit file is generated with correct dynamic paths."""
         monkeypatch.setattr(Path, "home", lambda: tmp_path)
@@ -218,11 +259,15 @@ class TestInstallService:
 class TestUninstallService:
     def test_uninstall_macos_not_found(self, tmp_path, monkeypatch):
         monkeypatch.setattr(Path, "home", lambda: tmp_path)
+        monkeypatch.chdir(tmp_path)
+        from src.macos_service import BACKGROUND_DISABLED_MARKER
+
         with patch("platform.system", return_value="Darwin"):
             runner = CliRunner()
             result = runner.invoke(cli, ["uninstall-service"])
             assert result.exit_code == 0
             assert "not found" in result.output
+        assert (tmp_path / BACKGROUND_DISABLED_MARKER).exists()
 
     def test_uninstall_linux_not_found(self, tmp_path, monkeypatch):
         monkeypatch.setattr(Path, "home", lambda: tmp_path)
@@ -231,6 +276,53 @@ class TestUninstallService:
             result = runner.invoke(cli, ["uninstall-service"])
             assert result.exit_code == 0
             assert "not found" in result.output
+
+
+class TestStartService:
+    def test_start_service_installs_when_missing(self, tmp_path, monkeypatch):
+        monkeypatch.chdir(tmp_path)
+        monkeypatch.setattr(Path, "home", lambda: tmp_path)
+        from src.macos_service import BACKGROUND_DISABLED_MARKER
+
+        (tmp_path / BACKGROUND_DISABLED_MARKER).write_text("disabled\n")
+
+        with (
+            patch("platform.system", return_value="Darwin"),
+            patch("main._install_launchd") as mock_launchd,
+        ):
+            runner = CliRunner()
+            result = runner.invoke(cli, ["start-service"])
+
+        assert result.exit_code == 0, result.output
+        mock_launchd.assert_called_once()
+        assert not (tmp_path / BACKGROUND_DISABLED_MARKER).exists()
+
+    def test_start_service_loads_existing_plist(self, tmp_path, monkeypatch):
+        monkeypatch.chdir(tmp_path)
+        monkeypatch.setattr(Path, "home", lambda: tmp_path)
+        plist_dir = tmp_path / "Library" / "LaunchAgents"
+        plist_dir.mkdir(parents=True)
+        plist_path = plist_dir / "com.fm2note.serve.plist"
+        plist_path.write_text("plist\n")
+        calls: list[list[str]] = []
+
+        def fake_run(cmd, **kwargs):
+            calls.append(cmd)
+
+            class Result:
+                returncode = 0
+
+            return Result()
+
+        with (
+            patch("platform.system", return_value="Darwin"),
+            patch("subprocess.run", side_effect=fake_run),
+        ):
+            runner = CliRunner()
+            result = runner.invoke(cli, ["start-service"])
+
+        assert result.exit_code == 0, result.output
+        assert calls == [["launchctl", "load", str(plist_path)]]
 
 
 class TestLoadDotenv:

@@ -184,21 +184,24 @@
         return;
       }
       const desktopHint = data.desktop_app
-        ? '当前桌面窗口已经在运行；后台自动检查只负责关掉窗口后的定时抓取。'
-        : '开启后 FM2note 会在 macOS 开机时自动启动，定时抓取新剧集。';
+        ? '当前桌面窗口已经在运行；开启后台后，关掉窗口也会继续定时抓取。'
+        : '开启后 FM2note 会立即启动后台进程，并在 macOS 登录后自动检查新剧集。';
       if (!data.installed) {
+        const offCopy = data.auto_start_disabled
+          ? '后台已手动关闭；再次开启后会立即启动，并恢复随 App/登录自动检查。'
+          : desktopHint;
         el.innerHTML = `
           <div class="flex items-center justify-between gap-3">
             <div>
-              <div class="text-stone-600">未开启后台自动检查</div>
+              <div class="text-stone-600">后台自动检查未开启</div>
               <div class="text-xs text-stone-400 mt-1">
-                ${escapeHtml(desktopHint)}
+                ${escapeHtml(offCopy)}
               </div>
             </div>
             <button id="svc-install-btn"
                     type="button"
                     class="px-3 py-1.5 rounded-md bg-stone-900 text-white text-xs hover:bg-stone-700 whitespace-nowrap">
-              开机自启
+              开启后台
             </button>
           </div>
         `;
@@ -218,13 +221,13 @@
             <button id="svc-uninstall-btn"
                     type="button"
                     class="px-3 py-1.5 rounded-md border border-stone-300 text-xs hover:bg-stone-50 whitespace-nowrap">
-              关闭自启
+              关闭后台
             </button>
           </div>
         `;
       } else {
         const stoppedHint = data.desktop_app
-          ? '桌面 App 不受影响；后台自动检查会在下次登录时尝试启动，也可以关闭后重新开启。'
+          ? '桌面 App 不受影响；可以直接启动后台，或关闭后台自动检查。'
           : `终端运行 launchctl load ${data.plist_path || ''} 启动`;
         el.innerHTML = `
           <div class="flex items-center justify-between gap-3">
@@ -235,14 +238,23 @@
                 ${escapeHtml(stoppedHint)}
               </div>
             </div>
-            <button id="svc-uninstall-btn"
-                    type="button"
-                    class="px-3 py-1.5 rounded-md border border-stone-300 text-xs hover:bg-stone-50 whitespace-nowrap">
-              关闭自启
-            </button>
+            <div class="flex items-center gap-2 shrink-0">
+              <button id="svc-start-btn"
+                      type="button"
+                      class="px-3 py-1.5 rounded-md bg-stone-900 text-white text-xs hover:bg-stone-700 whitespace-nowrap">
+                启动后台
+              </button>
+              <button id="svc-uninstall-btn"
+                      type="button"
+                      class="px-3 py-1.5 rounded-md border border-stone-300 text-xs hover:bg-stone-50 whitespace-nowrap">
+                关闭后台
+              </button>
+            </div>
           </div>
         `;
       }
+      const startBtn = document.getElementById('svc-start-btn');
+      if (startBtn) startBtn.addEventListener('click', (event) => toggleService('start', startBtn, event));
       const offBtn = document.getElementById('svc-uninstall-btn');
       if (offBtn) offBtn.addEventListener('click', (event) => toggleService('uninstall', offBtn, event));
     } catch (e) {
@@ -253,8 +265,9 @@
   async function toggleService(action, btn, event) {
     if (event) event.preventDefault();
     const verb = action === 'install' ? '安装中…' : '卸载中…';
+    const pending = action === 'start' ? '启动中…' : verb;
     btn.disabled = true;
-    btn.textContent = verb;
+    btn.textContent = pending;
     try {
       const resp = await fetch(`/api/service/${action}`, { method: 'POST' });
       if (!resp.ok) {

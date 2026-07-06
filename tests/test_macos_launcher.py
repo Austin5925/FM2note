@@ -1,6 +1,8 @@
 from pathlib import Path
+from subprocess import CompletedProcess
 
 from src import macos_launcher
+from src.macos_service import BACKGROUND_DISABLED_MARKER
 
 
 def test_prepare_home_sets_runtime_home(tmp_path, monkeypatch):
@@ -64,6 +66,82 @@ def test_main_routes_subcommands_without_opening_desktop_window(tmp_path, monkey
 
     assert desktop_modes == [False]
     assert cli_calls == [["run-once"]]
+
+
+def test_main_starts_background_service_for_desktop_launch(tmp_path, monkeypatch):
+    desktop_modes: list[bool] = []
+    ensured: list[Path] = []
+    cli_calls: list[list[str]] = []
+
+    def fake_prepare_home(home=None, *, desktop_app=True):
+        desktop_modes.append(desktop_app)
+        return tmp_path
+
+    def fake_cli_main(*, args, prog_name, standalone_mode):
+        cli_calls.append(args)
+
+    import main
+
+    monkeypatch.setattr(macos_launcher.sys, "argv", ["FM2note"])
+    monkeypatch.setattr(macos_launcher, "prepare_home", fake_prepare_home)
+    monkeypatch.setattr(macos_launcher, "apply_bundled_profile", lambda home: [])
+    monkeypatch.setattr(macos_launcher, "ensure_initialized", lambda home: None)
+    monkeypatch.setattr(
+        macos_launcher, "ensure_background_service", lambda home: ensured.append(home)
+    )
+    monkeypatch.setattr(main.cli, "main", fake_cli_main)
+
+    macos_launcher.main()
+
+    assert desktop_modes == [True]
+    assert ensured == [tmp_path]
+    assert cli_calls == [["app"]]
+
+
+def test_ensure_background_service_skips_when_user_disabled(tmp_path, monkeypatch):
+    (tmp_path / BACKGROUND_DISABLED_MARKER).write_text("disabled\n")
+    monkeypatch.setattr(macos_launcher.platform, "system", lambda: "Darwin")
+
+    result = macos_launcher.ensure_background_service(tmp_path)
+
+    assert result == {"ok": True, "skipped": "disabled-by-user"}
+
+
+def test_ensure_background_service_skips_when_current_service_running(tmp_path, monkeypatch):
+    monkeypatch.setattr(macos_launcher.platform, "system", lambda: "Darwin")
+    monkeypatch.setattr(
+        macos_launcher,
+        "macos_status",
+        lambda: {"running": True, "installed": True},
+    )
+    monkeypatch.setattr(
+        macos_launcher, "background_service_args", lambda: ["/App/FM2note", "serve"]
+    )
+    monkeypatch.setattr(macos_launcher, "launchd_plist_matches", lambda args, home: True)
+
+    result = macos_launcher.ensure_background_service(tmp_path)
+
+    assert result == {"ok": True, "skipped": "already-running"}
+
+
+def test_ensure_background_service_installs_when_missing_or_stale(tmp_path, monkeypatch):
+    calls: list[tuple[list[str], str]] = []
+    monkeypatch.setattr(macos_launcher.platform, "system", lambda: "Darwin")
+    monkeypatch.setattr(
+        macos_launcher, "macos_status", lambda: {"running": False, "installed": False}
+    )
+    monkeypatch.setattr(macos_launcher, "self_cli_command", lambda sub: ["/App/FM2note", sub])
+
+    def fake_run(cmd, *, cwd, capture_output, text, timeout, check):
+        calls.append((cmd, cwd))
+        return CompletedProcess(cmd, 0, stdout="installed\n", stderr="")
+
+    monkeypatch.setattr(macos_launcher.subprocess, "run", fake_run)
+
+    result = macos_launcher.ensure_background_service(tmp_path)
+
+    assert result["ok"] is True
+    assert calls == [(["/App/FM2note", "install-service"], str(tmp_path.resolve()))]
 
 
 def test_ensure_initialized_runs_init_when_files_missing(tmp_path, monkeypatch):

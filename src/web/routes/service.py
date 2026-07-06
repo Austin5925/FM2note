@@ -13,52 +13,9 @@ from pathlib import Path
 from fastapi import APIRouter, HTTPException
 from loguru import logger
 
+from src.macos_service import macos_status
+
 router = APIRouter(prefix="/api")
-
-SERVICE_LABEL = "com.fm2note.serve"
-
-
-def _macos_plist_path() -> Path:
-    return Path.home() / "Library" / "LaunchAgents" / f"{SERVICE_LABEL}.plist"
-
-
-def _macos_status() -> dict:
-    """Read launchd state for our label without modifying anything."""
-    plist = _macos_plist_path()
-    installed = plist.exists()
-    running = False
-    pid: int | None = None
-    if installed:
-        # `launchctl list <label>` prints a plist-ish text. PID > 0 means running.
-        try:
-            result = subprocess.run(
-                ["launchctl", "list", SERVICE_LABEL],
-                capture_output=True,
-                text=True,
-                timeout=5,
-                check=False,
-            )
-            if result.returncode == 0:
-                for line in result.stdout.splitlines():
-                    line = line.strip()
-                    if line.startswith('"PID"'):
-                        # Format: "PID" = 12345;
-                        try:
-                            num = line.split("=", 1)[1].strip().rstrip(";").strip()
-                            pid = int(num)
-                            running = pid > 0
-                        except (ValueError, IndexError):
-                            pass
-                        break
-        except (FileNotFoundError, subprocess.TimeoutExpired):
-            pass
-    return {
-        "platform": "darwin",
-        "installed": installed,
-        "running": running,
-        "pid": pid,
-        "plist_path": str(plist) if installed else None,
-    }
 
 
 def _is_desktop_app() -> bool:
@@ -136,7 +93,7 @@ async def service_status() -> dict:
     """
     system = platform.system()
     if system == "Darwin":
-        base = await asyncio.to_thread(_macos_status)
+        base = await asyncio.to_thread(macos_status)
     else:
         base = {
             "platform": system.lower() or "unknown",
@@ -144,6 +101,7 @@ async def service_status() -> dict:
             "running": False,
             "pid": None,
             "plist_path": None,
+            "auto_start_disabled": False,
         }
     activity = await _daemon_activity()
     return {**base, **activity, "desktop_app": _is_desktop_app()}
@@ -199,6 +157,21 @@ async def service_install() -> dict:
     except Exception as e:
         logger.warning("install-service failed: {}: {}", type(e).__name__, e)
         raise HTTPException(status_code=500, detail=f"安装失败：{type(e).__name__}") from e
+    if not result.get("ok"):
+        raise HTTPException(status_code=500, detail=result.get("error", "未知错误"))
+    return result
+
+
+@router.post("/service/start")
+async def service_start() -> dict:
+    """Start the launchd service, installing it if needed."""
+    if platform.system() != "Darwin":
+        raise HTTPException(status_code=400, detail="仅支持 macOS")
+    try:
+        result = await asyncio.to_thread(_run_start_service)
+    except Exception as e:
+        logger.warning("start-service failed: {}: {}", type(e).__name__, e)
+        raise HTTPException(status_code=500, detail=f"启动失败：{type(e).__name__}") from e
     if not result.get("ok"):
         raise HTTPException(status_code=500, detail=result.get("error", "未知错误"))
     return result
@@ -279,4 +252,20 @@ def _run_uninstall_service() -> dict:
     return {
         "ok": False,
         "error": (proc.stderr or proc.stdout or "uninstall failed").strip()[:500],
+    }
+
+
+def _run_start_service() -> dict:
+    proc = subprocess.run(
+        _fm2note_cli_cmd("start-service"),
+        capture_output=True,
+        text=True,
+        timeout=30,
+        check=False,
+    )
+    if proc.returncode == 0:
+        return {"ok": True, "output": proc.stdout.strip()}
+    return {
+        "ok": False,
+        "error": (proc.stderr or proc.stdout or "start failed").strip()[:500],
     }

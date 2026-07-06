@@ -307,6 +307,11 @@ make bump-minor  # 版本号 minor +1
   - launchd plist 在 frozen `.app` 下写入 `FM2note serve`，不再写 `FM2note main.py serve`，后台 daemon 能真正进入 `serve` 模式
   - 补系统性测试：launcher 参数路由、launchd `ProgramArguments`、service 命令选择、poll-now spawn、设置页按钮默认行为
 
+- **v1.8.3** — App 启动自动拉起后台 daemon
+  - 打包后的 macOS 桌面 App 无子命令启动时，会自动确保 launchd 后台自动检查服务已安装并运行；用户在设置里点“关闭后台”后会写本地禁用标记，下次打开 App 不会强行恢复
+  - 设置页新增“启动后台”动作，覆盖“已安装但未运行”的恢复路径；“开启后台”负责安装/启动，“关闭后台”负责卸载并记住用户选择
+  - `install-service` 现在会先 unload 旧 plist 再重写，修复旧包/源代码路径残留导致后台指向错误命令；source checkout plist 也改为绝对 `main.py` 路径
+
 ## Current Version
 
-v1.8.2 — 后台自动检查按钮修复
+v1.8.3 — App 启动自动拉起后台 daemon

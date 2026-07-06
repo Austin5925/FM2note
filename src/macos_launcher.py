@@ -10,9 +10,17 @@ existing ``fm2note app`` command.
 from __future__ import annotations
 
 import os
+import platform
 import shutil
+import subprocess
 import sys
 from pathlib import Path
+
+from src.macos_service import (
+    is_background_auto_start_disabled,
+    launchd_plist_matches,
+    macos_status,
+)
 
 APP_SUPPORT_HOME = Path.home() / "Library" / "Application Support" / "FM2note"
 PROFILE_RESOURCE_DIR = "FM2noteProfile"
@@ -130,12 +138,64 @@ def cli_args_from_argv(argv: list[str]) -> list[str]:
     return args
 
 
+def background_service_args() -> list[str]:
+    """Return the launchd ProgramArguments expected for this launcher."""
+    if getattr(sys, "frozen", False):
+        return [sys.executable, "serve"]
+    return [sys.executable, str(Path(__file__).resolve().parents[1] / "main.py"), "serve"]
+
+
+def self_cli_command(subcommand: str) -> list[str]:
+    """Return a command that routes through this launcher in CLI mode."""
+    if getattr(sys, "frozen", False):
+        return [sys.executable, subcommand]
+    return [sys.executable, str(Path(__file__).resolve().parents[1] / "main.py"), subcommand]
+
+
+def ensure_background_service(home: Path | None = None) -> dict:
+    """Start the background daemon when the packaged desktop app opens.
+
+    Settings can explicitly disable the daemon. That choice is stored in the
+    runtime home so the next app launch does not silently undo it.
+    """
+    runtime_home = (home or Path.cwd()).expanduser().resolve()
+    if platform.system() != "Darwin":
+        return {"ok": True, "skipped": "unsupported-platform"}
+    if is_background_auto_start_disabled(runtime_home):
+        return {"ok": True, "skipped": "disabled-by-user"}
+
+    status = macos_status()
+    expected_args = background_service_args()
+    if status.get("running") and launchd_plist_matches(expected_args, runtime_home):
+        return {"ok": True, "skipped": "already-running"}
+
+    try:
+        proc = subprocess.run(
+            self_cli_command("install-service"),
+            cwd=str(runtime_home),
+            capture_output=True,
+            text=True,
+            timeout=30,
+            check=False,
+        )
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        return {"ok": False, "error": f"{type(exc).__name__}: {exc}"}
+    if proc.returncode != 0:
+        return {
+            "ok": False,
+            "error": (proc.stderr or proc.stdout or "install-service failed").strip()[:500],
+        }
+    return {"ok": True, "output": proc.stdout.strip()}
+
+
 def main() -> None:
     """Prepare desktop state and launch the existing PyWebView app."""
     cli_args = cli_args_from_argv(sys.argv[1:])
     home = prepare_home(desktop_app=not cli_args)
     apply_bundled_profile(home)
     ensure_initialized(home)
+    if not cli_args:
+        ensure_background_service(home)
 
     from main import cli
 

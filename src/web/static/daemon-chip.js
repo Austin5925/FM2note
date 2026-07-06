@@ -24,17 +24,24 @@
       const resp = await fetch('/api/service/status');
       if (!resp.ok) return;
       const d = await resp.json();
-      if (d.platform === 'darwin' && d.installed) {
+      if (d.platform === 'darwin' && d.desktop_app && !d.running) {
+        const suffix = d.installed ? '后台未运行' : '后台未启';
+        el.innerHTML = `<span class="text-emerald-600">●</span> 桌面 App 运行中 · ${suffix}`;
+        el.title = '桌面窗口正在运行；后台服务只负责关掉窗口后的定时自动检查';
+        el.classList.remove('hidden');
+      } else if (d.platform === 'darwin' && d.installed) {
         const dot = d.running
           ? '<span class="text-emerald-600">●</span>'
           : '<span class="text-amber-600">●</span>';
         const word = d.running ? '运行中' : '已停';
         const ago = fmtAgo(d.last_run_at);
-        el.innerHTML = `${dot} 服务 ${word} · 上次 ${ago}`;
+        el.innerHTML = `${dot} 后台 ${word} · 上次 ${ago}`;
+        el.title = '点击查看后台自动检查详情';
         el.classList.remove('hidden');
       } else if (d.platform === 'darwin') {
         // Installed=false on macOS — gently nudge the user to enable autostart
-        el.innerHTML = '<span class="text-stone-400">● 后台服务未启</span>';
+        el.innerHTML = '<span class="text-stone-400">● 后台未启</span>';
+        el.title = '点击开启后台自动检查';
         el.classList.remove('hidden');
       } else {
         // Non-Darwin: hide chip entirely, like balance badge does

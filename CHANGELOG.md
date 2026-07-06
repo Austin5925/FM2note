@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.8.0] - 2026-07-06
+
+### Added
+- macOS DMG generation now uses `dmgbuild` to write a Finder icon-view layout so the mounted disk image opens as a standard drag-to-Applications installer window.
+- macOS release profiles: `--profile-dir` embeds first-run config files into the `.app`, and `--release-suffix` creates separate artifacts such as `FM2note-girlfriend-macos.dmg`.
+- `make macos-dmg-girlfriend` and `make macos-notarize-girlfriend` build a private prefilled variant from the ignored `packaging/profiles/girlfriend` directory.
+
+### Changed
+- New public installs no longer default Xiaoyuzhou RSSHub resolution to the developer's personal `macroclaw.app` RSSHub; users must provide their own RSSHub or use a prefilled private profile.
+- Desktop app status now distinguishes the current GUI window from the launchd background auto-check service.
+
+### Fixed
+- The header service chip no longer reports the desktop app as "service stopped for N hours" when only the optional background auto-check daemon is off.
+
 ## [1.7.2] - 2026-07-05
 
 ### Added

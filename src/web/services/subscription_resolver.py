@@ -20,7 +20,6 @@ _RSSHUB_COMMENT_RE = re.compile(r"^\s*#\s*RSSHub:\s*(?P<base>\S+)\s*$", re.MULTI
 _RSS_URL_RE = re.compile(r"rss_url:\s*[\"']?(?P<url>https?://[^\"'\s]+)")
 _PODCAST_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]{2,}$")
 _PODCAST_PATH_RE = re.compile(r"/podcast/(?P<id>[A-Za-z0-9][A-Za-z0-9_-]*)")
-_PERSONAL_RSSHUB_BASE = "https://macroclaw.app/rsshub"
 _JSONLD_RE = re.compile(
     r'<script[^>]*type=["\']application/ld\+json["\'][^>]*>(?P<body>.*?)</script>',
     re.IGNORECASE | re.DOTALL,
@@ -35,12 +34,12 @@ def detect_rsshub_base(path: str = SUBSCRIPTIONS_PATH) -> str:
 
     sub_path = Path(path)
     if not sub_path.exists():
-        return _PERSONAL_RSSHUB_BASE
+        return ""
 
     try:
         text = sub_path.read_text(encoding="utf-8")
     except OSError:
-        return _PERSONAL_RSSHUB_BASE
+        return ""
 
     comment_match = _RSSHUB_COMMENT_RE.search(text)
     if comment_match:
@@ -53,7 +52,7 @@ def detect_rsshub_base(path: str = SUBSCRIPTIONS_PATH) -> str:
         if split:
             return split[0]
 
-    return _PERSONAL_RSSHUB_BASE
+    return ""
 
 
 async def resolve_subscription_input(input_text: str, rsshub_base: str = "") -> dict[str, Any]:

@@ -18,7 +18,7 @@
   const cancelBtn = document.getElementById('sub-cancel-btn');
   const saveBtn = document.getElementById('sub-save-btn');
 
-  let defaultRsshubBase = 'https://macroclaw.app/rsshub';
+  let defaultRsshubBase = '';
   let resolveTimer = null;
 
   function escapeHtml(s) {

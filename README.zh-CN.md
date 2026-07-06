@@ -135,8 +135,9 @@ make macos-app
 make macos-dmg
 ```
 
-正式分发推荐用 DMG。如果 Keychain 里已经有 `Developer ID Application` 证书，
-脚本会使用 hardened runtime 签名；如果没有证书，会退回 ad-hoc 签名，用于本机测试。
+正式分发推荐用 DMG。DMG 里有 `FM2note.app` 和 `Applications` 快捷方式，打开后
+会显示标准的拖拽安装窗口。如果 Keychain 里已经有 `Developer ID Application`
+证书，脚本会使用 hardened runtime 签名；如果没有证书，会退回 ad-hoc 签名，用于本机测试。
 
 要公证 Developer ID 签名产物，先存一次 notary 凭据：
 
@@ -146,11 +147,34 @@ APPLE_NOTARY_PROFILE=fm2note-notary make macos-notarize
 ```
 
 这会产出 `dist/FM2note-macos.dmg`，同时保留备用 `dist/FM2note-macos.zip`。
-正常发给别人时，优先发 DMG。
+正常发给别人时，优先发 DMG。这个公众版不会预填你的个人 RSSHub 或订阅，用户首次
+启动后自己在界面里填写。
+
+如果要生成私有预置版，把非密钥的一次性配置放到本机忽略目录：
+
+```text
+packaging/profiles/girlfriend/
+  config/config.yaml
+  config/subscriptions.yaml
+  .env                  # 可选；不建议打包真实 API key
+```
+
+然后运行：
+
+```bash
+APPLE_NOTARY_PROFILE=fm2note-notary make macos-notarize-girlfriend
+```
+
+这会产出 `dist/FM2note-girlfriend-macos.dmg`。内置 profile 只会在首次启动时复制到
+`~/Library/Application Support/FM2note`，之后不会覆盖用户自己的修改。
 
 打包后的桌面 App 默认把配置和数据放在
 `~/Library/Application Support/FM2note`。如果要复用已有配置目录，启动前设置
 `FM2NOTE_HOME`。
+
+桌面 App 和后台服务是两件事：打开 App 会启动当前窗口所需的本地 GUI 服务；launchd
+后台服务只负责关掉窗口后继续定时检查订阅。设置页里会把它标成“后台自动检查”，避免和
+当前正在运行的 App 窗口混淆。
 
 界面四个页面：
 

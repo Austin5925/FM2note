@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import os
 import platform
 import shutil
 import subprocess
@@ -57,6 +58,15 @@ def _macos_status() -> dict:
         "running": running,
         "pid": pid,
         "plist_path": str(plist) if installed else None,
+    }
+
+
+def _is_desktop_app() -> bool:
+    return os.environ.get("FM2NOTE_DESKTOP_APP", "").strip().lower() in {
+        "1",
+        "true",
+        "yes",
+        "on",
     }
 
 
@@ -136,7 +146,7 @@ async def service_status() -> dict:
             "plist_path": None,
         }
     activity = await _daemon_activity()
-    return {**base, **activity}
+    return {**base, **activity, "desktop_app": _is_desktop_app()}
 
 
 @router.post("/service/poll-now")

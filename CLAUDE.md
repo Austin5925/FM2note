@@ -291,6 +291,13 @@ make bump-minor  # 版本号 minor +1
   - `make macos-notarize` 改为同时产出已公证并 stapled 的 `dist/FM2note-macos.dmg`
   - 修复 zip 产物在 app stapler 之前生成的问题：现在 app staple 后会重新生成 `dist/FM2note-macos.zip`
 
+- **v1.8.0** — macOS 双版本分发 + 桌面/后台状态解耦
+  - DMG 构建改用 `dmgbuild` 直接写 Finder icon-view 布局；打开后呈现 `FM2note.app` → `Applications` 的标准拖拽安装窗口，避免依赖 Finder AppleScript 自动化
+  - 新增发行 profile：`--profile-dir` 把 `config/config.yaml`、`config/subscriptions.yaml`、`.env` 复制进 `.app/Contents/Resources/FM2noteProfile`，桌面 App 首次启动时只复制一次且不覆盖用户修改
+  - 新增 `--release-suffix` 与 `make macos-dmg-girlfriend` / `make macos-notarize-girlfriend`，私有预置版默认读取被 git 忽略的 `packaging/profiles/girlfriend`
+  - 公众版新装不再默认使用 `macroclaw.app` RSSHub；订阅页只从环境变量、已有订阅注释或订阅 URL 推断 RSSHub
+  - `/api/service/status` 返回 `desktop_app`，顶部 chip 和设置页文案改为区分“桌面 App 正在运行”和“后台自动检查 daemon 是否开启”
+
 ## Current Version
 
-v1.7.2 — macOS DMG 分发包
+v1.8.0 — macOS 双版本分发 + 桌面/后台状态解耦

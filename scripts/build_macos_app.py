@@ -16,6 +16,12 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 APP_NAME = "FM2note"
 DEFAULT_BUNDLE_ID = "com.fm2note.desktop"
+PROFILE_RESOURCE_DIR = "FM2noteProfile"
+PROFILE_FILE_RELS = (
+    Path("config/config.yaml"),
+    Path("config/subscriptions.yaml"),
+    Path(".env"),
+)
 EXCLUDED_MODULES = [
     "IPython",
     "PyQt5",
@@ -92,6 +98,19 @@ def ensure_pyinstaller() -> None:
         )
 
 
+def ensure_dmgbuild() -> None:
+    result = subprocess.run(
+        [sys.executable, "-m", "dmgbuild", "--help"],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+        check=False,
+    )
+    if result.returncode != 0:
+        raise SystemExit(
+            "dmgbuild is not installed. Run:\n  python3.11 -m pip install -e '.[app,macos]'"
+        )
+
+
 def build_app(args: argparse.Namespace) -> Path:
     ensure_pyinstaller()
     dist_dir = ROOT / "dist"
@@ -157,6 +176,7 @@ def build_app(args: argparse.Namespace) -> Path:
     if not app_path.exists():
         raise SystemExit(f"Build did not produce {app_path}")
     patch_info_plist(app_path)
+    install_bundle_profile(app_path, args.profile_dir)
     return app_path
 
 
@@ -177,6 +197,43 @@ def patch_info_plist(app_path: Path) -> None:
     info["CFBundleVersion"] = version
     with plist_path.open("wb") as f:
         plistlib.dump(info, f)
+
+
+def install_bundle_profile(app_path: Path, profile_dir_value: str) -> Path | None:
+    """Copy an optional first-run profile into the app bundle resources."""
+    target = app_path / "Contents" / "Resources" / PROFILE_RESOURCE_DIR
+    shutil.rmtree(target, ignore_errors=True)
+    if not profile_dir_value:
+        return None
+
+    profile_dir = Path(profile_dir_value).expanduser().resolve()
+    if not profile_dir.is_dir():
+        raise SystemExit(f"Profile directory does not exist: {profile_dir}")
+
+    copied: list[str] = []
+    for rel in PROFILE_FILE_RELS:
+        src = profile_dir / rel
+        if not src.is_file():
+            continue
+        dst = target / rel
+        dst.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(src, dst)
+        copied.append(rel.as_posix())
+
+    if not copied:
+        raise SystemExit(
+            f"Profile directory has no supported files: {profile_dir}\n"
+            "Expected any of: config/config.yaml, config/subscriptions.yaml, .env"
+        )
+
+    (target / "PROFILE.txt").write_text(
+        "FM2note bundled first-run profile.\n"
+        "These files are copied once into ~/Library/Application Support/FM2note "
+        "only when the user has not created them yet.\n"
+        f"Included: {', '.join(copied)}\n",
+        encoding="utf-8",
+    )
+    return target
 
 
 def sign_app(app_path: Path, identity: str | None, *, no_sign: bool) -> str:
@@ -210,35 +267,64 @@ def verify_signature(app_path: Path) -> None:
     run(["spctl", "-a", "-vv", str(app_path)], check=False)
 
 
-def make_release_zip(app_path: Path) -> Path:
-    archive = app_path.parent / f"{app_path.stem}-macos.zip"
+def sanitize_release_suffix(value: str) -> str:
+    suffix = re.sub(r"[^A-Za-z0-9._-]+", "-", str(value or "").strip()).strip(".-_")
+    return suffix.lower()
+
+
+def release_stem(app_path: Path, release_suffix: str = "") -> str:
+    suffix = sanitize_release_suffix(release_suffix)
+    return f"{app_path.stem}-{suffix}-macos" if suffix else f"{app_path.stem}-macos"
+
+
+def make_release_zip(app_path: Path, release_suffix: str = "") -> Path:
+    archive = app_path.parent / f"{release_stem(app_path, release_suffix)}.zip"
     if archive.exists():
         archive.unlink()
     run(["ditto", "-c", "-k", "--keepParent", str(app_path), str(archive)])
     return archive
 
 
-def make_dmg(app_path: Path, identity: str | None) -> Path:
+def make_dmg(app_path: Path, identity: str | None, release_suffix: str = "") -> Path:
     """Create a compressed drag-install DMG from the finalized app bundle."""
-    dmg_path = app_path.parent / f"{app_path.stem}-macos.dmg"
-    staging = ROOT / "build" / "dmg" / app_path.stem
-    shutil.rmtree(staging, ignore_errors=True)
-    staging.mkdir(parents=True)
-    shutil.copytree(app_path, staging / app_path.name, symlinks=True)
-    (staging / "Applications").symlink_to("/Applications")
+    ensure_dmgbuild()
+    dmg_stem = release_stem(app_path, release_suffix)
+    dmg_path = app_path.parent / f"{dmg_stem}.dmg"
+    dmg_root = ROOT / "build" / "dmg"
+    dmg_root.mkdir(parents=True, exist_ok=True)
+    settings_path = dmg_root / f"{dmg_stem}.settings.py"
     if dmg_path.exists():
         dmg_path.unlink()
+
+    settings_path.write_text(
+        "\n".join(
+            [
+                "format = 'UDZO'",
+                "filesystem = 'HFS+'",
+                "compression_level = 9",
+                "default_view = 'icon-view'",
+                "show_toolbar = False",
+                "show_status_bar = False",
+                "show_sidebar = False",
+                "background = '#f8fafc'",
+                "window_rect = ((200, 120), (560, 360))",
+                "icon_size = 96",
+                f"files = [({str(app_path)!r}, {app_path.name!r})]",
+                "symlinks = {'Applications': '/Applications'}",
+                f"icon_locations = {{{app_path.name!r}: (170, 180), 'Applications': (390, 180)}}",
+                "",
+            ]
+        ),
+        encoding="utf-8",
+    )
     run(
         [
-            "hdiutil",
-            "create",
-            "-volname",
+            sys.executable,
+            "-m",
+            "dmgbuild",
+            "-s",
+            str(settings_path),
             app_path.stem,
-            "-srcfolder",
-            str(staging),
-            "-ov",
-            "-format",
-            "UDZO",
             str(dmg_path),
         ]
     )
@@ -290,16 +376,20 @@ def staple_and_verify_dmg(dmg_path: Path) -> None:
     )
 
 
-def notarize(app_path: Path, args: argparse.Namespace, identity: str | None) -> tuple[Path, Path | None]:
+def notarize(
+    app_path: Path,
+    args: argparse.Namespace,
+    identity: str | None,
+) -> tuple[Path, Path | None]:
     """Notarize and staple the app, then build finalized release archives."""
-    archive = make_release_zip(app_path)
+    archive = make_release_zip(app_path, args.release_suffix)
     submit_for_notarization(archive, args)
     staple_and_verify_app(app_path)
-    archive = make_release_zip(app_path)
+    archive = make_release_zip(app_path, args.release_suffix)
 
     dmg_path = None
     if args.dmg:
-        dmg_path = make_dmg(app_path, identity)
+        dmg_path = make_dmg(app_path, identity, args.release_suffix)
         submit_for_notarization(dmg_path, args)
         staple_and_verify_dmg(dmg_path)
     return archive, dmg_path
@@ -322,6 +412,16 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--no-sign", action="store_true", help="Leave the app unsigned")
     parser.add_argument("--notarize", action="store_true", help="Submit signed app to Apple notary")
     parser.add_argument("--dmg", action="store_true", help="Build a compressed drag-install DMG")
+    parser.add_argument(
+        "--profile-dir",
+        default=os.environ.get("FM2NOTE_PROFILE_DIR", ""),
+        help="Optional first-run profile directory copied into the app bundle",
+    )
+    parser.add_argument(
+        "--release-suffix",
+        default=os.environ.get("FM2NOTE_RELEASE_SUFFIX", ""),
+        help="Optional artifact suffix, e.g. girlfriend -> FM2note-girlfriend-macos.dmg",
+    )
     parser.add_argument("--notary-profile", default=os.environ.get("APPLE_NOTARY_PROFILE", ""))
     parser.add_argument("--apple-id", default="")
     parser.add_argument("--team-id", default="")
@@ -347,7 +447,11 @@ def main(argv: list[str] | None = None) -> None:
             raise SystemExit("Notarization requires a Developer ID Application signature.")
         archive_path, dmg_path = notarize(app_path, args, identity)
     elif args.dmg:
-        dmg_path = make_dmg(app_path, identity if signing_mode == "developer-id" else None)
+        dmg_path = make_dmg(
+            app_path,
+            identity if signing_mode == "developer-id" else None,
+            args.release_suffix,
+        )
 
     print()
     print(f"Built: {app_path}")

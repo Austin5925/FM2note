@@ -197,6 +197,8 @@ def app(port: int):
 
     from src.web.app import create_app
 
+    os.environ.setdefault("FM2NOTE_DESKTOP_APP", "1")
+
     host = "127.0.0.1"
     fastapi_app = create_app()
 

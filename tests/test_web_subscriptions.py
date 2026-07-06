@@ -503,7 +503,14 @@ def _fake_feed(title: str):
     return fake_feed
 
 
-def test_defaults_use_personal_rsshub_fallback(client):
+def test_defaults_are_empty_for_public_build(client):
+    r = client.get("/api/subscriptions/defaults")
+    assert r.status_code == 200
+    assert r.json()["rsshub_base"] == ""
+
+
+def test_defaults_use_env_rsshub_base(client, monkeypatch):
+    monkeypatch.setenv("FM2NOTE_RSSHUB_BASE", "https://macroclaw.app/rsshub/")
     r = client.get("/api/subscriptions/defaults")
     assert r.status_code == 200
     assert r.json()["rsshub_base"] == "https://macroclaw.app/rsshub"
@@ -525,7 +532,10 @@ def test_resolve_xiaoyuzhou_podcast_url_uses_default_rsshub(client):
     with patch("feedparser.parse", return_value=_fake_feed("非共识的20分钟")):
         r = client.post(
             "/api/subscriptions/resolve",
-            json={"input": "https://www.xiaoyuzhoufm.com/podcast/6978a31df828d4e9f2787d3d"},
+            json={
+                "input": "https://www.xiaoyuzhoufm.com/podcast/6978a31df828d4e9f2787d3d",
+                "rsshub_base": "https://macroclaw.app/rsshub",
+            },
         )
     assert r.status_code == 200
     body = r.json()
@@ -543,7 +553,8 @@ def test_resolve_xiaoyuzhou_share_text_extracts_podcast_url(client):
         r = client.post(
             "/api/subscriptions/resolve",
             json={
-                "input": "我在小宇宙发现了一个播客 https://www.xiaoyuzhoufm.com/podcast/681b47122ad01a51a21cd515?utm_source=copy_link"
+                "input": "我在小宇宙发现了一个播客 https://www.xiaoyuzhoufm.com/podcast/681b47122ad01a51a21cd515?utm_source=copy_link",
+                "rsshub_base": "https://macroclaw.app/rsshub",
             },
         )
     assert r.status_code == 200
@@ -568,7 +579,10 @@ def test_resolve_xiaoyuzhou_episode_url_extracts_series(client):
     ):
         r = client.post(
             "/api/subscriptions/resolve",
-            json={"input": "https://www.xiaoyuzhoufm.com/episode/episode123"},
+            json={
+                "input": "https://www.xiaoyuzhoufm.com/episode/episode123",
+                "rsshub_base": "https://macroclaw.app/rsshub",
+            },
         )
     assert r.status_code == 200
     body = r.json()

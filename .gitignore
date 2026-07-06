@@ -17,6 +17,7 @@ env/
 
 # Personal assets (never commit) — see CLAUDE.md
 src/web/static/payment-qr.png
+packaging/profiles/
 
 # User config (use *.example.yaml as template)
 config/config.yaml

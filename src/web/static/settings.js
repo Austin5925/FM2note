@@ -183,16 +183,16 @@
         el.innerHTML = `<span class="text-stone-500">当前平台暂不支持检测（${escapeHtml(data.platform)}）</span>`;
         return;
       }
-      // v1.5.1: GUI-driven install/uninstall toggle replaces "open terminal
-      // and run fm2note install-service". Subscribers to the daemon need a
-      // running service to be useful.
+      const desktopHint = data.desktop_app
+        ? '当前桌面窗口已经在运行；后台自动检查只负责关掉窗口后的定时抓取。'
+        : '开启后 FM2note 会在 macOS 开机时自动启动，定时抓取新剧集。';
       if (!data.installed) {
         el.innerHTML = `
           <div class="flex items-center justify-between gap-3">
             <div>
-              <div class="text-stone-600">未安装后台服务</div>
+              <div class="text-stone-600">未开启后台自动检查</div>
               <div class="text-xs text-stone-400 mt-1">
-                开启后 FM2note 会在 macOS 开机时自动启动，定时抓取新剧集
+                ${escapeHtml(desktopHint)}
               </div>
             </div>
             <button id="svc-install-btn"
@@ -210,7 +210,7 @@
           <div class="flex items-center justify-between gap-3">
             <div>
               <div><span class="text-emerald-600">●</span>
-              <span class="text-stone-700">服务运行中</span>
+              <span class="text-stone-700">后台自动检查运行中</span>
               <span class="text-xs text-stone-400 ml-2 font-mono">PID ${data.pid}</span></div>
               <div class="text-xs text-stone-400 mt-1">${escapeHtml(data.plist_path || '')}</div>
             </div>
@@ -221,13 +221,16 @@
           </div>
         `;
       } else {
+        const stoppedHint = data.desktop_app
+          ? '桌面 App 不受影响；后台自动检查会在下次登录时尝试启动，也可以关闭后重新开启。'
+          : `终端运行 launchctl load ${data.plist_path || ''} 启动`;
         el.innerHTML = `
           <div class="flex items-center justify-between gap-3">
             <div>
               <div><span class="text-amber-600">●</span>
-              <span class="text-stone-700">已安装但未运行</span></div>
+              <span class="text-stone-700">后台自动检查已安装但未运行</span></div>
               <div class="text-xs text-stone-400 mt-1">
-                终端运行 <code class="bg-stone-100 px-1">launchctl load ${escapeHtml(data.plist_path || '')}</code> 启动
+                ${escapeHtml(stoppedHint)}
               </div>
             </div>
             <button id="svc-uninstall-btn"

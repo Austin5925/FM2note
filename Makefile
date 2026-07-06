@@ -1,4 +1,6 @@
-.PHONY: lint format test test-cov test-integ run serve build macos-app macos-dmg macos-notarize clean install-service uninstall-service
+.PHONY: lint format test test-cov test-integ run serve build macos-app macos-dmg macos-dmg-girlfriend macos-notarize macos-notarize-girlfriend clean install-service uninstall-service
+
+FM2NOTE_GIRLFRIEND_PROFILE_DIR ?= packaging/profiles/girlfriend
 
 lint:
 	ruff check src/ tests/
@@ -32,8 +34,14 @@ macos-app:
 macos-dmg:
 	python3.11 scripts/build_macos_app.py --dmg
 
+macos-dmg-girlfriend:
+	python3.11 scripts/build_macos_app.py --dmg --profile-dir "$(FM2NOTE_GIRLFRIEND_PROFILE_DIR)" --release-suffix girlfriend
+
 macos-notarize:
 	python3.11 scripts/build_macos_app.py --notarize --dmg
+
+macos-notarize-girlfriend:
+	python3.11 scripts/build_macos_app.py --notarize --dmg --profile-dir "$(FM2NOTE_GIRLFRIEND_PROFILE_DIR)" --release-suffix girlfriend
 
 clean:
 	rm -rf dist/ build/ *.egg-info/

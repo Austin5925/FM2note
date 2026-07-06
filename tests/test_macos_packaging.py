@@ -73,6 +73,31 @@ def test_run_logs_display_command_without_changing_real_command(monkeypatch, cap
     ]
 
 
+def test_install_bundle_profile_copies_supported_files(tmp_path):
+    module = _load_build_script()
+    app = tmp_path / "FM2note.app"
+    profile = tmp_path / "profile"
+    (profile / "config").mkdir(parents=True)
+    (profile / "config" / "config.yaml").write_text("vault_path: /vault\n")
+    (profile / "config" / "subscriptions.yaml").write_text("podcasts: []\n")
+    (profile / ".env").write_text("export DASHSCOPE_API_KEY=\n")
+    (profile / "ignored.txt").write_text("ignore me\n")
+
+    target = module.install_bundle_profile(app, str(profile))
+
+    assert target == app / "Contents" / "Resources" / "FM2noteProfile"
+    assert (target / "config" / "config.yaml").read_text() == "vault_path: /vault\n"
+    assert (target / "config" / "subscriptions.yaml").read_text() == "podcasts: []\n"
+    assert (target / ".env").read_text() == "export DASHSCOPE_API_KEY=\n"
+    assert not (target / "ignored.txt").exists()
+
+
+def test_release_stem_sanitizes_suffix():
+    module = _load_build_script()
+    assert module.release_stem(Path("FM2note.app"), "Girl Friend") == "FM2note-girl-friend-macos"
+    assert module.release_stem(Path("FM2note.app"), "") == "FM2note-macos"
+
+
 def test_submit_for_notarization_with_keychain_profile_does_not_need_password(
     tmp_path, monkeypatch
 ):
@@ -127,8 +152,8 @@ def test_notarize_rebuilds_release_zip_after_stapling(tmp_path, monkeypatch):
     final_archive = tmp_path / "post-staple.zip"
     zip_calls = []
 
-    def fake_make_release_zip(app_path):
-        zip_calls.append(app_path)
+    def fake_make_release_zip(app_path, release_suffix=""):
+        zip_calls.append((app_path, release_suffix))
         return first_archive if len(zip_calls) == 1 else final_archive
 
     monkeypatch.setattr(module, "make_release_zip", fake_make_release_zip)
@@ -137,11 +162,11 @@ def test_notarize_rebuilds_release_zip_after_stapling(tmp_path, monkeypatch):
 
     archive, dmg = module.notarize(
         app,
-        SimpleNamespace(dmg=False),
+        SimpleNamespace(dmg=False, release_suffix="girlfriend"),
         "Developer ID Application: Example (TEAMID)",
     )
 
-    assert zip_calls == [app, app]
+    assert zip_calls == [(app, "girlfriend"), (app, "girlfriend")]
     assert archive == final_archive
     assert dmg is None
 
@@ -149,6 +174,7 @@ def test_notarize_rebuilds_release_zip_after_stapling(tmp_path, monkeypatch):
 def test_make_dmg_creates_drag_install_layout(tmp_path, monkeypatch):
     module = _load_build_script()
     monkeypatch.setattr(module, "ROOT", tmp_path)
+    monkeypatch.setattr(module, "ensure_dmgbuild", lambda: None)
     app = tmp_path / "dist" / "FM2note.app"
     (app / "Contents").mkdir(parents=True)
     calls = []
@@ -161,21 +187,19 @@ def test_make_dmg_creates_drag_install_layout(tmp_path, monkeypatch):
 
     dmg = module.make_dmg(app, "Developer ID Application: Example (TEAMID)")
 
-    staging = tmp_path / "build" / "dmg" / "FM2note"
-    assert (staging / "FM2note.app").is_dir()
-    assert (staging / "Applications").is_symlink()
-    assert (staging / "Applications").readlink() == Path("/Applications")
+    settings = tmp_path / "build" / "dmg" / "FM2note-macos.settings.py"
+    settings_text = settings.read_text()
+    assert "files = [(" in settings_text
+    assert "'FM2note.app': (170, 180)" in settings_text
+    assert "symlinks = {'Applications': '/Applications'}" in settings_text
     assert dmg == tmp_path / "dist" / "FM2note-macos.dmg"
     assert calls[0][0] == [
-        "hdiutil",
-        "create",
-        "-volname",
+        module.sys.executable,
+        "-m",
+        "dmgbuild",
+        "-s",
+        str(settings),
         "FM2note",
-        "-srcfolder",
-        str(staging),
-        "-ov",
-        "-format",
-        "UDZO",
         str(dmg),
     ]
     assert calls[1][0] == [

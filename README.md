@@ -140,10 +140,11 @@ testing, run:
 make macos-dmg
 ```
 
-The distributable artifact is the DMG. If a `Developer ID Application`
-certificate is available in Keychain, the build script signs with hardened
-runtime. Without a Developer ID certificate it falls back to ad-hoc signing for
-local testing.
+The distributable artifact is the DMG. It contains `FM2note.app` plus an
+`Applications` shortcut and opens as a normal drag-to-install Finder window. If
+a `Developer ID Application` certificate is available in Keychain, the build
+script signs with hardened runtime. Without a Developer ID certificate it falls
+back to ad-hoc signing for local testing.
 
 To notarize a Developer ID signed build, first store credentials once:
 
@@ -153,11 +154,37 @@ APPLE_NOTARY_PROFILE=fm2note-notary make macos-notarize
 ```
 
 This produces `dist/FM2note-macos.dmg` and a backup `dist/FM2note-macos.zip`.
-For normal distribution, share the DMG.
+For normal distribution, share the DMG. This public build does not prefill your
+personal RSSHub or subscriptions; users fill their own settings on first launch.
+
+To build a private prefilled variant, put only non-secret first-run files under
+an ignored local profile directory:
+
+```text
+packaging/profiles/girlfriend/
+  config/config.yaml
+  config/subscriptions.yaml
+  .env                  # optional; avoid shipping real API keys
+```
+
+Then run:
+
+```bash
+APPLE_NOTARY_PROFILE=fm2note-notary make macos-notarize-girlfriend
+```
+
+This produces `dist/FM2note-girlfriend-macos.dmg`. Bundled profile files are
+copied once into the user's `~/Library/Application Support/FM2note` on first
+launch and never overwrite later edits.
 
 The packaged app stores its runtime config under
 `~/Library/Application Support/FM2note` by default. Set `FM2NOTE_HOME` before
 launching if you want it to reuse another config directory.
+
+The desktop app and the background service are separate. Opening the app starts
+the local GUI server for the current window. The launchd background service is
+only for scheduled feed polling when the window is closed; Settings calls it
+"background auto-check" to keep that distinction visible.
 
 The UI ships four pages:
 

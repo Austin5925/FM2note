@@ -153,3 +153,4 @@ class TestServiceStatusActivity:
         assert "last_run_at" in body
         assert "next_run_estimate_at" in body
         assert "poll_interval_hours" in body
+        assert "desktop_app" in body

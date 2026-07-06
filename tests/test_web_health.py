@@ -137,6 +137,14 @@ class TestServiceStatus:
         body = r.json()
         assert body["platform"] == "linux"
         assert body["installed"] is False
+        assert body["desktop_app"] is False
+
+    def test_status_marks_desktop_app_mode(self, client, monkeypatch):
+        monkeypatch.setattr("platform.system", lambda: "Linux")
+        monkeypatch.setenv("FM2NOTE_DESKTOP_APP", "1")
+        r = client.get("/api/service/status")
+        body = r.json()
+        assert body["desktop_app"] is True
 
 
 class TestServiceInstallToggle:

@@ -124,6 +124,18 @@ class TestStaticFiles:
         assert r.status_code == 200
         assert "step-icon" in r.text
 
+    def test_daemon_chip_uses_desktop_app_copy(self, client):
+        r = client.get("/static/daemon-chip.js")
+        assert r.status_code == 200
+        assert "桌面 App 运行中" in r.text
+        assert "后台未启" in r.text
+
+    def test_settings_js_uses_background_check_copy(self, client):
+        r = client.get("/static/settings.js")
+        assert r.status_code == 200
+        assert "后台自动检查" in r.text
+        assert "当前桌面窗口已经在运行" in r.text
+
     def test_cloud_js_maps_source_dedup_reason(self, client):
         r = client.get("/static/cloud.js")
         assert r.status_code == 200

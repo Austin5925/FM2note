@@ -45,9 +45,11 @@ def test_cli_args_from_argv_strips_finder_and_compat_wrappers():
 
 def test_main_routes_subcommands_without_opening_desktop_window(tmp_path, monkeypatch):
     desktop_modes: list[bool] = []
+    homes: list[Path | None] = []
     cli_calls: list[list[str]] = []
 
     def fake_prepare_home(home=None, *, desktop_app=True):
+        homes.append(home)
         desktop_modes.append(desktop_app)
         return tmp_path
 
@@ -56,6 +58,8 @@ def test_main_routes_subcommands_without_opening_desktop_window(tmp_path, monkey
 
     import main
 
+    monkeypatch.delenv("FM2NOTE_HOME", raising=False)
+    monkeypatch.chdir(tmp_path)
     monkeypatch.setattr(macos_launcher.sys, "argv", ["FM2note", "run-once"])
     monkeypatch.setattr(macos_launcher, "prepare_home", fake_prepare_home)
     monkeypatch.setattr(macos_launcher, "apply_bundled_profile", lambda home: [])
@@ -64,8 +68,35 @@ def test_main_routes_subcommands_without_opening_desktop_window(tmp_path, monkey
 
     macos_launcher.main()
 
+    assert homes == [tmp_path]
     assert desktop_modes == [False]
     assert cli_calls == [["run-once"]]
+
+
+def test_main_routes_subcommands_respect_env_home(tmp_path, monkeypatch):
+    homes: list[Path | None] = []
+    cli_calls: list[list[str]] = []
+
+    def fake_prepare_home(home=None, *, desktop_app=True):
+        homes.append(home)
+        return tmp_path
+
+    def fake_cli_main(*, args, prog_name, standalone_mode):
+        cli_calls.append(args)
+
+    import main
+
+    monkeypatch.setenv("FM2NOTE_HOME", str(tmp_path / "explicit-home"))
+    monkeypatch.setattr(macos_launcher.sys, "argv", ["FM2note", "serve"])
+    monkeypatch.setattr(macos_launcher, "prepare_home", fake_prepare_home)
+    monkeypatch.setattr(macos_launcher, "apply_bundled_profile", lambda home: [])
+    monkeypatch.setattr(macos_launcher, "ensure_initialized", lambda home: None)
+    monkeypatch.setattr(main.cli, "main", fake_cli_main)
+
+    macos_launcher.main()
+
+    assert homes == [None]
+    assert cli_calls == [["serve"]]
 
 
 def test_main_starts_background_service_for_desktop_launch(tmp_path, monkeypatch):

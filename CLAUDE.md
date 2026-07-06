@@ -312,6 +312,12 @@ make bump-minor  # 版本号 minor +1
   - 设置页新增“启动后台”动作，覆盖“已安装但未运行”的恢复路径；“开启后台”负责安装/启动，“关闭后台”负责卸载并记住用户选择
   - `install-service` 现在会先 unload 旧 plist 再重写，修复旧包/源代码路径残留导致后台指向错误命令；source checkout plist 也改为绝对 `main.py` 路径
 
+- **v1.8.4** — 云端批量下载加速 + 打包 App 后台启动修复
+  - 云端下载选中多集时改为有界并发 fetch；真实 `SharedCacheClient` 复用同一个 `httpx.AsyncClient`，避免每集重新建连接/TLS，20 集实测从约 16.8s 降到约 3.5s
+  - 下载元数据查找从 200 条扩大到 sidecar 上限 1000 条，避免页面可见的旧条目下载时丢失节目名/标题
+  - 打包后的 `FM2note serve` / `install-service` / `uninstall-service` 子命令现在保留 launchd `WorkingDirectory` 作为运行目录，避免自动拉起的后台 daemon 误读默认 App Support 目录
+  - 新增并发下载、metadata limit 与 packaged launcher CLI 运行目录回归测试
+
 ## Current Version
 
-v1.8.3 — App 启动自动拉起后台 daemon
+v1.8.4 — 云端批量下载加速 + 打包 App 后台启动修复

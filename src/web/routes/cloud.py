@@ -28,6 +28,7 @@ and skips downloads whose source URL already exists there under any name.
 
 from __future__ import annotations
 
+import asyncio
 import re
 from pathlib import Path
 
@@ -47,6 +48,8 @@ _ILLEGAL_FILENAME_CHARS = re.compile(r'[/\\:*?"<>|]')
 # response, so this is just defense against a runaway click on a
 # "select all" multi-folder action.
 _DOWNLOAD_MAX_BATCH = 100
+_DOWNLOAD_METADATA_LIMIT = 1000
+_DOWNLOAD_FETCH_CONCURRENCY = 8
 
 
 def _client() -> SharedCacheClient | None:
@@ -136,6 +139,25 @@ def _scan_existing_guids(podcast_dir: Path) -> dict[str, Path]:
     return out
 
 
+async def _fetch_many(client: SharedCacheClient, guids: list[str]) -> dict[str, str | None]:
+    """Fetch selected cache entries concurrently.
+
+    Real SharedCacheClient has a connection-reusing ``fetch_many`` method.
+    Tests sometimes monkeypatch a lightweight fake with only ``fetch``; keep
+    that path concurrent too so the route behavior stays representative.
+    """
+    if isinstance(client, SharedCacheClient):
+        return await client.fetch_many(guids, concurrency=_DOWNLOAD_FETCH_CONCURRENCY)
+    sem = asyncio.Semaphore(_DOWNLOAD_FETCH_CONCURRENCY)
+
+    async def _one(guid: str) -> tuple[str, str | None]:
+        async with sem:
+            return guid, await client.fetch(guid)
+
+    pairs = await asyncio.gather(*(_one(guid) for guid in guids))
+    return dict(pairs)
+
+
 @router.get("/list")
 async def cloud_list(prefix: str = "", limit: int = 500) -> dict:
     """List cached episodes; UI groups by ``podcast_name`` to render
@@ -201,22 +223,28 @@ async def cloud_download(payload: dict) -> dict:
         )
     podcast_root = vault_root / config.podcast_dir
 
-    # We need podcast_name + title to build a real path; ask the server for
-    # everything matching our requested guid set in one LIST call (no per-guid
-    # round trip — the server caps LIST at 1k which is well above our 100 cap).
-    listing = await client.list_items(limit=_DOWNLOAD_MAX_BATCH * 2)
-    meta_by_guid = {row["guid"]: row for row in listing}
+    # We need podcast_name + title to build a real path. The cloud page lists
+    # up to 500 rows, while the sidecar hard-caps LIST at 1k; ask for that
+    # cap so selecting older visible rows still has metadata.
+    listing = await client.list_items(limit=_DOWNLOAD_METADATA_LIMIT)
+    meta_by_guid: dict[str, dict] = {}
+    for row in listing:
+        guid = row.get("guid") if isinstance(row, dict) else None
+        if isinstance(guid, str):
+            meta_by_guid[guid] = row
+            meta_by_guid[_normalize_guid(guid)] = row
 
-    results: list[dict] = []
-    ok_count = 0
+    results: list[dict | None] = []
+    pending: list[dict] = []
     # v1.6.1: cache per-podcast guid→path scan so we don't re-scan once per
     # downloaded file. Lazy populated.
     existing_by_podcast: dict[Path, dict[str, Path]] = {}
     for guid in raw_guids:
+        slot = len(results)
         if not isinstance(guid, str) or not guid.strip():
             results.append({"guid": str(guid), "ok": False, "reason": "invalid_guid"})
             continue
-        meta = meta_by_guid.get(guid)
+        meta = meta_by_guid.get(guid) or meta_by_guid.get(_normalize_guid(guid))
         # Fall back to placeholders if the listing didn't include this guid —
         # e.g. it was uploaded by a pre-v1.6 client (no podcast_name) and the
         # listing capped before we saw it. Better to download under "未知"
@@ -246,12 +274,6 @@ async def cloud_download(payload: dict) -> dict:
                 )
                 continue
 
-        content = await client.fetch(guid)
-        if content is None:
-            results.append({"guid": guid, "ok": False, "reason": "cache_miss"})
-            continue
-
-        target_dir.mkdir(parents=True, exist_ok=True)
         target_path = target_dir / f"{_safe_filename(title)}.md"
 
         # v1.6.2 fix (Codex S1 defense in depth): even after _safe_filename,
@@ -291,20 +313,49 @@ async def cloud_download(payload: dict) -> dict:
                 }
             )
             continue
+
+        results.append(None)
+        pending.append(
+            {
+                "slot": slot,
+                "guid": guid,
+                "target_dir": target_dir,
+                "target_path": target_path,
+            }
+        )
+
+    fetched = await _fetch_many(client, [item["guid"] for item in pending])
+    ok_count = 0
+    for item in pending:
+        guid = item["guid"]
+        target_dir = item["target_dir"]
+        target_path = item["target_path"]
+        content = fetched.get(guid)
+        if content is None:
+            results[item["slot"]] = {"guid": guid, "ok": False, "reason": "cache_miss"}
+            continue
+
+        target_dir.mkdir(parents=True, exist_ok=True)
+        if target_path.exists() and not overwrite:
+            results[item["slot"]] = {
+                "guid": guid,
+                "ok": False,
+                "reason": "already_exists",
+                "path": str(target_path),
+            }
+            continue
         try:
             target_path.write_text(content, encoding="utf-8")
         except OSError as e:
             logger.warning("cloud download write failed for {}: {}", guid, e)
-            results.append(
-                {
-                    "guid": guid,
-                    "ok": False,
-                    "reason": "write_failed",
-                    "detail": f"{type(e).__name__}: {e}",
-                }
-            )
+            results[item["slot"]] = {
+                "guid": guid,
+                "ok": False,
+                "reason": "write_failed",
+                "detail": f"{type(e).__name__}: {e}",
+            }
             continue
         ok_count += 1
-        results.append({"guid": guid, "ok": True, "path": str(target_path)})
+        results[item["slot"]] = {"guid": guid, "ok": True, "path": str(target_path)}
 
-    return {"ok": True, "downloaded": ok_count, "items": results}
+    return {"ok": True, "downloaded": ok_count, "items": [r for r in results if r is not None]}

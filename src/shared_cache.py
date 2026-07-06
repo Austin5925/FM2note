@@ -13,6 +13,7 @@ pipeline or block transcription.
 
 from __future__ import annotations
 
+import asyncio
 import os
 from hashlib import sha256
 from urllib.parse import quote
@@ -30,6 +31,7 @@ from loguru import logger
 # the 5s ceiling means an unreachable cache adds at most ~250s to a poll
 # cycle that already runs at most every 3 hours, which we judged acceptable.
 _TIMEOUT_SEC = 5.0
+_FETCH_MANY_CONCURRENCY = 8
 # Per-process uploader fingerprint — opaque hash of DASHSCOPE_API_KEY +
 # salt, 48 bits of entropy. Used server-side only for "who uploaded what"
 # attribution between two trusted users; the api key itself is never sent.
@@ -73,10 +75,39 @@ class SharedCacheClient:
         timeout, on any 4xx/5xx — the local pipeline should always proceed
         as if the cache didn't exist when we can't get a confident hit.
         """
-        url = self._url_for(guid)
+        async with httpx.AsyncClient(timeout=_TIMEOUT_SEC) as client:
+            return await self._fetch_with_client(client, guid)
+
+    async def fetch_many(
+        self,
+        guids: list[str],
+        *,
+        concurrency: int = _FETCH_MANY_CONCURRENCY,
+    ) -> dict[str, str | None]:
+        """Fetch multiple cached notes concurrently using one HTTP client.
+
+        The cloud download UI can select many episodes at once. Reusing a
+        single AsyncClient and bounding concurrency avoids paying a full
+        connection/TLS setup cost per episode while keeping the sidecar from
+        receiving an unbounded request burst.
+        """
+        if not guids:
+            return {}
+        limit = max(1, int(concurrency or 1))
+        sem = asyncio.Semaphore(limit)
+
+        async def _one(active_client: httpx.AsyncClient, guid: str) -> tuple[str, str | None]:
+            async with sem:
+                return guid, await self._fetch_with_client(active_client, guid)
+
+        async with httpx.AsyncClient(timeout=_TIMEOUT_SEC) as active_client:
+            pairs = await asyncio.gather(*(_one(active_client, guid) for guid in guids))
+        return dict(pairs)
+
+    async def _fetch_with_client(self, active_client: httpx.AsyncClient, guid: str) -> str | None:
+        """Internal fetch helper for callers that already own an AsyncClient."""
         try:
-            async with httpx.AsyncClient(timeout=_TIMEOUT_SEC) as client:
-                resp = await client.get(url, headers=self._auth_headers())
+            resp = await active_client.get(self._url_for(guid), headers=self._auth_headers())
         except httpx.HTTPError as e:
             logger.debug("shared cache fetch network error for {}: {}", guid, type(e).__name__)
             return None

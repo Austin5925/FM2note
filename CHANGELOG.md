@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.8.4] - 2026-07-06
+
+### Changed
+- Cloud downloads now fetch selected notes concurrently with bounded concurrency and reuse one HTTP client for real shared-cache requests, reducing batch-download latency.
+- Cloud download metadata lookup now asks for the sidecar's 1,000-row cap instead of 200 rows, so older visible selections keep their folder/title metadata.
+- Packaged macOS CLI subcommands now preserve the launchd `WorkingDirectory` runtime home, so the auto-started background daemon reads the same bundled/user config as the desktop app.
+
+### Added
+- Regression coverage for concurrent cloud-download fetches, the full visible metadata lookup range, and packaged launcher CLI runtime-home routing.
+
 ## [1.8.3] - 2026-07-06
 
 ### Changed

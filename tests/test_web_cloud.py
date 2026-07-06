@@ -7,6 +7,7 @@ client that produces canned ``list_items`` / ``fetch`` results.
 
 from __future__ import annotations
 
+import asyncio
 from pathlib import Path
 from unittest.mock import AsyncMock
 
@@ -122,6 +123,68 @@ def test_download_writes_files_grouped_by_podcast(client_with_cache, monkeypatch
     expected = tmp_path / "Podcasts" / "MyShow" / "Episode One.md"
     assert expected.exists()
     assert "Episode One" in expected.read_text(encoding="utf-8")
+
+
+def test_download_uses_full_visible_metadata_limit(client_with_cache, monkeypatch):
+    """Cloud page lists up to 500 rows, so download metadata lookup should not
+    be capped below that or older visible selections lose title/folder names."""
+    fake = AsyncMock()
+    fake.list_items = AsyncMock(
+        return_value=[
+            {
+                "guid": "guid-1",
+                "podcast_name": "P",
+                "title": "T",
+                "size": 10,
+                "updated_at": 1,
+            }
+        ]
+    )
+    fake.fetch = AsyncMock(return_value="body")
+    monkeypatch.setattr("src.web.routes.cloud._client", lambda: fake)
+
+    r = client_with_cache.post("/api/cloud/download", json={"guids": ["guid-1"]})
+
+    assert r.status_code == 200, r.json()
+    fake.list_items.assert_awaited_once_with(limit=1000)
+
+
+def test_download_fetches_selected_items_concurrently(client_with_cache, monkeypatch):
+    class SlowFakeCache:
+        def __init__(self):
+            self.active = 0
+            self.max_active = 0
+
+        async def list_items(self, **kwargs):
+            return [
+                {
+                    "guid": f"guid-{i}",
+                    "podcast_name": "P",
+                    "title": f"T{i}",
+                    "size": 10,
+                    "updated_at": i,
+                }
+                for i in range(8)
+            ]
+
+        async def fetch(self, guid):
+            self.active += 1
+            self.max_active = max(self.max_active, self.active)
+            await asyncio.sleep(0.02)
+            self.active -= 1
+            return f"# {guid}\n"
+
+    fake = SlowFakeCache()
+    monkeypatch.setattr("src.web.routes.cloud._client", lambda: fake)
+
+    r = client_with_cache.post(
+        "/api/cloud/download",
+        json={"guids": [f"guid-{i}" for i in range(8)]},
+    )
+
+    assert r.status_code == 200, r.json()
+    assert r.json()["downloaded"] == 8
+    assert fake.max_active > 1
 
 
 def test_download_respects_existing_unless_overwrite(client_with_cache, monkeypatch, tmp_path):

@@ -1,4 +1,4 @@
-.PHONY: lint format test test-cov test-integ run serve build macos-app macos-dmg macos-dmg-girlfriend macos-notarize macos-notarize-girlfriend clean install-service uninstall-service
+.PHONY: lint format test test-cov test-integ run serve build macos-app macos-dmg macos-dmg-girlfriend macos-notarize macos-notarize-girlfriend clean install-service start-service uninstall-service
 
 FM2NOTE_GIRLFRIEND_PROFILE_DIR ?= packaging/profiles/girlfriend
 
@@ -48,6 +48,9 @@ clean:
 
 install-service:
 	python main.py install-service
+
+start-service:
+	python main.py start-service
 
 uninstall-service:
 	python main.py uninstall-service

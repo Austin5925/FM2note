@@ -191,7 +191,13 @@ def ensure_background_service(home: Path | None = None) -> dict:
 def main() -> None:
     """Prepare desktop state and launch the existing PyWebView app."""
     cli_args = cli_args_from_argv(sys.argv[1:])
-    home = prepare_home(desktop_app=not cli_args)
+    cli_home = None
+    if cli_args and not os.environ.get("FM2NOTE_HOME", "").strip():
+        # launchd starts packaged CLI subcommands with WorkingDirectory set to
+        # the runtime home. Preserve that contract instead of falling back to
+        # ~/Library/Application Support/FM2note.
+        cli_home = Path.cwd()
+    home = prepare_home(cli_home, desktop_app=not cli_args)
     apply_bundled_profile(home)
     ensure_initialized(home)
     if not cli_args:

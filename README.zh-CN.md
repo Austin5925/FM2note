@@ -135,9 +135,10 @@ make macos-app
 make macos-dmg
 ```
 
-正式分发推荐用 DMG。DMG 里有 `FM2note.app` 和 `Applications` 快捷方式，打开后
-会显示标准的拖拽安装窗口。如果 Keychain 里已经有 `Developer ID Application`
-证书，脚本会使用 hardened runtime 签名；如果没有证书，会退回 ad-hoc 签名，用于本机测试。
+正式分发推荐用 DMG。DMG 里有 `FM2note.app` 和 `Applications` 快捷方式，中间带
+箭头提示拖拽安装，打开后会显示标准的拖拽安装窗口。如果 Keychain 里已经有
+`Developer ID Application` 证书，脚本会使用 hardened runtime 签名；如果没有证书，
+会退回 ad-hoc 签名，用于本机测试。
 
 要公证 Developer ID 签名产物，先存一次 notary 凭据：
 
@@ -150,19 +151,21 @@ APPLE_NOTARY_PROFILE=fm2note-notary make macos-notarize
 正常发给别人时，优先发 DMG。这个公众版不会预填你的个人 RSSHub 或订阅，用户首次
 启动后自己在界面里填写。
 
-如果要生成私有预置版，把非密钥的一次性配置放到本机忽略目录：
+如果要生成预置版，只能把你愿意暴露的一次性配置放到本机忽略目录。profile 里的所有值
+都会对 Apple 公证服务和任何拿到 DMG/App 包的人可见，包括 Obsidian 路径、RSSHub 地址、
+API key、token 和注释：
 
 ```text
 packaging/profiles/girlfriend/
   config/config.yaml
   config/subscriptions.yaml
-  .env                  # 可选；不建议打包真实 API key
+  .env                  # 不要放密钥；这里的每个值都会在 App 包里可见
 ```
 
 然后运行：
 
 ```bash
-APPLE_NOTARY_PROFILE=fm2note-notary make macos-notarize-girlfriend
+FM2NOTE_ALLOW_VISIBLE_PROFILE=1 APPLE_NOTARY_PROFILE=fm2note-notary make macos-notarize-girlfriend
 ```
 
 这会产出 `dist/FM2note-girlfriend-macos.dmg`。内置 profile 只会在首次启动时复制到

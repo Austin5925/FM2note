@@ -141,10 +141,10 @@ make macos-dmg
 ```
 
 The distributable artifact is the DMG. It contains `FM2note.app` plus an
-`Applications` shortcut and opens as a normal drag-to-install Finder window. If
-a `Developer ID Application` certificate is available in Keychain, the build
-script signs with hardened runtime. Without a Developer ID certificate it falls
-back to ad-hoc signing for local testing.
+`Applications` shortcut, with an arrow between them, and opens as a normal
+drag-to-install Finder window. If a `Developer ID Application` certificate is
+available in Keychain, the build script signs with hardened runtime. Without a
+Developer ID certificate it falls back to ad-hoc signing for local testing.
 
 To notarize a Developer ID signed build, first store credentials once:
 
@@ -157,20 +157,22 @@ This produces `dist/FM2note-macos.dmg` and a backup `dist/FM2note-macos.zip`.
 For normal distribution, share the DMG. This public build does not prefill your
 personal RSSHub or subscriptions; users fill their own settings on first launch.
 
-To build a private prefilled variant, put only non-secret first-run files under
-an ignored local profile directory:
+To build a prefilled variant, put only values you are willing to expose under an
+ignored local profile directory. Every bundled profile value is visible to Apple
+notarization and to anyone who receives the DMG/App bundle, including Obsidian
+paths, RSSHub URLs, API keys, tokens, and comments:
 
 ```text
 packaging/profiles/girlfriend/
   config/config.yaml
   config/subscriptions.yaml
-  .env                  # optional; avoid shipping real API keys
+  .env                  # avoid for secrets; every value is visible in the bundle
 ```
 
 Then run:
 
 ```bash
-APPLE_NOTARY_PROFILE=fm2note-notary make macos-notarize-girlfriend
+FM2NOTE_ALLOW_VISIBLE_PROFILE=1 APPLE_NOTARY_PROFILE=fm2note-notary make macos-notarize-girlfriend
 ```
 
 This produces `dist/FM2note-girlfriend-macos.dmg`. Bundled profile files are

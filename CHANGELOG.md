@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.8.1] - 2026-07-06
+
+### Changed
+- macOS DMG background now includes a visible install arrow between `FM2note.app` and the `Applications` shortcut.
+- macOS profile bundling now requires explicit `--allow-visible-profile` / `FM2NOTE_ALLOW_VISIBLE_PROFILE=1` consent because every bundled value is visible inside the DMG/App bundle.
+
 ## [1.8.0] - 2026-07-06
 
 ### Added

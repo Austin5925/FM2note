@@ -9,8 +9,10 @@ import platform
 import plistlib
 import re
 import shutil
+import struct
 import subprocess
 import sys
+import zlib
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -22,6 +24,10 @@ PROFILE_FILE_RELS = (
     Path("config/subscriptions.yaml"),
     Path(".env"),
 )
+TRUTHY_ENV_VALUES = {"1", "true", "yes", "on"}
+DMG_WINDOW_SIZE = (560, 360)
+DMG_APP_ICON_POS = (170, 180)
+DMG_APPLICATIONS_ICON_POS = (390, 180)
 EXCLUDED_MODULES = [
     "IPython",
     "PyQt5",
@@ -111,6 +117,10 @@ def ensure_dmgbuild() -> None:
         )
 
 
+def env_truthy(name: str) -> bool:
+    return os.environ.get(name, "").strip().lower() in TRUTHY_ENV_VALUES
+
+
 def build_app(args: argparse.Namespace) -> Path:
     ensure_pyinstaller()
     dist_dir = ROOT / "dist"
@@ -176,7 +186,11 @@ def build_app(args: argparse.Namespace) -> Path:
     if not app_path.exists():
         raise SystemExit(f"Build did not produce {app_path}")
     patch_info_plist(app_path)
-    install_bundle_profile(app_path, args.profile_dir)
+    install_bundle_profile(
+        app_path,
+        args.profile_dir,
+        allow_visible_profile=args.allow_visible_profile,
+    )
     return app_path
 
 
@@ -199,7 +213,12 @@ def patch_info_plist(app_path: Path) -> None:
         plistlib.dump(info, f)
 
 
-def install_bundle_profile(app_path: Path, profile_dir_value: str) -> Path | None:
+def install_bundle_profile(
+    app_path: Path,
+    profile_dir_value: str,
+    *,
+    allow_visible_profile: bool = False,
+) -> Path | None:
     """Copy an optional first-run profile into the app bundle resources."""
     target = app_path / "Contents" / "Resources" / PROFILE_RESOURCE_DIR
     shutil.rmtree(target, ignore_errors=True)
@@ -209,6 +228,15 @@ def install_bundle_profile(app_path: Path, profile_dir_value: str) -> Path | Non
     profile_dir = Path(profile_dir_value).expanduser().resolve()
     if not profile_dir.is_dir():
         raise SystemExit(f"Profile directory does not exist: {profile_dir}")
+    if not allow_visible_profile:
+        raise SystemExit(
+            "Refusing to bundle a first-run profile without explicit consent.\n"
+            "Everything under --profile-dir is visible to Apple notarization and to anyone "
+            "who receives the DMG/App bundle, including Obsidian paths, RSSHub URLs, API "
+            "keys, tokens, and comments.\n"
+            "If the profile contains only values you are willing to expose, rerun with "
+            "--allow-visible-profile or FM2NOTE_ALLOW_VISIBLE_PROFILE=1."
+        )
 
     copied: list[str] = []
     for rel in PROFILE_FILE_RELS:
@@ -285,6 +313,81 @@ def make_release_zip(app_path: Path, release_suffix: str = "") -> Path:
     return archive
 
 
+def _write_png(path: Path, width: int, height: int, pixels: list[bytearray]) -> None:
+    """Write a small RGB PNG without adding another packaging dependency."""
+
+    def chunk(kind: bytes, data: bytes) -> bytes:
+        return (
+            struct.pack(">I", len(data))
+            + kind
+            + data
+            + struct.pack(">I", zlib.crc32(kind + data) & 0xFFFFFFFF)
+        )
+
+    raw_rows = b"".join(b"\x00" + bytes(row) for row in pixels)
+    png = b"".join(
+        [
+            b"\x89PNG\r\n\x1a\n",
+            chunk(b"IHDR", struct.pack(">IIBBBBB", width, height, 8, 2, 0, 0, 0)),
+            chunk(b"IDAT", zlib.compress(raw_rows, level=9)),
+            chunk(b"IEND", b""),
+        ]
+    )
+    path.write_bytes(png)
+
+
+def _fill_rect(
+    pixels: list[bytearray],
+    x0: int,
+    y0: int,
+    x1: int,
+    y1: int,
+    color: tuple[int, int, int],
+) -> None:
+    height = len(pixels)
+    width = len(pixels[0]) // 3 if pixels else 0
+    for y in range(max(0, y0), min(height, y1)):
+        row = pixels[y]
+        for x in range(max(0, x0), min(width, x1)):
+            row[x * 3 : x * 3 + 3] = bytes(color)
+
+
+def _fill_right_triangle(
+    pixels: list[bytearray],
+    tip_x: int,
+    mid_y: int,
+    base_x: int,
+    half_height: int,
+    color: tuple[int, int, int],
+) -> None:
+    for y in range(mid_y - half_height, mid_y + half_height + 1):
+        t = abs(y - mid_y) / max(half_height, 1)
+        x_right = round(tip_x - (tip_x - base_x) * t)
+        _fill_rect(pixels, base_x, y, x_right + 1, y + 1, color)
+
+
+def write_dmg_background(path: Path) -> Path:
+    """Create the DMG background with a visible install arrow."""
+    width, height = DMG_WINDOW_SIZE
+    background = (248, 250, 252)
+    pixels = [bytearray(background * width) for _ in range(height)]
+
+    # Soft shadow first, then the foreground arrow from FM2note.app to Applications.
+    shadow = (203, 213, 225)
+    arrow = (71, 85, 105)
+    _fill_rect(pixels, 236, 176, 307, 191, shadow)
+    _fill_right_triangle(pixels, 334, 183, 305, 28, shadow)
+    _fill_rect(pixels, 236, 171, 307, 186, arrow)
+    _fill_right_triangle(pixels, 334, 178, 305, 28, arrow)
+
+    # A small center cutout makes the arrow read as a deliberate icon, not a divider.
+    highlight = (226, 232, 240)
+    _fill_rect(pixels, 252, 176, 292, 181, highlight)
+
+    _write_png(path, width, height, pixels)
+    return path
+
+
 def make_dmg(app_path: Path, identity: str | None, release_suffix: str = "") -> Path:
     """Create a compressed drag-install DMG from the finalized app bundle."""
     ensure_dmgbuild()
@@ -293,6 +396,7 @@ def make_dmg(app_path: Path, identity: str | None, release_suffix: str = "") -> 
     dmg_root = ROOT / "build" / "dmg"
     dmg_root.mkdir(parents=True, exist_ok=True)
     settings_path = dmg_root / f"{dmg_stem}.settings.py"
+    background_path = write_dmg_background(dmg_root / f"{dmg_stem}-background.png")
     if dmg_path.exists():
         dmg_path.unlink()
 
@@ -306,12 +410,13 @@ def make_dmg(app_path: Path, identity: str | None, release_suffix: str = "") -> 
                 "show_toolbar = False",
                 "show_status_bar = False",
                 "show_sidebar = False",
-                "background = '#f8fafc'",
-                "window_rect = ((200, 120), (560, 360))",
+                f"background = {str(background_path)!r}",
+                f"window_rect = ((200, 120), {DMG_WINDOW_SIZE!r})",
                 "icon_size = 96",
                 f"files = [({str(app_path)!r}, {app_path.name!r})]",
                 "symlinks = {'Applications': '/Applications'}",
-                f"icon_locations = {{{app_path.name!r}: (170, 180), 'Applications': (390, 180)}}",
+                f"icon_locations = {{{app_path.name!r}: {DMG_APP_ICON_POS!r}, "
+                f"'Applications': {DMG_APPLICATIONS_ICON_POS!r}}}",
                 "",
             ]
         ),
@@ -416,6 +521,15 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         "--profile-dir",
         default=os.environ.get("FM2NOTE_PROFILE_DIR", ""),
         help="Optional first-run profile directory copied into the app bundle",
+    )
+    parser.add_argument(
+        "--allow-visible-profile",
+        action="store_true",
+        default=env_truthy("FM2NOTE_ALLOW_VISIBLE_PROFILE"),
+        help=(
+            "Confirm that all files copied from --profile-dir are intentionally visible "
+            "inside the DMG/App bundle"
+        ),
     )
     parser.add_argument(
         "--release-suffix",

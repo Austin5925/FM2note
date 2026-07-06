@@ -298,6 +298,10 @@ make bump-minor  # 版本号 minor +1
   - 公众版新装不再默认使用 `macroclaw.app` RSSHub；订阅页只从环境变量、已有订阅注释或订阅 URL 推断 RSSHub
   - `/api/service/status` 返回 `desktop_app`，顶部 chip 和设置页文案改为区分“桌面 App 正在运行”和“后台自动检查 daemon 是否开启”
 
+- **v1.8.1** — DMG 拖拽箭头
+  - DMG 背景增加 `FM2note.app` 指向 `Applications` 的安装箭头，减少用户不知道要拖拽的情况
+  - `--profile-dir` 打包现在必须显式传 `--allow-visible-profile` / `FM2NOTE_ALLOW_VISIBLE_PROFILE=1`，因为 profile 里的 Obsidian 路径、RSSHub 地址、API key、token 和注释都会在 DMG/App 包里可见
+
 ## Current Version
 
-v1.8.0 — macOS 双版本分发 + 桌面/后台状态解耦
+v1.8.1 — DMG 拖拽箭头

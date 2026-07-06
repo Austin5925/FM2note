@@ -83,13 +83,28 @@ def test_install_bundle_profile_copies_supported_files(tmp_path):
     (profile / ".env").write_text("export DASHSCOPE_API_KEY=\n")
     (profile / "ignored.txt").write_text("ignore me\n")
 
-    target = module.install_bundle_profile(app, str(profile))
+    target = module.install_bundle_profile(app, str(profile), allow_visible_profile=True)
 
     assert target == app / "Contents" / "Resources" / "FM2noteProfile"
     assert (target / "config" / "config.yaml").read_text() == "vault_path: /vault\n"
     assert (target / "config" / "subscriptions.yaml").read_text() == "podcasts: []\n"
     assert (target / ".env").read_text() == "export DASHSCOPE_API_KEY=\n"
     assert not (target / "ignored.txt").exists()
+
+
+def test_install_bundle_profile_requires_explicit_visible_profile_consent(tmp_path):
+    module = _load_build_script()
+    app = tmp_path / "FM2note.app"
+    profile = tmp_path / "profile"
+    (profile / "config").mkdir(parents=True)
+    (profile / "config" / "config.yaml").write_text("vault_path: /vault\n")
+
+    try:
+        module.install_bundle_profile(app, str(profile))
+    except SystemExit as exc:
+        assert "Everything under --profile-dir is visible" in str(exc)
+    else:
+        raise AssertionError("Expected profile bundling to require explicit consent")
 
 
 def test_release_stem_sanitizes_suffix():
@@ -188,10 +203,14 @@ def test_make_dmg_creates_drag_install_layout(tmp_path, monkeypatch):
     dmg = module.make_dmg(app, "Developer ID Application: Example (TEAMID)")
 
     settings = tmp_path / "build" / "dmg" / "FM2note-macos.settings.py"
+    background = tmp_path / "build" / "dmg" / "FM2note-macos-background.png"
     settings_text = settings.read_text()
     assert "files = [(" in settings_text
+    assert f"background = {str(background)!r}" in settings_text
     assert "'FM2note.app': (170, 180)" in settings_text
+    assert "'Applications': (390, 180)" in settings_text
     assert "symlinks = {'Applications': '/Applications'}" in settings_text
+    assert background.read_bytes().startswith(b"\x89PNG\r\n\x1a\n")
     assert dmg == tmp_path / "dist" / "FM2note-macos.dmg"
     assert calls[0][0] == [
         module.sys.executable,

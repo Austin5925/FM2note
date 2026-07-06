@@ -36,12 +36,15 @@ def default_home() -> Path:
     return APP_SUPPORT_HOME.expanduser().resolve()
 
 
-def prepare_home(home: Path | None = None) -> Path:
+def prepare_home(home: Path | None = None, *, desktop_app: bool = True) -> Path:
     """Create and enter the desktop app runtime home."""
     resolved = (home or default_home()).expanduser().resolve()
     resolved.mkdir(parents=True, exist_ok=True)
     os.environ["FM2NOTE_HOME"] = str(resolved)
-    os.environ.setdefault("FM2NOTE_DESKTOP_APP", "1")
+    if desktop_app:
+        os.environ["FM2NOTE_DESKTOP_APP"] = "1"
+    else:
+        os.environ.pop("FM2NOTE_DESKTOP_APP", None)
     os.chdir(resolved)
     return resolved
 
@@ -117,15 +120,26 @@ def app_args() -> list[str]:
     return args
 
 
+def cli_args_from_argv(argv: list[str]) -> list[str]:
+    """Return CLI args passed to the frozen app, ignoring Finder launch noise."""
+    args = [arg for arg in argv if not arg.startswith("-psn_")]
+    if args[:1] == ["main.py"]:
+        args = args[1:]
+    elif args[:2] == ["-m", "main"]:
+        args = args[2:]
+    return args
+
+
 def main() -> None:
     """Prepare desktop state and launch the existing PyWebView app."""
-    home = prepare_home()
+    cli_args = cli_args_from_argv(sys.argv[1:])
+    home = prepare_home(desktop_app=not cli_args)
     apply_bundled_profile(home)
     ensure_initialized(home)
 
     from main import cli
 
-    cli.main(args=app_args(), prog_name="FM2note", standalone_mode=True)
+    cli.main(args=cli_args or app_args(), prog_name="FM2note", standalone_mode=True)
 
 
 if __name__ == "__main__":

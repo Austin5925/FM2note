@@ -192,6 +192,26 @@ class TestServiceInstallToggle:
         assert r.status_code == 200
         assert r.json()["ok"] is True
 
+    def test_frozen_desktop_cli_command_uses_current_executable(self, monkeypatch):
+        from src.web.routes import service as svc_mod
+
+        monkeypatch.setattr(svc_mod.sys, "frozen", True, raising=False)
+        monkeypatch.setattr(svc_mod.sys, "executable", "/App/FM2note.app/Contents/MacOS/FM2note")
+        monkeypatch.setattr(svc_mod.shutil, "which", lambda name: "/usr/local/bin/fm2note")
+
+        assert svc_mod._fm2note_cli_cmd("run-once") == [
+            "/App/FM2note.app/Contents/MacOS/FM2note",
+            "run-once",
+        ]
+
+    def test_source_checkout_cli_command_prefers_console_script(self, monkeypatch):
+        from src.web.routes import service as svc_mod
+
+        monkeypatch.delattr(svc_mod.sys, "frozen", raising=False)
+        monkeypatch.setattr(svc_mod.shutil, "which", lambda name: "/usr/local/bin/fm2note")
+
+        assert svc_mod._fm2note_cli_cmd("run-once") == ["/usr/local/bin/fm2note", "run-once"]
+
 
 class TestErrorMessages:
     """Verify friendly error mapping."""

@@ -302,6 +302,11 @@ make bump-minor  # 版本号 minor +1
   - DMG 背景增加 `FM2note.app` 指向 `Applications` 的安装箭头，减少用户不知道要拖拽的情况
   - `--profile-dir` 打包现在必须显式传 `--allow-visible-profile` / `FM2NOTE_ALLOW_VISIBLE_PROFILE=1`，因为 profile 里的 Obsidian 路径、RSSHub 地址、API key、token 和注释都会在 DMG/App 包里可见
 
+- **v1.8.2** — 后台自动检查按钮修复
+  - 打包后的 macOS 桌面 App 中，`立即检查一次` / `开机自启` / `关闭自启` 现在通过冻结可执行文件的 CLI 模式执行，不再打开第二个桌面窗口
+  - launchd plist 在 frozen `.app` 下写入 `FM2note serve`，不再写 `FM2note main.py serve`，后台 daemon 能真正进入 `serve` 模式
+  - 补系统性测试：launcher 参数路由、launchd `ProgramArguments`、service 命令选择、poll-now spawn、设置页按钮默认行为
+
 ## Current Version
 
-v1.8.1 — DMG 拖拽箭头
+v1.8.2 — 后台自动检查按钮修复

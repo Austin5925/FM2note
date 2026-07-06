@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.8.2] - 2026-07-06
+
+### Fixed
+- Packaged macOS desktop app service actions now run in CLI mode instead of opening a second desktop window when users click "立即检查一次", "开机自启", or "关闭自启".
+- Frozen `.app` launchd plists now start the packaged executable with `serve` directly instead of passing `main.py serve`, so the background daemon actually starts.
+- Settings page background-service buttons now explicitly prevent default browser/form behavior.
+
+### Added
+- Systematic regression coverage for frozen launcher argument routing, launchd plist `ProgramArguments`, service command selection, poll-now subprocess spawning, and settings-page button behavior.
+
 ## [1.8.1] - 2026-07-06
 
 ### Changed

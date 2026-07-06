@@ -1,6 +1,7 @@
 """Tests for CLI commands: init, install-service, uninstall-service."""
 
 import os
+import plistlib
 from pathlib import Path
 from unittest.mock import patch
 
@@ -157,15 +158,42 @@ class TestInstallService:
         plist_path = tmp_path / "Library" / "LaunchAgents" / "com.fm2note.serve.plist"
         assert plist_path.exists()
         content = plist_path.read_text()
+        data = plistlib.loads(plist_path.read_bytes())
         # Should contain the dynamically provided paths
         assert "/usr/bin/python3" in content
         assert str(tmp_path) in content
         assert "com.fm2note.serve" in content
         assert "RunAtLoad" in content
+        assert data["ProgramArguments"] == ["/usr/bin/python3", "main.py", "serve"]
         # API keys must NOT be embedded in plist
         assert "DASHSCOPE_API_KEY" not in content
         assert "POE_API_KEY" not in content
         assert "OPENAI_API_KEY" not in content
+
+    def test_launchd_plist_for_frozen_app_runs_serve_not_desktop_window(
+        self, tmp_path, monkeypatch
+    ):
+        """Packaged .app launchd entries must call the frozen executable in CLI mode."""
+        monkeypatch.chdir(tmp_path)
+        monkeypatch.setattr(Path, "home", lambda: tmp_path)
+
+        import main
+
+        monkeypatch.setattr(main.sys, "frozen", True, raising=False)
+        with patch("subprocess.run"):
+            main._install_launchd(
+                python_path="/Applications/FM2note.app/Contents/MacOS/FM2note",
+                workdir=str(tmp_path),
+                log_dir=str(tmp_path / "logs"),
+            )
+
+        plist_path = tmp_path / "Library" / "LaunchAgents" / "com.fm2note.serve.plist"
+        data = plistlib.loads(plist_path.read_bytes())
+        assert data["ProgramArguments"] == [
+            "/Applications/FM2note.app/Contents/MacOS/FM2note",
+            "serve",
+        ]
+        assert "main.py" not in plist_path.read_text()
 
     def test_systemd_unit_generation(self, tmp_path, monkeypatch):
         """Test that systemd unit file is generated with correct dynamic paths."""

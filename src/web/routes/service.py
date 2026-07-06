@@ -222,12 +222,20 @@ async def service_uninstall() -> dict:
 def _fm2note_cli_cmd(subcommand: str) -> list[str]:
     """Build a command line that invokes ``fm2note <subcommand>``.
 
+    In the PyInstaller desktop app, ``sys.executable`` is the FM2note app
+    launcher. Use it directly and let ``src.macos_launcher`` route the
+    subcommand in-process; falling back to a PATH ``fm2note`` or
+    ``python -m main`` can reopen the desktop window instead of running the
+    requested background action.
+
     v1.5.1 Code Review fix: prefer the installed ``fm2note`` console script
     (works in pip-installed environments regardless of CWD). Fall back to
     ``python main.py <sub>`` when running from a source checkout where the
     script isn't on PATH. The original ``python -m main`` was fragile —
     ``main`` would resolve only when CWD contained ``main.py``.
     """
+    if getattr(sys, "frozen", False):
+        return [sys.executable, subcommand]
     bin_path = shutil.which("fm2note")
     if bin_path:
         return [bin_path, subcommand]

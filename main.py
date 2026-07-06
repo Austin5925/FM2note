@@ -1,4 +1,5 @@
 import asyncio
+import html
 import os
 import platform
 import shutil
@@ -24,9 +25,7 @@ LAUNCHD_PLIST_TEMPLATE = """\
 
     <key>ProgramArguments</key>
     <array>
-        <string>{python}</string>
-        <string>main.py</string>
-        <string>serve</string>
+{program_args_xml}
     </array>
 
     <key>WorkingDirectory</key>
@@ -158,9 +157,7 @@ def web(port: int, no_browser: bool):
     host = "127.0.0.1"
     app = create_app()
     if not no_browser:
-        threading.Timer(
-            1.5, lambda: webbrowser.open(f"http://{host}:{port}")
-        ).start()
+        threading.Timer(1.5, lambda: webbrowser.open(f"http://{host}:{port}")).start()
     logger.info("FM2note v{} — web UI at http://{}:{}", VERSION, host, port)
     uvicorn.run(app, host=host, port=port, log_level="warning")
 
@@ -248,8 +245,15 @@ def app(port: int):
 
 
 @cli.command("install-shortcut")
-@click.option("--dir", "target_dir", default=None, help="Where to put the shortcut (default: Desktop)")
-@click.option("--mode", type=click.Choice(["app", "web"]), default="app", help="Use desktop app window (default) or browser tab")
+@click.option(
+    "--dir", "target_dir", default=None, help="Where to put the shortcut (default: Desktop)"
+)
+@click.option(
+    "--mode",
+    type=click.Choice(["app", "web"]),
+    default="app",
+    help="Use desktop app window (default) or browser tab",
+)
 def install_shortcut(target_dir: str | None, mode: str):
     """Drop a double-clickable launcher on the Desktop (macOS) or HOME (Linux).
 
@@ -270,7 +274,8 @@ def install_shortcut(target_dir: str | None, mode: str):
                 cd {workdir_q} 2>/dev/null || cd "$HOME"
                 # Prefer desktop window if pywebview is actually importable;
                 # `--help` would succeed even when pywebview is missing, so probe by import.
-                if command -v python3 >/dev/null 2>&1 && python3 -c 'import webview' >/dev/null 2>&1; then
+                if command -v python3 >/dev/null 2>&1 && \\
+                   python3 -c 'import webview' >/dev/null 2>&1; then
                   exec fm2note app
                 else
                   exec fm2note web
@@ -285,9 +290,7 @@ def install_shortcut(target_dir: str | None, mode: str):
         shortcut_path.write_text(body, encoding="utf-8")
         shortcut_path.chmod(0o755)
         click.echo(f"  Created {shortcut_path}")
-        click.echo(
-            "  首次双击若被 macOS 拦截，右键 → 打开 → 确认即可（仅需一次）"
-        )
+        click.echo("  首次双击若被 macOS 拦截，右键 → 打开 → 确认即可（仅需一次）")
     elif platform.system() == "Linux":
         target = Path(target_dir).expanduser() if target_dir else Path.home()
         shortcut_path = target / "fm2note.sh"
@@ -510,7 +513,7 @@ def _install_launchd(python_path: str, workdir: str, log_dir: str):
     """Install macOS launchd service."""
     path_env = os.environ.get("PATH", "/usr/local/bin:/usr/bin:/bin")
     plist_content = LAUNCHD_PLIST_TEMPLATE.format(
-        python=python_path,
+        program_args_xml=_launchd_program_args_xml(_launchd_program_args(python_path)),
         workdir=workdir,
         log_dir=log_dir,
         path_env=path_env,
@@ -530,6 +533,17 @@ def _install_launchd(python_path: str, workdir: str, log_dir: str):
     subprocess.run(["launchctl", "load", str(plist_path)], check=True)
     click.echo("  Service installed and started. It will auto-start on login.")
     click.echo(f"  Logs: {log_dir}/fm2note-stdout.log")
+
+
+def _launchd_program_args(python_path: str) -> list[str]:
+    """Return launchd ProgramArguments for source and frozen desktop installs."""
+    if getattr(sys, "frozen", False):
+        return [python_path, "serve"]
+    return [python_path, "main.py", "serve"]
+
+
+def _launchd_program_args_xml(args: list[str]) -> str:
+    return "\n".join(f"        <string>{html.escape(arg)}</string>" for arg in args)
 
 
 def _install_systemd(python_path: str, workdir: str):
@@ -643,9 +657,7 @@ def _detect_obsidian_vault(interactive: bool = True) -> str | None:
         return str(vaults[0])
     if not interactive:
         # Silent mode: pick the first one, log which choices were skipped.
-        click.echo(
-            f"  Auto-picked first of {len(vaults)} Obsidian vaults: {vaults[0].name}"
-        )
+        click.echo(f"  Auto-picked first of {len(vaults)} Obsidian vaults: {vaults[0].name}")
         click.echo("  (change in the Web UI 设置 page or rerun with --interactive)")
         return str(vaults[0])
     # Multiple vaults — show picker
@@ -769,8 +781,6 @@ async def _serve(config_path: str, subs_path: str):
         await scheduler.run_forever()
     finally:
         await state.close()
-
-
 
 
 async def _transcribe(audio_url: str, title: str | None, podcast_name: str, config_path: str):

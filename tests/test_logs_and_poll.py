@@ -133,6 +133,28 @@ class TestPollNowEndpoint:
         assert r.status_code == 200
         assert r.json()["ok"] is True
         assert calls, "Popen should have been called"
+        assert calls[0][0][0][-1] == "run-once"
+        assert calls[0][1]["start_new_session"] is True
+
+    def test_poll_now_in_frozen_app_uses_launcher_cli_mode(self, client, monkeypatch):
+        """Desktop app must spawn run-once without opening a second app window."""
+        monkeypatch.setattr("platform.system", lambda: "Darwin")
+
+        from src.web.routes import service as svc_mod
+
+        monkeypatch.setattr(svc_mod.sys, "frozen", True, raising=False)
+        monkeypatch.setattr(svc_mod.sys, "executable", "/App/FM2note.app/Contents/MacOS/FM2note")
+        calls = []
+
+        class _FakePopen:
+            def __init__(self, *args, **kwargs):
+                calls.append((args, kwargs))
+
+        with patch("src.web.routes.service.subprocess.Popen", _FakePopen):
+            r = client.post("/api/service/poll-now")
+
+        assert r.status_code == 200
+        assert calls[0][0][0] == ["/App/FM2note.app/Contents/MacOS/FM2note", "run-once"]
 
     def test_poll_now_rejected_on_unsupported_platform(self, client, monkeypatch):
         monkeypatch.setattr("platform.system", lambda: "Windows")

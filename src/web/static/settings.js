@@ -196,13 +196,14 @@
               </div>
             </div>
             <button id="svc-install-btn"
+                    type="button"
                     class="px-3 py-1.5 rounded-md bg-stone-900 text-white text-xs hover:bg-stone-700 whitespace-nowrap">
               开机自启
             </button>
           </div>
         `;
         const btn = document.getElementById('svc-install-btn');
-        if (btn) btn.addEventListener('click', () => toggleService('install', btn));
+        if (btn) btn.addEventListener('click', (event) => toggleService('install', btn, event));
         return;
       }
       if (data.running) {
@@ -215,6 +216,7 @@
               <div class="text-xs text-stone-400 mt-1">${escapeHtml(data.plist_path || '')}</div>
             </div>
             <button id="svc-uninstall-btn"
+                    type="button"
                     class="px-3 py-1.5 rounded-md border border-stone-300 text-xs hover:bg-stone-50 whitespace-nowrap">
               关闭自启
             </button>
@@ -234,6 +236,7 @@
               </div>
             </div>
             <button id="svc-uninstall-btn"
+                    type="button"
                     class="px-3 py-1.5 rounded-md border border-stone-300 text-xs hover:bg-stone-50 whitespace-nowrap">
               关闭自启
             </button>
@@ -241,13 +244,14 @@
         `;
       }
       const offBtn = document.getElementById('svc-uninstall-btn');
-      if (offBtn) offBtn.addEventListener('click', () => toggleService('uninstall', offBtn));
+      if (offBtn) offBtn.addEventListener('click', (event) => toggleService('uninstall', offBtn, event));
     } catch (e) {
       el.innerHTML = `<span class="text-red-600">检测失败：${escapeHtml(e.message)}</span>`;
     }
   }
 
-  async function toggleService(action, btn) {
+  async function toggleService(action, btn, event) {
+    if (event) event.preventDefault();
     const verb = action === 'install' ? '安装中…' : '卸载中…';
     btn.disabled = true;
     btn.textContent = verb;
@@ -271,7 +275,8 @@
   const pollBtn = document.getElementById('poll-now-btn');
   const pollStatusEl = document.getElementById('poll-now-status');
   if (pollBtn) {
-    pollBtn.addEventListener('click', async () => {
+    pollBtn.addEventListener('click', async (event) => {
+      event.preventDefault();
       pollBtn.disabled = true;
       if (pollStatusEl) {
         pollStatusEl.textContent = '触发中…';

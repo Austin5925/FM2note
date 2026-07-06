@@ -18,10 +18,52 @@ def test_prepare_home_sets_runtime_home(tmp_path, monkeypatch):
     assert macos_launcher.os.environ["FM2NOTE_DESKTOP_APP"] == "1"
 
 
+def test_prepare_home_command_mode_clears_desktop_flag(tmp_path, monkeypatch):
+    monkeypatch.chdir(Path.cwd())
+    monkeypatch.setenv("FM2NOTE_DESKTOP_APP", "1")
+
+    home = tmp_path / "FM2note Home"
+    resolved = macos_launcher.prepare_home(home, desktop_app=False)
+
+    assert resolved == home.resolve()
+    assert "FM2NOTE_DESKTOP_APP" not in macos_launcher.os.environ
+
+
 def test_app_args_allows_port_override(monkeypatch):
     monkeypatch.setenv("FM2NOTE_PORT", "7979")
 
     assert macos_launcher.app_args() == ["app", "--port", "7979"]
+
+
+def test_cli_args_from_argv_strips_finder_and_compat_wrappers():
+    assert macos_launcher.cli_args_from_argv(["-psn_0_12345"]) == []
+    assert macos_launcher.cli_args_from_argv(["main.py", "serve"]) == ["serve"]
+    assert macos_launcher.cli_args_from_argv(["-m", "main", "run-once"]) == ["run-once"]
+
+
+def test_main_routes_subcommands_without_opening_desktop_window(tmp_path, monkeypatch):
+    desktop_modes: list[bool] = []
+    cli_calls: list[list[str]] = []
+
+    def fake_prepare_home(home=None, *, desktop_app=True):
+        desktop_modes.append(desktop_app)
+        return tmp_path
+
+    def fake_cli_main(*, args, prog_name, standalone_mode):
+        cli_calls.append(args)
+
+    import main
+
+    monkeypatch.setattr(macos_launcher.sys, "argv", ["FM2note", "run-once"])
+    monkeypatch.setattr(macos_launcher, "prepare_home", fake_prepare_home)
+    monkeypatch.setattr(macos_launcher, "apply_bundled_profile", lambda home: [])
+    monkeypatch.setattr(macos_launcher, "ensure_initialized", lambda home: None)
+    monkeypatch.setattr(main.cli, "main", fake_cli_main)
+
+    macos_launcher.main()
+
+    assert desktop_modes == [False]
+    assert cli_calls == [["run-once"]]
 
 
 def test_ensure_initialized_runs_init_when_files_missing(tmp_path, monkeypatch):

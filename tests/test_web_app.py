@@ -36,6 +36,8 @@ class TestPages:
         assert r.status_code == 200
         assert "FM2note" in r.text
         assert "开始转录" in r.text
+        assert 'id="collie"' in r.text
+        assert 'data-state="idle"' in r.text
         # 5-stage progress list rendered
         for stage in ["resolve", "subtitle_check", "asr", "summary", "write"]:
             assert f'data-stage="{stage}"' in r.text

@@ -7,8 +7,17 @@
   let resetTimer = null;
 
   btn.addEventListener('click', () => {
+    const state = btn.dataset.state || 'idle';
+    const copy = {
+      idle: '汪!',
+      ready: '开工?',
+      working: '盯着呢',
+      done: '完成!',
+      error: '呜...',
+    };
     // Reset prior animation state so rapid clicks retrigger cleanly
     if (bark) {
+      bark.textContent = copy[state] || copy.idle;
       bark.classList.remove('collie-bark-visible');
       // Force reflow so the animation restarts when we re-add the class
       void bark.offsetWidth;

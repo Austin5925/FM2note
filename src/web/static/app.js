@@ -16,6 +16,7 @@
   const openObsidianLink = document.getElementById('open-obsidian');
   const resetBtn = document.getElementById('reset-btn');
   const errorResetBtn = document.getElementById('error-reset-btn');
+  const collie = document.getElementById('collie');
 
   let previewTimer = null;
   let activeStream = null;
@@ -30,11 +31,17 @@
     return /^https?:\/\/\S+/i.test(s.trim());
   }
 
+  function setCollieState(state) {
+    if (collie) collie.dataset.state = state;
+  }
+
   urlInput.addEventListener('input', () => {
     const value = urlInput.value.trim();
-    submitBtn.disabled = !isLikelyUrl(value);
+    const ready = isLikelyUrl(value);
+    submitBtn.disabled = !ready;
+    setCollieState(ready ? 'ready' : 'idle');
     if (previewTimer) clearTimeout(previewTimer);
-    if (!isLikelyUrl(value)) {
+    if (!ready) {
       previewBox.classList.add('hidden');
       return;
     }
@@ -69,6 +76,7 @@
     resetUI(/*hideForm*/ true);
     progressSection.classList.remove('hidden');
     submitBtn.disabled = true;
+    setCollieState('working');
 
     let taskId;
     try {
@@ -148,11 +156,13 @@
       openObsidianLink.classList.add('pointer-events-none', 'opacity-50');
     }
     completeCard.classList.remove('hidden');
+    setCollieState('done');
   }
 
   function showError(msg) {
     errorMessage.textContent = msg;
     errorCard.classList.remove('hidden');
+    setCollieState('error');
     if (activeStream) {
       activeStream.close();
       activeStream = null;
@@ -167,6 +177,7 @@
     document.querySelectorAll('.step-icon').forEach((el) => el.setAttribute('data-state', 'pending'));
     document.querySelectorAll('.step-message').forEach((el) => (el.textContent = ''));
     progressSection.classList.add('hidden');
+    setCollieState(isLikelyUrl(urlInput.value) ? 'ready' : 'idle');
     if (activeStream) {
       activeStream.close();
       activeStream = null;

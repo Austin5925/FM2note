@@ -12,6 +12,13 @@
     { id: 'aliyun_access_key_secret', label: 'Aliyun Access Key Secret', placeholder: '' },
   ];
 
+  const DEFAULT_POE_MODEL = 'gemini-3.1-flash-lite';
+  const POE_MODELS = [
+    DEFAULT_POE_MODEL,
+    'gpt-5.4-mini',
+    'claude-sonnet-4.6',
+  ];
+
   const statusEl = document.getElementById('save-status');
   const saveBtn = document.getElementById('save-btn');
 
@@ -34,6 +41,52 @@
       .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
   }
 
+  function normalizedSummaryModel(value) {
+    return value === '(provider default)' ? '' : String(value || '').trim();
+  }
+
+  function renderSummaryModelControl(provider, modelValue) {
+    const group = document.getElementById('summary_model_group');
+    const label = document.getElementById('summary_model_label');
+    const poeSelect = document.getElementById('poe_summary_model');
+    const textInput = document.getElementById('summary_model');
+    const hint = document.getElementById('summary_model_hint');
+    if (!group || !label || !poeSelect || !textInput || !hint) return;
+
+    const model = normalizedSummaryModel(modelValue);
+    group.classList.toggle('hidden', provider !== 'poe' && provider !== 'openai');
+    poeSelect.classList.toggle('hidden', provider !== 'poe');
+    textInput.classList.toggle('hidden', provider !== 'openai');
+
+    if (provider === 'poe') {
+      label.textContent = 'Poe 摘要模型';
+      poeSelect.innerHTML = POE_MODELS.map((id) => (
+        `<option value="${escapeHtml(id)}">${escapeHtml(id)}</option>`
+      )).join('');
+      poeSelect.value = POE_MODELS.includes(model) ? model : DEFAULT_POE_MODEL;
+      textInput.value = '';
+      hint.textContent = '仅在 Poe provider 下显示；这里使用 Poe API model id。';
+    } else if (provider === 'openai') {
+      label.textContent = 'OpenAI-compatible 摘要模型（留空使用默认）';
+      textInput.value = model;
+      hint.textContent = 'OpenAI-compatible provider 可填写自定义模型。';
+    } else {
+      textInput.value = '';
+      hint.textContent = '';
+    }
+  }
+
+  function selectedSummaryModel() {
+    const provider = document.getElementById('summary_provider').value;
+    if (provider === 'poe') {
+      return document.getElementById('poe_summary_model').value;
+    }
+    if (provider === 'openai') {
+      return document.getElementById('summary_model').value.trim();
+    }
+    return '';
+  }
+
   async function loadSettings() {
     try {
       const resp = await fetch('/api/settings');
@@ -52,9 +105,9 @@
       }
       document.getElementById('podcast_dir').value = s.podcast_dir || '';
       document.getElementById('asr_engine').value = s.asr_engine || 'funasr';
-      document.getElementById('summary_provider').value = s.summary_provider || 'auto';
-      document.getElementById('summary_model').value =
-        s.summary_model === '(provider default)' ? '' : s.summary_model || '';
+      const providerEl = document.getElementById('summary_provider');
+      providerEl.value = s.summary_provider || 'auto';
+      renderSummaryModelControl(providerEl.value, s.summary_model);
       document.getElementById('key-fields').innerHTML =
         makeField(KEY_DEFS[0], s.keys.dashscope) +
         makeField(KEY_DEFS[1], s.keys.poe) +
@@ -95,7 +148,7 @@
       podcast_dir: podcastEl.value,
       asr_engine: document.getElementById('asr_engine').value,
       summary_provider: document.getElementById('summary_provider').value,
-      summary_model: document.getElementById('summary_model').value.trim(),
+      summary_model: selectedSummaryModel(),
       dashscope_api_key: document.getElementById('dashscope_api_key').value,
       poe_api_key: document.getElementById('poe_api_key').value,
       openai_api_key: document.getElementById('openai_api_key').value,
@@ -132,6 +185,13 @@
       saveBtn.disabled = false;
     }
   });
+
+  const summaryProviderEl = document.getElementById('summary_provider');
+  if (summaryProviderEl) {
+    summaryProviderEl.addEventListener('change', () => {
+      renderSummaryModelControl(summaryProviderEl.value, selectedSummaryModel());
+    });
+  }
 
   // -------- "使用默认路径" button --------
   const fillDefaultBtn = document.getElementById('vault_path_fill_default');

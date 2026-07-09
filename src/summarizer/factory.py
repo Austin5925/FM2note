@@ -47,16 +47,18 @@ def create_summarizer(config: AppConfig) -> Summarizer | None:
 
 
 def _create_poe(config: AppConfig) -> Summarizer:
-    from src.summarizer.poe_client import PoeSummarizer
+    from src.summarizer.poe_client import DEFAULT_POE_MODEL, PoeSummarizer
+
+    model = config.summary_model or DEFAULT_POE_MODEL
 
     logger.info(
         "Summarizer: Poe (model={}, cooldown={}s)",
-        config.summary_model or "GPT-5.5",
+        model,
         config.summary_cooldown,
     )
     return PoeSummarizer(
         api_key=config.poe_api_key,
-        model=config.summary_model or "GPT-5.5",
+        model=model,
         cooldown=float(config.summary_cooldown),
     )
 

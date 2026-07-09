@@ -98,7 +98,7 @@ class TestSummarizerFactory:
             summary_model="",
         )
         s = create_summarizer(config)
-        assert "GPT-5.5" in s.name
+        assert "gemini-3.1-flash-lite" in s.name
 
     def test_default_model_openai(self):
         config = _make_config(

@@ -3,11 +3,14 @@
 from __future__ import annotations
 
 import os
+from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
 
 from src.web.app import create_app
+
+ROOT = Path(__file__).resolve().parents[1]
 
 
 @pytest.fixture
@@ -141,6 +144,31 @@ def test_summary_provider_persists_to_yaml_and_survives_reload(client, tmp_path)
     # 3) GET /api/settings reads it back from YAML
     r2 = client.get("/api/settings")
     assert r2.json()["summary_provider"] == "poe"
+
+
+def test_settings_page_scopes_poe_model_options_to_poe_provider():
+    html = (ROOT / "src/web/templates/settings.html").read_text(encoding="utf-8")
+    js = (ROOT / "src/web/static/settings.js").read_text(encoding="utf-8")
+
+    assert 'id="poe_summary_model"' in html
+    assert "gemini-3.1-flash-lite" in js
+    assert "gpt-5.4-mini" in js
+    assert "claude-sonnet-4.6" in js
+    assert "provider !== 'poe'" in js
+    assert "provider !== 'openai'" in js
+
+
+def test_collie_has_transcribe_state_reactions():
+    html = (ROOT / "src/web/templates/transcribe.html").read_text(encoding="utf-8")
+    app_js = (ROOT / "src/web/static/app.js").read_text(encoding="utf-8")
+    collie_js = (ROOT / "src/web/static/collie.js").read_text(encoding="utf-8")
+    css = (ROOT / "src/web/static/app.css").read_text(encoding="utf-8")
+
+    assert 'data-state="idle"' in html
+    for state in ("ready", "working", "done", "error"):
+        assert f"'{state}'" in app_js
+        assert f"{state}:" in collie_js
+        assert f'data-state="{state}"' in css
 
 
 def test_log_level_persists_to_yaml(client, tmp_path):

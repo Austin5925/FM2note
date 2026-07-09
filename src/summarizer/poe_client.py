@@ -8,6 +8,13 @@ from loguru import logger
 
 from src.models import SummaryResult
 
+DEFAULT_POE_MODEL = "gemini-3.1-flash-lite"
+POE_MODEL_OPTIONS = (
+    DEFAULT_POE_MODEL,
+    "gpt-5.4-mini",
+    "claude-sonnet-4.6",
+)
+
 SYSTEM_PROMPT = """你是播客内容分析专家。根据播客转写文本，生成：
 
 1. **摘要**（250-500 字，概括核心观点和关键讨论）
@@ -30,7 +37,7 @@ class PoeSummarizer:
     def __init__(
         self,
         api_key: str,
-        model: str = "GPT-5.5",
+        model: str = DEFAULT_POE_MODEL,
         reasoning_effort: str = "medium",
         cooldown: float = 60.0,
     ):

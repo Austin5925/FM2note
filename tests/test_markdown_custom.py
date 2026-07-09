@@ -28,6 +28,7 @@ def _make_transcript(**overrides):
     defaults = {
         "text": "Full transcript text",
         "paragraphs": ["Paragraph one", "Paragraph two"],
+        "analysis": "Content analysis text",
         "summary": "AI summary text",
         "chapters": [{"title": "Chapter 1", "summary": "First chapter"}],
         "keywords": ["AI", "podcast"],
@@ -38,6 +39,7 @@ def _make_transcript(**overrides):
 
 class TestDefaultLabels:
     def test_default_labels_exist(self):
+        assert "content_analysis" in DEFAULT_LABELS
         assert "ai_summary" in DEFAULT_LABELS
         assert "chapters" in DEFAULT_LABELS
         assert "show_notes" in DEFAULT_LABELS
@@ -46,6 +48,7 @@ class TestDefaultLabels:
     def test_default_template_renders_chinese_labels(self):
         gen = MarkdownGenerator("templates")
         result = gen.render(_make_episode(), _make_transcript())
+        assert "## 播客内容分析" in result
         assert "## AI 摘要" in result
         assert "## 章节速览" in result
         assert "## Show Notes" in result
@@ -55,6 +58,7 @@ class TestDefaultLabels:
 class TestCustomLabels:
     def test_english_labels(self):
         labels = {
+            "content_analysis": "Content Analysis",
             "ai_summary": "AI Summary",
             "chapters": "Chapters",
             "show_notes": "Show Notes",
@@ -67,6 +71,7 @@ class TestCustomLabels:
         }
         gen = MarkdownGenerator("templates", labels=labels)
         result = gen.render(_make_episode(), _make_transcript())
+        assert "## Content Analysis" in result
         assert "## AI Summary" in result
         assert "## Chapters" in result
         assert "## Full Transcript" in result
@@ -78,6 +83,7 @@ class TestCustomLabels:
         gen = MarkdownGenerator("templates", labels={"ai_summary": "Summary"})
         result = gen.render(_make_episode(), _make_transcript())
         assert "## Summary" in result
+        assert "## 播客内容分析" in result  # default preserved
         assert "## 章节速览" in result  # default preserved
         assert "## 全文转写" in result  # default preserved
 

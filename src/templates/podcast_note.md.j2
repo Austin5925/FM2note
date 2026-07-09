@@ -27,6 +27,12 @@ asr_engine: "{{ asr_engine }}"
 > **{{ labels.duration | default("时长") }}**：{{ episode.duration }}
 > **{{ labels.link | default("链接") }}**：[{{ labels.link_text | default("小宇宙") }}]({{ episode.link }})
 
+{% if transcript.analysis %}
+## {{ labels.content_analysis | default("播客内容分析") }}
+
+{{ transcript.analysis }}
+
+{% endif %}
 {% if transcript.summary %}
 ## {{ labels.ai_summary | default("AI 摘要") }}
 

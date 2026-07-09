@@ -39,6 +39,7 @@ class TestTranscriptResult:
         tr = TranscriptResult(text="全文文本", paragraphs=["段落1", "段落2"])
         assert tr.text == "全文文本"
         assert len(tr.paragraphs) == 2
+        assert tr.analysis is None
         assert tr.summary is None
         assert tr.chapters is None
         assert tr.keywords is None
@@ -47,10 +48,12 @@ class TestTranscriptResult:
         tr = TranscriptResult(
             text="全文",
             paragraphs=["p1"],
+            analysis="内容分析",
             summary="摘要内容",
             chapters=[{"title": "第一章", "summary": "概述"}],
             keywords=["AI", "播客"],
         )
+        assert tr.analysis == "内容分析"
         assert tr.summary == "摘要内容"
         assert len(tr.chapters) == 1
         assert tr.keywords == ["AI", "播客"]

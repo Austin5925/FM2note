@@ -26,6 +26,7 @@ class TranscriptResult:
 
     text: str
     paragraphs: list[str]
+    analysis: str | None = None
     summary: str | None = None
     chapters: list[dict] | None = None
     keywords: list[str] | None = None
@@ -36,6 +37,7 @@ class SummaryResult:
     """AI 摘要结果（Poe LLM 生成）"""
 
     summary: str
+    analysis: str | None = None
     chapters: list[dict] | None = None
     keywords: list[str] | None = None
 

@@ -116,6 +116,8 @@ def insert_summary_into_note(note_path: str, summary: SummaryResult) -> bool:
 
     # 构建摘要 Markdown 片段
     sections: list[str] = []
+    if summary.analysis:
+        sections.append(f"## 播客内容分析\n\n{summary.analysis}\n")
     if summary.summary:
         sections.append(f"## AI 摘要\n\n{summary.summary}\n")
     if summary.chapters:

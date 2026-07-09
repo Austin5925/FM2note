@@ -7,7 +7,8 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from src.summarizer.openai_client import OpenAISummarizer
+from src.summarizer import prompts
+from src.summarizer.openai_client import SYSTEM_PROMPT, OpenAISummarizer
 
 
 @pytest.fixture
@@ -19,6 +20,9 @@ class TestOpenAISummarizer:
     def test_name(self, summarizer):
         assert summarizer.name == "openai/gpt-4o-mini"
 
+    def test_uses_shared_prompt(self):
+        assert SYSTEM_PROMPT is prompts.SYSTEM_PROMPT
+
     def test_custom_model_name(self):
         s = OpenAISummarizer(api_key="k", model="deepseek-chat")
         assert s.name == "openai/deepseek-chat"
@@ -26,6 +30,7 @@ class TestOpenAISummarizer:
     @pytest.mark.asyncio
     async def test_summarize_success(self, summarizer):
         response_data = {
+            "analysis": "Content analysis",
             "summary": "Test summary",
             "chapters": [{"title": "Ch1", "summary": "Sum1"}],
             "keywords": ["AI", "podcast"],
@@ -47,6 +52,7 @@ class TestOpenAISummarizer:
 
             result = await summarizer.summarize("transcript text", "Episode Title")
 
+        assert result.analysis == "Content analysis"
         assert result.summary == "Test summary"
         assert result.chapters is not None
         assert len(result.chapters) == 1
@@ -71,12 +77,14 @@ class TestOpenAISummarizer:
     def test_parse_response_valid_json(self, summarizer):
         content = json.dumps(
             {
+                "analysis": "A",
                 "summary": "S",
                 "chapters": [{"title": "T", "summary": "S"}],
                 "keywords": ["k1"],
             }
         )
         result = summarizer._parse_response(content)
+        assert result.analysis == "A"
         assert result.summary == "S"
         assert result.keywords == ["k1"]
 

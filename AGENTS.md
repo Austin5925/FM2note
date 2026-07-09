@@ -186,7 +186,8 @@ make bump-minor  # 版本号 minor +1
 - **v1.8.3** — App 启动自动拉起后台 daemon
 - **v1.8.4** — 云端批量下载加速 + 打包 App 后台启动修复：有界并发 fetch + 1000 条 metadata lookup + packaged CLI 运行目录修复
 - **v1.8.5** — Poe 默认摘要模型改为 gemini-3.1-flash-lite；设置页仅在 Poe provider 下显示 Poe 模型选项；转录页边牧增加轻量状态反馈
+- **v1.8.6** — 摘要 prompt 统一为 provider 共享；笔记最前面新增“播客内容分析”快速阅读区，并兼容历史页补摘要
 
 ## Current Version
 
-v1.8.5 — Poe 默认模型、设置页选项与边牧状态反馈
+v1.8.6 — 共享摘要 prompt + 播客内容分析区

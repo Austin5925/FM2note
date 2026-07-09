@@ -7,15 +7,7 @@ import httpx
 from loguru import logger
 
 from src.models import SummaryResult
-
-SYSTEM_PROMPT = """You are a podcast content analyst. Given a podcast transcript, generate:
-
-1. **Summary** (250-500 words, covering core viewpoints and key discussions)
-2. **Chapters** (natural topic segments, each with a title and one-sentence summary)
-3. **Keywords** (5-10 core concepts)
-
-Output ONLY valid JSON in this exact format, no other text:
-{"summary": "...", "chapters": [{"title": "...", "summary": "..."}], "keywords": ["...", "..."]}"""
+from src.summarizer.prompts import SYSTEM_PROMPT
 
 
 class OpenAISummarizer:
@@ -166,6 +158,7 @@ class OpenAISummarizer:
 
         return SummaryResult(
             summary=data.get("summary", ""),
+            analysis=data.get("analysis") or None,
             chapters=chapters,
             keywords=keywords,
         )

@@ -90,12 +90,15 @@ class TestInsertSummaryIntoNote:
 
         summary = SummaryResult(
             summary="这是摘要内容",
+            analysis="- 核心观点",
             chapters=[{"title": "第一章", "summary": "第一章总结"}],
         )
         result = insert_summary_into_note(note_path, summary)
         assert result is True
 
         updated = Path(note_path).read_text(encoding="utf-8")
+        assert "## 播客内容分析" in updated
+        assert "- 核心观点" in updated
         assert "## AI 摘要" in updated
         assert "这是摘要内容" in updated
         assert "## 章节速览" in updated
@@ -104,6 +107,7 @@ class TestInsertSummaryIntoNote:
         assert "## Show Notes" in updated
         assert "## 全文转写" in updated
         # 摘要在 Show Notes 之前
+        assert updated.index("## 播客内容分析") < updated.index("## AI 摘要")
         assert updated.index("## AI 摘要") < updated.index("## Show Notes")
 
     def test_insert_before_transcript_if_no_show_notes(self, tmp_path):
@@ -128,6 +132,19 @@ class TestInsertSummaryIntoNote:
         updated = Path(note_path).read_text(encoding="utf-8")
         assert "## AI 摘要" in updated
         assert "## 章节速览" not in updated
+
+    def test_insert_analysis_only(self, tmp_path):
+        content = "# Title\n\n## Show Notes\n\nnotes\n"
+        note_path = self._write_note(tmp_path, content)
+
+        summary = SummaryResult(summary="", analysis="- 观点快读")
+        result = insert_summary_into_note(note_path, summary)
+        assert result is True
+
+        updated = Path(note_path).read_text(encoding="utf-8")
+        assert "## 播客内容分析" in updated
+        assert "- 观点快读" in updated
+        assert "## AI 摘要" not in updated
 
     def test_nonexistent_note_returns_false(self):
         result = insert_summary_into_note("/nonexistent/note.md", SummaryResult(summary="s"))

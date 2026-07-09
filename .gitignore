@@ -27,6 +27,8 @@ config/subscriptions.yaml
 data/state.db
 data/tmp/
 data/pending_summaries/
+.fm2note_profile_applied
+.fm2note_background_disabled
 
 # Logs
 logs/*.log

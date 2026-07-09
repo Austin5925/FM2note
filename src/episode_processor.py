@@ -394,6 +394,7 @@ class EpisodeProcessor:
         _emit(progress_callback, "summary", "start", "生成 AI 摘要中...")
         try:
             summary = await self.summarizer.summarize(transcript.text, title)
+            transcript.analysis = summary.analysis
             transcript.summary = summary.summary
             transcript.chapters = summary.chapters
             transcript.keywords = summary.keywords

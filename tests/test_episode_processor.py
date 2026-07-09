@@ -14,7 +14,7 @@ from src.episode_processor import (
     ProcessingOptions,
     ProcessOutcome,
 )
-from src.models import Episode, TranscriptResult
+from src.models import Episode, SummaryResult, TranscriptResult
 
 
 def _episode(**overrides) -> Episode:
@@ -73,6 +73,20 @@ class TestHappyPath:
         # Render received asr_engine from config
         processor.md_generator.render.assert_called_once()
         assert processor.md_generator.render.call_args.kwargs["asr_engine"] == "funasr"
+
+    @pytest.mark.asyncio
+    async def test_summary_analysis_is_added_to_transcript_before_render(self, processor):
+        summarizer = AsyncMock()
+        summarizer.summarize = AsyncMock(
+            return_value=SummaryResult(summary="摘要", analysis="- 内容分析")
+        )
+        processor.summarizer = summarizer
+
+        await processor.process(_episode())
+
+        rendered_transcript = processor.md_generator.render.call_args.args[1]
+        assert rendered_transcript.analysis == "- 内容分析"
+        assert rendered_transcript.summary == "摘要"
 
 
 class TestCacheHit:

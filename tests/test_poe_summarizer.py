@@ -5,7 +5,8 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from src.summarizer.poe_client import PoeSummarizer
+from src.summarizer import prompts
+from src.summarizer.poe_client import SYSTEM_PROMPT, PoeSummarizer
 
 
 class TestPoeSummarizer:
@@ -14,6 +15,9 @@ class TestPoeSummarizer:
         assert s._model == "gemini-3.1-flash-lite"
         assert s._reasoning_effort == "medium"
         assert s._cooldown == 60.0
+
+    def test_uses_shared_prompt(self):
+        assert SYSTEM_PROMPT is prompts.SYSTEM_PROMPT
 
     def test_init_custom(self):
         s = PoeSummarizer(
@@ -26,10 +30,12 @@ class TestPoeSummarizer:
     def test_parse_response_valid_json(self):
         s = PoeSummarizer(api_key="pk-test")
         content = (
-            '{"summary": "摘要", "chapters": [{"title": "章1", "summary": "内容"}],'
+            '{"analysis": "分析", "summary": "摘要",'
+            ' "chapters": [{"title": "章1", "summary": "内容"}],'
             ' "keywords": ["关键词"]}'
         )
         result = s._parse_response(content)
+        assert result.analysis == "分析"
         assert result.summary == "摘要"
         assert len(result.chapters) == 1
         assert result.chapters[0]["title"] == "章1"
@@ -75,6 +81,7 @@ class TestPoeSummarizer:
                         "content": (
                             '{"summary": "这是摘要", "chapters":'
                             ' [{"title": "开头", "summary": "介绍"}],'
+                            ' "analysis": "这是分析",'
                             ' "keywords": ["测试"]}'
                         )
                     }
@@ -96,6 +103,7 @@ class TestPoeSummarizer:
             result = await s.summarize("转写文本内容", "播客标题")
 
         assert result.summary == "这是摘要"
+        assert result.analysis == "这是分析"
         assert len(result.chapters) == 1
         assert result.keywords == ["测试"]
 

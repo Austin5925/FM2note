@@ -14,6 +14,7 @@ _PACKAGE_TEMPLATE_DIR = str(Path(__file__).resolve().parent.parent / "templates"
 
 # Default section labels (Chinese for backward compatibility)
 DEFAULT_LABELS = {
+    "content_analysis": "播客内容分析",
     "ai_summary": "AI 摘要",
     "chapters": "章节速览",
     "show_notes": "Show Notes",

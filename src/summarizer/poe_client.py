@@ -7,6 +7,7 @@ import httpx
 from loguru import logger
 
 from src.models import SummaryResult
+from src.summarizer.prompts import SYSTEM_PROMPT
 
 DEFAULT_POE_MODEL = "gemini-3.1-flash-lite"
 POE_MODEL_OPTIONS = (
@@ -14,15 +15,6 @@ POE_MODEL_OPTIONS = (
     "gpt-5.4-mini",
     "claude-sonnet-4.6",
 )
-
-SYSTEM_PROMPT = """你是播客内容分析专家。根据播客转写文本，生成：
-
-1. **摘要**（250-500 字，概括核心观点和关键讨论）
-2. **章节**（按话题自然分段，每章给出标题和一句话总结）
-3. **关键词**（5-10 个核心概念）
-
-严格按以下 JSON 格式输出，不要添加任何其他文字：
-{"summary": "...", "chapters": [{"title": "...", "summary": "..."}], "keywords": ["...", "..."]}"""
 
 
 class PoeSummarizer:
@@ -184,6 +176,7 @@ class PoeSummarizer:
 
         return SummaryResult(
             summary=data.get("summary", ""),
+            analysis=data.get("analysis") or None,
             chapters=chapters,
             keywords=keywords,
         )

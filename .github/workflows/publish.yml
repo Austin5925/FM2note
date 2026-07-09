@@ -1,8 +1,13 @@
 name: Publish to PyPI
 
+# Automatic tag publishing is disabled per project owner request.
+# PyPI Trusted Publishing is not configured for this repository, so tag pushes
+# should not try to publish packages automatically. Re-enable deliberately only
+# after configuring the PyPI publisher or adding an explicit token flow.
 on:
-  push:
-    tags: ["v*"]
+  workflow_dispatch:
+  # push:
+  #   tags: ["v*"]
 
 jobs:
   publish:

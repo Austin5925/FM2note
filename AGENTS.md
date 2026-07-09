@@ -23,7 +23,7 @@ FM2note — 播客 → Obsidian 笔记自动化管线。
 | 代码规范 | ruff（lint + format） |
 | 容器化 | Docker + docker-compose（仅 RSSHub 服务端） |
 | 包管理 | pyproject.toml (PEP 621) + setuptools |
-| CI/CD | GitHub Actions（lint + test + PyPI publish） |
+| CI/CD | GitHub Actions 已禁用（节省额度）；lint/test/打包走本地命令 |
 
 ## 关键文件路径
 
@@ -115,6 +115,7 @@ make bump-minor  # 版本号 minor +1
 - `config/config.yaml` 和 `config/subscriptions.yaml` 不提交（用户自建）
 - 不使用 feature 分支（直接 commit 到 master）
 - 每个版本在本文件的 Version History 中记录变更摘要
+- GitHub Actions/CI 不得重新启用；发布前使用本地 `make lint` / `make test` / macOS 打包命令验证
 
 ## 版本规范
 

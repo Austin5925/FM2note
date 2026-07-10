@@ -114,6 +114,8 @@ make bump-minor  # 版本号 minor +1
 - `.env` 文件永远不得 commit（已在 .gitignore 中排除）
 - `config/config.yaml` 和 `config/subscriptions.yaml` 不提交（用户自建）
 - 不使用 feature 分支（直接 commit 到 master）
+- 自 v1.8.8 起，macOS 只构建和发布一个不含预置 profile 的通用版本；除非用户明确要求，不再生成个人版或女友版安装包
+- 拖动替换升级时必须保留 `~/Library/Application Support/FM2note`，不得覆盖或删除用户现有配置、订阅与运行状态
 - 每个版本在本文件的 Version History 中记录变更摘要
 - GitHub Actions/CI 不得重新启用；发布前使用本地 `make lint` / `make test` / macOS 打包命令验证
 

@@ -48,7 +48,7 @@ class TestDefaultLabels:
     def test_default_template_renders_chinese_labels(self):
         gen = MarkdownGenerator("templates")
         result = gen.render(_make_episode(), _make_transcript())
-        assert "## 播客内容分析" in result
+        assert "## 精简版博客" in result
         assert "## AI 摘要" in result
         assert "## 章节速览" in result
         assert "## Show Notes" in result
@@ -58,7 +58,7 @@ class TestDefaultLabels:
 class TestCustomLabels:
     def test_english_labels(self):
         labels = {
-            "content_analysis": "Content Analysis",
+            "content_analysis": "Condensed Blog",
             "ai_summary": "AI Summary",
             "chapters": "Chapters",
             "show_notes": "Show Notes",
@@ -71,7 +71,7 @@ class TestCustomLabels:
         }
         gen = MarkdownGenerator("templates", labels=labels)
         result = gen.render(_make_episode(), _make_transcript())
-        assert "## Content Analysis" in result
+        assert "## Condensed Blog" in result
         assert "## AI Summary" in result
         assert "## Chapters" in result
         assert "## Full Transcript" in result
@@ -83,7 +83,7 @@ class TestCustomLabels:
         gen = MarkdownGenerator("templates", labels={"ai_summary": "Summary"})
         result = gen.render(_make_episode(), _make_transcript())
         assert "## Summary" in result
-        assert "## 播客内容分析" in result  # default preserved
+        assert "## 精简版博客" in result  # default preserved
         assert "## 章节速览" in result  # default preserved
         assert "## 全文转写" in result  # default preserved
 

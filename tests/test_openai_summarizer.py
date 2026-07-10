@@ -88,6 +88,20 @@ class TestOpenAISummarizer:
         assert result.summary == "S"
         assert result.keywords == ["k1"]
 
+    def test_parse_response_normalizes_analysis_array(self, summarizer):
+        content = json.dumps(
+            {
+                "analysis": ["First argument", "Supporting example"],
+                "summary": "S",
+                "chapters": [],
+                "keywords": [],
+            }
+        )
+
+        result = summarizer._parse_response(content)
+
+        assert result.analysis == "First argument\n\nSupporting example"
+
     def test_parse_response_json_with_wrapper(self, summarizer):
         content = 'Here is the result:\n{"summary": "wrapped", "chapters": [], "keywords": []}'
         result = summarizer._parse_response(content)

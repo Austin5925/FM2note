@@ -28,7 +28,7 @@ asr_engine: "{{ asr_engine }}"
 > **{{ labels.link | default("链接") }}**：[{{ labels.link_text | default("小宇宙") }}]({{ episode.link }})
 
 {% if transcript.analysis %}
-## {{ labels.content_analysis | default("播客内容分析") }}
+## {{ labels.content_analysis | default("精简版博客") }}
 
 {{ transcript.analysis }}
 

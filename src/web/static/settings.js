@@ -12,10 +12,10 @@
     { id: 'aliyun_access_key_secret', label: 'Aliyun Access Key Secret', placeholder: '' },
   ];
 
-  const DEFAULT_POE_MODEL = 'gemini-3.1-flash-lite';
+  const DEFAULT_POE_MODEL = 'gpt-5.4-mini';
   const POE_MODELS = [
     DEFAULT_POE_MODEL,
-    'gpt-5.4-mini',
+    'gemini-3.1-flash-lite',
     'claude-sonnet-4.6',
   ];
 

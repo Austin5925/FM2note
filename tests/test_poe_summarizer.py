@@ -6,13 +6,13 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from src.summarizer import prompts
-from src.summarizer.poe_client import SYSTEM_PROMPT, PoeSummarizer
+from src.summarizer.poe_client import MAX_COMPLETION_TOKENS, SYSTEM_PROMPT, PoeSummarizer
 
 
 class TestPoeSummarizer:
     def test_init_defaults(self):
         s = PoeSummarizer(api_key="pk-test")
-        assert s._model == "gemini-3.1-flash-lite"
+        assert s._model == "gpt-5.4-mini"
         assert s._reasoning_effort == "medium"
         assert s._cooldown == 60.0
 
@@ -40,6 +40,18 @@ class TestPoeSummarizer:
         assert len(result.chapters) == 1
         assert result.chapters[0]["title"] == "章1"
         assert result.keywords == ["关键词"]
+
+    def test_parse_response_normalizes_real_world_analysis_array(self):
+        """Gemini returned this field shape in a real v1.8.6 note."""
+        s = PoeSummarizer(api_key="pk-test")
+        content = (
+            '{"analysis": ["第一段观点", "第二段论证"], "summary": "摘要",'
+            ' "chapters": [], "keywords": []}'
+        )
+
+        result = s._parse_response(content)
+
+        assert result.analysis == "第一段观点\n\n第二段论证"
 
     def test_parse_response_json_in_markdown(self):
         s = PoeSummarizer(api_key="pk-test")
@@ -106,13 +118,18 @@ class TestPoeSummarizer:
         assert result.analysis == "这是分析"
         assert len(result.chapters) == 1
         assert result.keywords == ["测试"]
+        payload = instance.post.await_args.kwargs["json"]
+        assert payload["model"] == "gpt-5.4-mini"
+        assert payload["max_tokens"] == MAX_COMPLETION_TOKENS
 
     @pytest.mark.asyncio
     async def test_summarize_respects_cooldown(self):
         """验证两次调用之间会等待 cooldown 间隔。"""
         s = PoeSummarizer(api_key="pk-test", cooldown=0.5)
 
-        api_response = {"choices": [{"message": {"content": '{"summary": "摘要"}'}}]}
+        api_response = {
+            "choices": [{"message": {"content": '{"analysis": "精简版博客", "summary": "摘要"}'}}]
+        }
         mock_resp = MagicMock()
         mock_resp.json.return_value = api_response
         mock_resp.raise_for_status = MagicMock()

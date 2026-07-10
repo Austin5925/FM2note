@@ -7,7 +7,11 @@ import httpx
 from loguru import logger
 
 from src.models import SummaryResult
-from src.summarizer.prompts import SYSTEM_PROMPT
+from src.summarizer.prompts import (
+    SYSTEM_PROMPT,
+    normalize_condensed_blog,
+    validate_condensed_blog,
+)
 
 
 class OpenAISummarizer:
@@ -104,7 +108,9 @@ class OpenAISummarizer:
                     raise ValueError("OpenAI API returned empty content")
 
                 self._last_call_time = time.monotonic()
-                return self._parse_response(content)
+                result = self._parse_response(content)
+                validate_condensed_blog(result)
+                return result
 
             except Exception as e:
                 last_error = e
@@ -158,7 +164,7 @@ class OpenAISummarizer:
 
         return SummaryResult(
             summary=data.get("summary", ""),
-            analysis=data.get("analysis") or None,
+            analysis=normalize_condensed_blog(data.get("analysis")),
             chapters=chapters,
             keywords=keywords,
         )

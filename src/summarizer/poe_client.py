@@ -7,14 +7,19 @@ import httpx
 from loguru import logger
 
 from src.models import SummaryResult
-from src.summarizer.prompts import SYSTEM_PROMPT
+from src.summarizer.prompts import (
+    SYSTEM_PROMPT,
+    normalize_condensed_blog,
+    validate_condensed_blog,
+)
 
-DEFAULT_POE_MODEL = "gemini-3.1-flash-lite"
+DEFAULT_POE_MODEL = "gpt-5.4-mini"
 POE_MODEL_OPTIONS = (
     DEFAULT_POE_MODEL,
-    "gpt-5.4-mini",
+    "gemini-3.1-flash-lite",
     "claude-sonnet-4.6",
 )
+MAX_COMPLETION_TOKENS = 16_384
 
 
 class PoeSummarizer:
@@ -84,6 +89,9 @@ class PoeSummarizer:
             ],
             "stream": False,
             "reasoning_effort": self._reasoning_effort,
+            # A generous ceiling, not a requested output length. Detailed
+            # condensed blogs otherwise hit Poe/model defaults too early.
+            "max_tokens": MAX_COMPLETION_TOKENS,
         }
 
         logger.info(
@@ -117,7 +125,9 @@ class PoeSummarizer:
                     raise ValueError("Poe API 返回空内容")
 
                 self._last_call_time = time.monotonic()
-                return self._parse_response(content)
+                result = self._parse_response(content)
+                validate_condensed_blog(result)
+                return result
 
             except Exception as e:
                 last_error = e
@@ -176,7 +186,7 @@ class PoeSummarizer:
 
         return SummaryResult(
             summary=data.get("summary", ""),
-            analysis=data.get("analysis") or None,
+            analysis=normalize_condensed_blog(data.get("analysis")),
             chapters=chapters,
             keywords=keywords,
         )

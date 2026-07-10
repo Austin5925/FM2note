@@ -151,6 +151,7 @@ def test_settings_page_scopes_poe_model_options_to_poe_provider():
     js = (ROOT / "src/web/static/settings.js").read_text(encoding="utf-8")
 
     assert 'id="poe_summary_model"' in html
+    assert "const DEFAULT_POE_MODEL = 'gpt-5.4-mini';" in js
     assert "gemini-3.1-flash-lite" in js
     assert "gpt-5.4-mini" in js
     assert "claude-sonnet-4.6" in js

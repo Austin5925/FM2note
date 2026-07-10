@@ -70,14 +70,14 @@ class TestMarkdownGenerator:
         assert "## AI 摘要" in result
         assert "这是 AI 摘要" in result
 
-    def test_render_with_content_analysis_before_summary(self):
+    def test_render_with_condensed_blog_before_summary(self):
         ep = _make_episode()
         tr = _make_transcript(analysis="- 观点一\n- 观点二", summary="这是 AI 摘要")
         result = self.gen.render(ep, tr)
 
-        assert "## 播客内容分析" in result
+        assert "## 精简版博客" in result
         assert "- 观点一" in result
-        assert result.index("## 播客内容分析") < result.index("## AI 摘要")
+        assert result.index("## 精简版博客") < result.index("## AI 摘要")
 
     def test_render_without_summary(self):
         ep = _make_episode()

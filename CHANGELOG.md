@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.8.7] - 2026-07-10
+
+### Changed
+- Reworked the note-leading section into “精简版博客”: an edited version that preserves every substantive argument, example, datum, counterexample, disagreement, conclusion, and progression while removing only conversational noise and repetition.
+- Condensed-blog length now follows the source's actual information density instead of a fixed word count or ratio; the existing AI summary, chapter overview, keywords, and full transcript instructions remain unchanged.
+- Changed the default Poe model to `gpt-5.4-mini`, which follows the information-preserving rewrite contract substantially better on long transcripts; Poe requests use a generous completion ceiling without prescribing an output length.
+- Invalid array-shaped `analysis` responses from OpenAI-compatible models are normalized into Markdown paragraphs instead of leaking a Python list representation into notes.
+
 ## [1.8.4] - 2026-07-06
 
 ### Changed

@@ -215,7 +215,7 @@ FM2note generates AI summaries with chapter breakdowns and keywords. Set the pro
 
 | Provider | YAML | API Key (`.env`) | Model Default |
 |---|---|---|---|
-| Poe | `summary_provider: poe` | `POE_API_KEY` | gemini-3.1-flash-lite |
+| Poe | `summary_provider: poe` | `POE_API_KEY` | gpt-5.4-mini |
 | OpenAI | `summary_provider: openai` | `OPENAI_API_KEY` | gpt-4o-mini |
 | DeepSeek/Groq/Ollama | `summary_provider: openai` + `summary_base_url: <url>` | `OPENAI_API_KEY` | varies |
 | None | `summary_provider: none` | — | — |

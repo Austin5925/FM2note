@@ -41,7 +41,7 @@ max_retries: 3
 summary_provider: "auto"
 
 # Summary model (leave empty for provider default)
-# Poe default: gemini-3.1-flash-lite | OpenAI default: gpt-4o-mini
+# Poe default: gpt-5.4-mini | OpenAI default: gpt-4o-mini
 summary_model: ""
 
 # Summary API call interval in seconds (rate limiting)

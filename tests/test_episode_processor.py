@@ -75,17 +75,17 @@ class TestHappyPath:
         assert processor.md_generator.render.call_args.kwargs["asr_engine"] == "funasr"
 
     @pytest.mark.asyncio
-    async def test_summary_analysis_is_added_to_transcript_before_render(self, processor):
+    async def test_condensed_blog_is_added_to_transcript_before_render(self, processor):
         summarizer = AsyncMock()
         summarizer.summarize = AsyncMock(
-            return_value=SummaryResult(summary="摘要", analysis="- 内容分析")
+            return_value=SummaryResult(summary="摘要", analysis="精简版博客")
         )
         processor.summarizer = summarizer
 
         await processor.process(_episode())
 
         rendered_transcript = processor.md_generator.render.call_args.args[1]
-        assert rendered_transcript.analysis == "- 内容分析"
+        assert rendered_transcript.analysis == "精简版博客"
         assert rendered_transcript.summary == "摘要"
 
 

@@ -154,34 +154,16 @@ APPLE_NOTARY_PROFILE=fm2note-notary make macos-notarize
 ```
 
 This produces `dist/FM2note-macos.dmg` and a backup `dist/FM2note-macos.zip`.
-For normal distribution, share the DMG. This public build does not prefill your
-personal RSSHub or subscriptions; users fill their own settings on first launch.
-
-To build a prefilled variant, put only values you are willing to expose under an
-ignored local profile directory. Every bundled profile value is visible to Apple
-notarization and to anyone who receives the DMG/App bundle, including Obsidian
-paths, RSSHub URLs, API keys, tokens, and comments:
-
-```text
-packaging/profiles/girlfriend/
-  config/config.yaml
-  config/subscriptions.yaml
-  .env                  # avoid for secrets; every value is visible in the bundle
-```
-
-Then run:
-
-```bash
-FM2NOTE_ALLOW_VISIBLE_PROFILE=1 APPLE_NOTARY_PROFILE=fm2note-notary make macos-notarize-girlfriend
-```
-
-This produces `dist/FM2note-girlfriend-macos.dmg`. Bundled profile files are
-copied once into the user's `~/Library/Application Support/FM2note` on first
-launch and never overwrite later edits.
+For normal distribution, share the DMG. Starting with v1.8.8, this is the only
+macOS release variant: it contains no prefilled profile, personal configuration,
+subscriptions, API keys, or payment assets. New users fill their own settings on
+first launch.
 
 The packaged app stores its runtime config under
 `~/Library/Application Support/FM2note` by default. Set `FM2NOTE_HOME` before
-launching if you want it to reuse another config directory.
+launching if you want it to reuse another config directory. Drag-replacing the
+app preserves the default runtime directory, so existing settings and state
+survive upgrades.
 
 Opening the packaged desktop app also starts the launchd background auto-check
 daemon by default, so scheduled feed polling keeps working after the window is

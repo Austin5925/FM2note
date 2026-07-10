@@ -56,14 +56,33 @@ version = {attr = "src.version.VERSION"}
 
 [tool.setuptools]
 py-modules = ["main"]
+include-package-data = false
 
 [tool.setuptools.packages.find]
 include = ["src*"]
 
 [tool.setuptools.package-data]
-"src.templates" = ["*.j2"]
-"src.web.templates" = ["*.html"]
-"src.web.static" = ["*.js", "*.css", "*.png", "*.svg"]
+"src.templates" = ["podcast_note.md.j2"]
+"src.web.templates" = [
+    "base.html",
+    "cloud.html",
+    "history.html",
+    "settings.html",
+    "subscriptions.html",
+    "transcribe.html",
+]
+"src.web.static" = [
+    "app.css",
+    "app.js",
+    "balance-badge.js",
+    "cloud.js",
+    "collie.js",
+    "daemon-chip.js",
+    "history.js",
+    "settings.js",
+    "subscriptions.js",
+    "theme.js",
+]
 
 [tool.ruff]
 line-length = 100

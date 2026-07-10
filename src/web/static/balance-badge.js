@@ -53,14 +53,6 @@ function showCriticalModal(currency, cash) {
   if (!modal || !amount || !close) return;
   amount.textContent = `当前可用现金余额：${currency === 'CNY' ? '¥' : currency + ' '}${cash}`;
   modal.classList.remove('hidden');
-  // QR visibility is owned by the <img>'s own onload/onerror handlers in base.html
-  // (data-loaded="1" iff the personal payment-qr.png file actually loaded).
-  // We do NOT unconditionally remove `hidden` here — that would re-show a broken
-  // image when the file is missing on a fresh checkout.
-  const qr = document.getElementById('balance-qr');
-  if (qr && qr.dataset && qr.dataset.loaded === '0') {
-    qr.classList.add('hidden');
-  }
 
   // Any of these dismissal paths persists the "don't pop again this window"
   // flag — sessionStorage scope is the browser tab/window, so closing &

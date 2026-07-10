@@ -42,6 +42,8 @@ class TestPages:
         for stage in ["resolve", "subtitle_check", "asr", "summary", "write"]:
             assert f'data-stage="{stage}"' in r.text
         assert "生成精简版博客、摘要与章节" in r.text
+        assert "请及时为阿里云账户充值" in r.text
+        assert "payment-qr" not in r.text
 
     def test_history_page_renders(self, client):
         r = client.get("/history")
@@ -126,6 +128,12 @@ class TestStaticFiles:
         r = client.get("/static/app.css")
         assert r.status_code == 200
         assert "step-icon" in r.text
+
+    def test_balance_script_has_no_personal_payment_asset(self, client):
+        r = client.get("/static/balance-badge.js")
+        assert r.status_code == 200
+        assert "payment-qr" not in r.text
+        assert "balance-qr" not in r.text
 
     def test_daemon_chip_uses_desktop_app_copy(self, client):
         r = client.get("/static/daemon-chip.js")

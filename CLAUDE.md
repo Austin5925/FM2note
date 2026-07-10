@@ -153,7 +153,7 @@ make bump-minor  # 版本号 minor +1
 - **v1.4.0** — Web UI MVP：FastAPI + SSE 转录主页 + `fm2note web` 命令 + 设置页只读视图 + 历史/订阅占位，新增 30 个测试
 - **v1.4.1** — Web UI 功能完整：历史/订阅/设置可写 + 阿里云余额徽章（方案 A: BSS OpenAPI + RAM 子账号）+ 桌面快捷方式 + 两阶段提交 + SSRF 加固，171 个测试，Codex Code Review 通过
 - **v1.4.2** — 体验打磨：健康自检页 + 后台服务状态检测（launchctl） + 友好错误文案映射 + 全局异常中间件 + 测试隔离 conftest 修复，310 个测试
-- **v1.4.3** — 收官：`fm2note app` PyWebView 桌面壳 + `install-shortcut --mode app|web` + jinja2 安全 floor + 全部文档更新 + 女友指南改写为 GUI 优先，315 个测试，Codex 二次 Code Review 通过
+- **v1.4.3** — 收官：`fm2note app` PyWebView 桌面壳 + `install-shortcut --mode app|web` + jinja2 安全 floor + 全部文档更新 + 非技术用户指南改写为 GUI 优先，315 个测试，Codex 二次 Code Review 通过
 - **v1.4.4** — UX 收尾：单图标主题切换（默认跟随系统，点击翻转）+ 暗色模式 CSS 覆盖层 + 余额弹窗一次性提示（sessionStorage）+ QR 图缺失优雅降级 + Tailwind CDN 顺序修正 + localStorage 禁用回退；关闭 CI 自动触发
 - **v1.4.5** — 彩蛋：header 嵌入像素风边牧（32×24 SVG · 3 条独立动画轨道：呼吸 / 摇尾 / 眨眼） · 点击触发 "汪!" 气泡 + 身体抖动 · CSS 变量适配暗色（黑色变 stone-600 避免与背景同色）
 - **v1.4.6** — Header 视觉调优：左侧组从 items-baseline 改 items-center，FM2note / 版本号 / 边牧三者垂直居中对齐；"汪!" 气泡从上方挪到狗下方（避免遮挡顶部窗口拖动条）
@@ -166,7 +166,7 @@ make bump-minor  # 版本号 minor +1
   - **根因**：`OBSIDIAN_VAULT_PATH` 等 env 变量优先级 > yaml，`fm2note init` 又把 vault_path 写到 `.env`，导致 Web UI 改完 yaml 被 env 反向覆盖
   - 所有**非敏感**配置（vault_path、podcast_dir、asr_engine、summary_provider、summary_model、summary_cooldown、summary_base_url、log_level）改为 **yaml-only**；启动时若发现旧 env 变量给 warning 提示用户清理
   - 所有**敏感凭据**（DashScope/Poe/OpenAI key、Aliyun AK/SK、TingWu AppId）保持 **env-only**
-  - 设置页 input 通过 `vault_path_default` 字段显示个人默认路径（女朋友 vault）作为 placeholder + "使用默认" 一键填充按钮
+  - 设置页 input 通过 `vault_path_default` 字段显示通用默认路径作为 placeholder + “使用默认”一键填充按钮
   - `fm2note init` 不再写 `OBSIDIAN_VAULT_PATH` 到 `.env`；`.env.example` 删除所有非敏感变量
   - `src/config.py` 新增 `DEFAULT_VAULT_PATH` 常量（单一来源，前后端共享）
   - 329 个测试（+2 个 env override 回归测试）
@@ -188,7 +188,7 @@ make bump-minor  # 版本号 minor +1
   - 测试新增覆盖空字符串 / 相对路径 / warning once / no-warning negative case
 
 - **v1.4.15** — 订阅系统改造：消除"首次启动烧光额度"陷阱 + Web UI 加订阅热加载
-  - **根因**：fresh install 时 `state.db` 为空，feed 中所有历史剧集（典型 20-50 集）都被当成"新"全量转录，女朋友拉同一份 yaml 会瞬间烧掉一大笔 DashScope/Poe 额度
+  - **根因**：fresh install 时 `state.db` 为空，feed 中所有历史剧集（典型 20-50 集）都被当成“新”全量转录，第二台 Mac 复用同一份 yaml 会瞬间消耗大量 DashScope/Poe 额度
   - 新增 `POST /api/subscriptions/preview`：返回 feed 中 episode count / unprocessed count / 总时长 / 估算成本（按 asr_engine 单价）
   - `POST /api/subscriptions` 现在 **必填** `backfill_strategy`：`all` / `new_only` / `recent_n` / `since_date`，配套需要的 `recent_n` / `since_date` 字段
   - state.db 新状态 `backfill_skipped`，被 `is_processed()` 视为已处理，避免下次 poll 重转
@@ -206,7 +206,7 @@ make bump-minor  # 版本号 minor +1
   - 369 测试（+33 新增：4 种 strategy 端到端 / scheme 校验 / 重复 URL 409 / feedparser 失败 502 / 热加载 / 多边界）
 
 - **v1.4.16** — 转录结果共享上传缓存（多用户去重）
-  - **使用场景**：用户和女朋友各自跑 fm2note 订阅同一批播客。任何一方先转完某集，另一方直接拿现成 .md，零 API 消耗
+  - **使用场景**：多台 Mac 各自运行 fm2note 并订阅同一批播客。任一设备先转完某集，其他设备可直接复用现成 .md，零 API 消耗
   - **服务端**：新增 `server/cache_sidecar.py` — FastAPI + SQLite + Bearer auth。可通过 `server/docker-compose.cache.yaml` 部署到现有 RSSHub 服务器旁边
   - **客户端**：新增 `src/shared_cache.py`：`SharedCacheClient.from_env()` 读 `SHARED_CACHE_URL` + `SHARED_CACHE_TOKEN`，未配置时返回 None（单用户零开销）
   - **上传 hook**：`pipeline.py` 写完笔记后 fire-and-forget `client.upload(guid, content)`，失败仅 log
@@ -257,11 +257,11 @@ make bump-minor  # 版本号 minor +1
   - **端到端 smoke test**：本地 uvicorn 启动验证 5 个关键端点（healthz / settings / logs / status / poll-now）全过
   - 440 测试（+8 新增：log_buffer 幂等/after_seq/上限 + /api/logs 端点 + poll-now spawn + 平台拒绝 + status activity 字段）
 
-- **v1.5.4** — 共享缓存上线 + daemon auto-protect + 女友实测 bug 修复
+- **v1.5.4** — 共享缓存上线 + daemon auto-protect + 第二台 Mac 实测 bug 修复
   - **共享转录缓存正式部署到生产**：v1.4.16 client 端 + 今天首次部署 server 端到 macroclaw.app/fm2note-cache（nginx 反代 + Docker 容器 + Bearer auth + 端到端 e2e 验证全过）。两人订阅同一批播客时，谁先转完另一方零成本拿现成 .md
   - **daemon auto-protect**：新增 `StateManager.has_any_recorded_in` + `RSSChecker._auto_protect_sub`，统一手动编辑 yaml 和 GUI POST `/api/subscriptions` 的语义保护——任何 state.db 完全没记录的 sub 首次 poll 自动 mark `backfill_skipped` (= new_only)。解决"yaml 加新订阅 → 下次 poll 烧光额度" trap（v1.4.15 只保护了 GUI 路径）
   - **cache_sidecar audit fix**：`post_cache` 加 `db_lock`（v1.4.16 Code Review fix #1 漏了 POST 路径，并发 upload 可能 interleave aiosqlite execute/commit 丢写）
-  - **女朋友实测 3 个 bug 修复**：
+  - **第二台 Mac 实测 3 个 bug 修复**：
     - sub-modal 遮挡 backfill modal（macOS PyWebView z-index quirk）→ 打开 backfill modal 前先 hide sub-modal
     - 估算 UI 不明确 → 显示"funasr 计价 · 不含 AI 摘要"+ feed 限制说明"通常只返回最近 ~15-20 集" + missing_duration_count 警告
     - `preview_sub` silent fallback 看不到 stack → `logger.warning` → `logger.exception`
@@ -294,7 +294,7 @@ make bump-minor  # 版本号 minor +1
 - **v1.8.0** — macOS 双版本分发 + 桌面/后台状态解耦
   - DMG 构建改用 `dmgbuild` 直接写 Finder icon-view 布局；打开后呈现 `FM2note.app` → `Applications` 的标准拖拽安装窗口，避免依赖 Finder AppleScript 自动化
   - 新增发行 profile：`--profile-dir` 把 `config/config.yaml`、`config/subscriptions.yaml`、`.env` 复制进 `.app/Contents/Resources/FM2noteProfile`，桌面 App 首次启动时只复制一次且不覆盖用户修改
-  - 新增 `--release-suffix` 与 `make macos-dmg-girlfriend` / `make macos-notarize-girlfriend`，私有预置版默认读取被 git 忽略的 `packaging/profiles/girlfriend`
+  - 新增可选 suffix 与私有预置版打包入口，默认读取被 git 忽略的本地 profile 目录
   - 公众版新装不再默认使用 `macroclaw.app` RSSHub；订阅页只从环境变量、已有订阅注释或订阅 URL 推断 RSSHub
   - `/api/service/status` 返回 `desktop_app`，顶部 chip 和设置页文案改为区分“桌面 App 正在运行”和“后台自动检查 daemon 是否开启”
 
@@ -318,6 +318,12 @@ make bump-minor  # 版本号 minor +1
   - 打包后的 `FM2note serve` / `install-service` / `uninstall-service` 子命令现在保留 launchd `WorkingDirectory` 作为运行目录，避免自动拉起的后台 daemon 误读默认 App Support 目录
   - 新增并发下载、metadata limit 与 packaged launcher CLI 运行目录回归测试
 
+- **v1.8.8** — 单一无预置信息的通用版本
+  - 阿里云余额不足提示改为中性充值文案，移除关系身份称呼和个人收款码
+  - 删除 bundled first-run profile、suffix 变体、对应的运行时复制逻辑和 Makefile/CLI 入口
+  - macOS 打包资源改为明确的公开文件 allowlist，不再整体收集本机 static 目录，避免忽略的个人素材进入签名 App
+  - 只产出 `FM2note-macos.dmg` / `FM2note-macos.zip`；拖动替换继续保留 `~/Library/Application Support/FM2note` 中的已有配置和状态
+
 ## Current Version
 
-v1.8.4 — 云端批量下载加速 + 打包 App 后台启动修复
+v1.8.8 — 单一无预置信息的通用版本

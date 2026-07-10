@@ -62,7 +62,6 @@ def test_main_routes_subcommands_without_opening_desktop_window(tmp_path, monkey
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr(macos_launcher.sys, "argv", ["FM2note", "run-once"])
     monkeypatch.setattr(macos_launcher, "prepare_home", fake_prepare_home)
-    monkeypatch.setattr(macos_launcher, "apply_bundled_profile", lambda home: [])
     monkeypatch.setattr(macos_launcher, "ensure_initialized", lambda home: None)
     monkeypatch.setattr(main.cli, "main", fake_cli_main)
 
@@ -89,7 +88,6 @@ def test_main_routes_subcommands_respect_env_home(tmp_path, monkeypatch):
     monkeypatch.setenv("FM2NOTE_HOME", str(tmp_path / "explicit-home"))
     monkeypatch.setattr(macos_launcher.sys, "argv", ["FM2note", "serve"])
     monkeypatch.setattr(macos_launcher, "prepare_home", fake_prepare_home)
-    monkeypatch.setattr(macos_launcher, "apply_bundled_profile", lambda home: [])
     monkeypatch.setattr(macos_launcher, "ensure_initialized", lambda home: None)
     monkeypatch.setattr(main.cli, "main", fake_cli_main)
 
@@ -115,7 +113,6 @@ def test_main_starts_background_service_for_desktop_launch(tmp_path, monkeypatch
 
     monkeypatch.setattr(macos_launcher.sys, "argv", ["FM2note"])
     monkeypatch.setattr(macos_launcher, "prepare_home", fake_prepare_home)
-    monkeypatch.setattr(macos_launcher, "apply_bundled_profile", lambda home: [])
     monkeypatch.setattr(macos_launcher, "ensure_initialized", lambda home: None)
     monkeypatch.setattr(
         macos_launcher, "ensure_background_service", lambda home: ensured.append(home)
@@ -206,43 +203,3 @@ def test_ensure_initialized_skips_existing_runtime_home(tmp_path, monkeypatch):
 
     monkeypatch.setattr(main.cli, "main", fail_main)
     macos_launcher.ensure_initialized(tmp_path)
-
-
-def test_apply_bundled_profile_copies_missing_files_once(tmp_path):
-    profile = tmp_path / "profile"
-    (profile / "config").mkdir(parents=True)
-    (profile / "config" / "config.yaml").write_text("vault_path: /girlfriend\n")
-    (profile / "config" / "subscriptions.yaml").write_text("podcasts: []\n")
-    (profile / ".env").write_text("export DASHSCOPE_API_KEY=\n")
-    home = tmp_path / "home"
-    home.mkdir()
-
-    copied = macos_launcher.apply_bundled_profile(home, profile)
-
-    assert [p.as_posix() for p in copied] == [
-        "config/config.yaml",
-        "config/subscriptions.yaml",
-        ".env",
-    ]
-    assert (home / "config" / "config.yaml").read_text() == "vault_path: /girlfriend\n"
-    assert (home / macos_launcher.PROFILE_MARKER).exists()
-
-    (home / "config" / "config.yaml").write_text("vault_path: /edited\n")
-    copied_again = macos_launcher.apply_bundled_profile(home, profile)
-
-    assert copied_again == []
-    assert (home / "config" / "config.yaml").read_text() == "vault_path: /edited\n"
-
-
-def test_apply_bundled_profile_does_not_overwrite_existing_files(tmp_path):
-    profile = tmp_path / "profile"
-    (profile / "config").mkdir(parents=True)
-    (profile / "config" / "config.yaml").write_text("vault_path: /bundled\n")
-    home = tmp_path / "home"
-    (home / "config").mkdir(parents=True)
-    (home / "config" / "config.yaml").write_text("vault_path: /existing\n")
-
-    copied = macos_launcher.apply_bundled_profile(home, profile)
-
-    assert copied == []
-    assert (home / "config" / "config.yaml").read_text() == "vault_path: /existing\n"

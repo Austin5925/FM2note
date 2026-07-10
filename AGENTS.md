@@ -78,8 +78,7 @@ make serve       # python main.py serve
 make build       # python -m build (生成 sdist + wheel)
 make macos-app   # python3.11 scripts/build_macos_app.py
 make macos-dmg   # 生成本机测试 DMG
-make macos-dmg-girlfriend      # 生成预置 profile 的女友版 DMG
-make macos-notarize-girlfriend # 生成并公证女友版 DMG
+make macos-notarize # 生成并公证唯一的通用 DMG
 make clean       # 清理构建产物
 make install-service   # python main.py install-service
 make start-service     # python main.py start-service（如手动调用）
@@ -114,7 +113,7 @@ make bump-minor  # 版本号 minor +1
 - `.env` 文件永远不得 commit（已在 .gitignore 中排除）
 - `config/config.yaml` 和 `config/subscriptions.yaml` 不提交（用户自建）
 - 不使用 feature 分支（直接 commit 到 master）
-- 自 v1.8.8 起，macOS 只构建和发布一个不含预置 profile 的通用版本；除非用户明确要求，不再生成个人版或女友版安装包
+- 自 v1.8.8 起，macOS 只构建和发布一个不含预置 profile、个人配置或支付素材的通用版本；不得恢复多版本或预置版打包入口
 - 拖动替换升级时必须保留 `~/Library/Application Support/FM2note`，不得覆盖或删除用户现有配置、订阅与运行状态
 - 每个版本在本文件的 Version History 中记录变更摘要
 - GitHub Actions/CI 不得重新启用；发布前使用本地 `make lint` / `make test` / macOS 打包命令验证
@@ -165,7 +164,7 @@ make bump-minor  # 版本号 minor +1
 - **v1.4.0** — Web UI MVP：FastAPI + SSE 转录主页 + `fm2note web` 命令 + 设置页只读视图 + 历史/订阅占位，新增 30 个测试
 - **v1.4.1** — Web UI 功能完整：历史/订阅/设置可写 + 阿里云余额徽章（方案 A: BSS OpenAPI + RAM 子账号）+ 桌面快捷方式 + 两阶段提交 + SSRF 加固，171 个测试，Codex Code Review 通过
 - **v1.4.2** — 体验打磨：健康自检页 + 后台服务状态检测（launchctl） + 友好错误文案映射 + 全局异常中间件 + 测试隔离 conftest 修复，310 个测试
-- **v1.4.3** — 收官：`fm2note app` PyWebView 桌面壳 + `install-shortcut --mode app|web` + jinja2 安全 floor + 全部文档更新 + 女友指南改写为 GUI 优先，315 个测试，Codex 二次 Code Review 通过
+- **v1.4.3** — 收官：`fm2note app` PyWebView 桌面壳 + `install-shortcut --mode app|web` + jinja2 安全 floor + 全部文档更新 + 非技术用户指南改写为 GUI 优先，315 个测试，Codex 二次 Code Review 通过
 - **v1.4.4** — UX 收尾：单图标主题切换（默认跟随系统，点击翻转）+ 暗色模式 CSS 覆盖层 + 余额弹窗一次性提示（sessionStorage）+ QR 图缺失优雅降级 + Tailwind CDN 顺序修正 + localStorage 禁用回退；关闭 CI 自动触发
 - **v1.4.5** — 彩蛋：header 嵌入像素风边牧（32×24 SVG · 3 条独立动画轨道：呼吸 / 摇尾 / 眨眼） · 点击触发 "汪!" 气泡 + 身体抖动 · CSS 变量适配暗色（黑色变 stone-600 避免与背景同色）
 - **v1.4.6** — Header 视觉调优：左侧组从 items-baseline 改 items-center，FM2note / 版本号 / 边牧三者垂直居中对齐；"汪!" 气泡从上方挪到狗下方（避免遮挡顶部窗口拖动条）
@@ -174,7 +173,7 @@ make bump-minor  # 版本号 minor +1
 - **v1.5.1** — GUI 自启开关、静默 init、个人路径硬编码清理
 - **v1.5.2** — AppPaths + StateManager 单例 + 多项并发/CWD audit fix
 - **v1.5.3** — GUI 日志面板、立即检查、daemon 健康 chip
-- **v1.5.4** — 共享缓存上线 + daemon auto-protect + 女友实测 bug 修复
+- **v1.5.4** — 共享缓存上线 + daemon auto-protect + 第二台 Mac 实测 bug 修复
 - **v1.6.0** — GUI 云端浏览页 + 选择性下载
 - **v1.6.1** — 云端下载按 frontmatter source 去重
 - **v1.6.2** — 云端下载路径遍历防护 + launchd 日志路径修复
@@ -191,7 +190,8 @@ make bump-minor  # 版本号 minor +1
 - **v1.8.5** — Poe 默认摘要模型改为 gemini-3.1-flash-lite；设置页仅在 Poe provider 下显示 Poe 模型选项；转录页边牧增加轻量状态反馈
 - **v1.8.6** — 摘要 prompt 统一为 provider 共享；笔记最前面新增“播客内容分析”快速阅读区，并兼容历史页补摘要
 - **v1.8.7** — “播客内容分析”升级为信息保真的“精简版博客”；Poe 默认模型切换为 gpt-5.4-mini
+- **v1.8.8** — 余额提醒改为中性文案；移除个人收款码、预置 profile 与多版本打包机制；macOS 只发布一个通用安装包
 
 ## Current Version
 
-v1.8.7 — 精简版博客
+v1.8.8 — 单一无预置信息的通用版本

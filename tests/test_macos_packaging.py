@@ -3,6 +3,8 @@ import plistlib
 from pathlib import Path
 from types import SimpleNamespace
 
+import pytest
+
 
 def _load_build_script():
     path = Path(__file__).resolve().parents[1] / "scripts" / "build_macos_app.py"
@@ -73,44 +75,38 @@ def test_run_logs_display_command_without_changing_real_command(monkeypatch, cap
     ]
 
 
-def test_install_bundle_profile_copies_supported_files(tmp_path):
+def test_bundle_data_files_are_public_allowlisted():
     module = _load_build_script()
-    app = tmp_path / "FM2note.app"
-    profile = tmp_path / "profile"
-    (profile / "config").mkdir(parents=True)
-    (profile / "config" / "config.yaml").write_text("vault_path: /vault\n")
-    (profile / "config" / "subscriptions.yaml").write_text("podcasts: []\n")
-    (profile / ".env").write_text("export DASHSCOPE_API_KEY=\n")
-    (profile / "ignored.txt").write_text("ignore me\n")
+    files = module.bundle_data_files()
 
-    target = module.install_bundle_profile(app, str(profile), allow_visible_profile=True)
-
-    assert target == app / "Contents" / "Resources" / "FM2noteProfile"
-    assert (target / "config" / "config.yaml").read_text() == "vault_path: /vault\n"
-    assert (target / "config" / "subscriptions.yaml").read_text() == "podcasts: []\n"
-    assert (target / ".env").read_text() == "export DASHSCOPE_API_KEY=\n"
-    assert not (target / "ignored.txt").exists()
+    assert files
+    assert all(source.suffix in {".html", ".js", ".css", ".svg", ".j2"} for source, _ in files)
+    assert all(source.name != "payment-qr.png" for source, _ in files)
 
 
-def test_install_bundle_profile_requires_explicit_visible_profile_consent(tmp_path):
+def test_python_distribution_excludes_local_private_assets():
+    root = Path(__file__).resolve().parents[1]
+    pyproject = (root / "pyproject.toml").read_text()
+    manifest = (root / "MANIFEST.in").read_text()
+
+    assert "include-package-data = false" in pyproject
+    assert '"*.js"' not in pyproject
+    assert '"*.css"' not in pyproject
+    assert "recursive-exclude src/web/static *.png" in manifest
+    assert "prune packaging/profiles" in manifest
+
+
+def test_release_stem_is_single_public_artifact():
     module = _load_build_script()
-    app = tmp_path / "FM2note.app"
-    profile = tmp_path / "profile"
-    (profile / "config").mkdir(parents=True)
-    (profile / "config" / "config.yaml").write_text("vault_path: /vault\n")
-
-    try:
-        module.install_bundle_profile(app, str(profile))
-    except SystemExit as exc:
-        assert "Everything under --profile-dir is visible" in str(exc)
-    else:
-        raise AssertionError("Expected profile bundling to require explicit consent")
+    assert module.release_stem(Path("FM2note.app")) == "FM2note-macos"
 
 
-def test_release_stem_sanitizes_suffix():
+@pytest.mark.parametrize("option", ["--profile-dir", "--release-suffix"])
+def test_legacy_variant_options_are_rejected(option):
     module = _load_build_script()
-    assert module.release_stem(Path("FM2note.app"), "Girl Friend") == "FM2note-girl-friend-macos"
-    assert module.release_stem(Path("FM2note.app"), "") == "FM2note-macos"
+
+    with pytest.raises(SystemExit):
+        module.parse_args([option, "legacy"])
 
 
 def test_submit_for_notarization_with_keychain_profile_does_not_need_password(
@@ -167,8 +163,8 @@ def test_notarize_rebuilds_release_zip_after_stapling(tmp_path, monkeypatch):
     final_archive = tmp_path / "post-staple.zip"
     zip_calls = []
 
-    def fake_make_release_zip(app_path, release_suffix=""):
-        zip_calls.append((app_path, release_suffix))
+    def fake_make_release_zip(app_path):
+        zip_calls.append(app_path)
         return first_archive if len(zip_calls) == 1 else final_archive
 
     monkeypatch.setattr(module, "make_release_zip", fake_make_release_zip)
@@ -177,11 +173,11 @@ def test_notarize_rebuilds_release_zip_after_stapling(tmp_path, monkeypatch):
 
     archive, dmg = module.notarize(
         app,
-        SimpleNamespace(dmg=False, release_suffix="girlfriend"),
+        SimpleNamespace(dmg=False),
         "Developer ID Application: Example (TEAMID)",
     )
 
-    assert zip_calls == [(app, "girlfriend"), (app, "girlfriend")]
+    assert zip_calls == [app, app]
     assert archive == final_archive
     assert dmg is None
 

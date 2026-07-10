@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.8.8] - 2026-07-10
+
+### Changed
+- Replaced the relationship-specific low-balance reminder with neutral account-recharge guidance.
+- macOS releases now have one fixed artifact name and one profile-free build path. Existing settings and state remain under `~/Library/Application Support/FM2note` across drag-replace upgrades.
+
+### Removed
+- Removed the personal payment QR from the balance modal and from package data.
+- Removed bundled first-run profiles, suffixed release variants, their runtime copy path, and their Makefile/CLI entry points.
+
+### Security
+- macOS packaging now uses an explicit public-resource allowlist instead of collecting the entire local static directory, preventing ignored local PNGs or other personal assets from entering the signed app bundle.
+
 ## [1.8.7] - 2026-07-10
 
 ### Changed
@@ -55,8 +68,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 - macOS DMG generation now uses `dmgbuild` to write a Finder icon-view layout so the mounted disk image opens as a standard drag-to-Applications installer window.
-- macOS release profiles: `--profile-dir` embeds first-run config files into the `.app`, and `--release-suffix` creates separate artifacts such as `FM2note-girlfriend-macos.dmg`.
-- `make macos-dmg-girlfriend` and `make macos-notarize-girlfriend` build a private prefilled variant from the ignored `packaging/profiles/girlfriend` directory.
+- macOS release profiles could embed first-run config files into the `.app`, and suffixed release artifacts supported separate private variants.
+- Dedicated private-variant Makefile targets could build a prefilled artifact from an ignored local profile directory.
 
 ### Changed
 - New public installs no longer default Xiaoyuzhou RSSHub resolution to the developer's personal `macroclaw.app` RSSHub; users must provide their own RSSHub or use a prefilled private profile.
@@ -112,7 +125,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 - **`fm2note install-service` 在 macOS 12+ 静默失败**（launchd exit 78 EX_CONFIG，无 stderr 输出）。根因：launchd 的 `xpcproxy` 辅助进程在 Desktop / Documents / Downloads 下被 macOS Sandbox 拒绝 read-data，无法打开 `StandardOutPath` / `StandardErrorPath` → 进程根本起不来。`log show --predicate "eventMessage contains 'fm2note'"` 才能看到 `kernel: (Sandbox) System Policy: xpcproxy(...) deny(1) file-read-data .../logs/fm2note-stdout.log`。这版把 log 路径改到 macOS 信任的 `~/Library/Logs/fm2note/`（与 Apple 自家 daemon 一致），daemon 启动恢复正常。Linux 路径不变（仍是 `<workdir>/logs/`）
-- 影响范围：任何项目在 `~/Desktop` / `~/Documents` 下的用户跑 `fm2note install-service` 都会撞这个；女朋友机器装"开机自启"开关也会触发，所以必须修
+- 影响范围：任何项目在 `~/Desktop` / `~/Documents` 下的用户跑 `fm2note install-service` 都会撞这个；第二台 Mac 启用“开机自启”也会触发，所以必须修
 
 ## [1.6.1] - 2026-05-25
 
@@ -354,11 +367,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - `fm2note app` — desktop window via PyWebView (optional extra: `pip install 'fm2note[app]'`)
 - `fm2note install-shortcut --mode app|web` — desktop shortcut now prefers PyWebView with browser fallback
-- 女友指南改写为 GUI 优先版本（CLI 流程折叠为进阶用法）
+- 非技术用户指南改写为 GUI 优先版本（CLI 流程折叠为进阶用法）
 
 ### Documentation
 - README / README.zh-CN: 新增 "Web UI" 章节
-- girlfriend-guide.md: 全面改写为 Web UI 流程
+- 使用指南：全面改写为 Web UI 流程
 - CHANGELOG: 整合 v1.4.x 历史
 
 ## [1.4.2] - 2026-05-23

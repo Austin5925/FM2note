@@ -11,7 +11,6 @@ from __future__ import annotations
 
 import os
 import platform
-import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -23,13 +22,6 @@ from src.macos_service import (
 )
 
 APP_SUPPORT_HOME = Path.home() / "Library" / "Application Support" / "FM2note"
-PROFILE_RESOURCE_DIR = "FM2noteProfile"
-PROFILE_MARKER = ".fm2note_profile_applied"
-PROFILE_FILES = (
-    Path("config/config.yaml"),
-    Path("config/subscriptions.yaml"),
-    Path(".env"),
-)
 
 
 def default_home() -> Path:
@@ -55,52 +47,6 @@ def prepare_home(home: Path | None = None, *, desktop_app: bool = True) -> Path:
         os.environ.pop("FM2NOTE_DESKTOP_APP", None)
     os.chdir(resolved)
     return resolved
-
-
-def bundled_profile_dir() -> Path | None:
-    """Return the optional profile directory embedded in the app bundle."""
-    override = os.environ.get("FM2NOTE_PROFILE_DIR", "").strip()
-    if override:
-        return Path(override).expanduser().resolve()
-
-    executable = Path(sys.executable).resolve()
-    parents = executable.parents
-    if len(parents) >= 2:
-        candidate = parents[1] / "Resources" / PROFILE_RESOURCE_DIR
-        if candidate.is_dir():
-            return candidate
-    return None
-
-
-def apply_bundled_profile(home: Path, profile_dir: Path | None = None) -> list[Path]:
-    """Copy bundled first-run config files without overwriting user edits."""
-    profile = profile_dir or bundled_profile_dir()
-    if not profile or not profile.is_dir():
-        return []
-
-    runtime_home = home.expanduser().resolve()
-    marker = runtime_home / PROFILE_MARKER
-    if marker.exists():
-        return []
-
-    copied: list[Path] = []
-    for rel in PROFILE_FILES:
-        src = profile / rel
-        if not src.is_file():
-            continue
-        dst = runtime_home / rel
-        if dst.exists():
-            continue
-        dst.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copy2(src, dst)
-        copied.append(rel)
-
-    marker.write_text(
-        "FM2note bundled profile applied once. Delete this file to re-apply "
-        "missing bundled files on next app launch.\n",
-        encoding="utf-8",
-    )
-    return copied
 
 
 def ensure_initialized(home: Path | None = None) -> None:
@@ -198,7 +144,6 @@ def main() -> None:
         # ~/Library/Application Support/FM2note.
         cli_home = Path.cwd()
     home = prepare_home(cli_home, desktop_app=not cli_args)
-    apply_bundled_profile(home)
     ensure_initialized(home)
     if not cli_args:
         ensure_background_service(home)

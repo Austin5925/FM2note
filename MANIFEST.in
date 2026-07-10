@@ -1,0 +1,5 @@
+exclude .env
+exclude config/config.yaml
+exclude config/subscriptions.yaml
+recursive-exclude src/web/static *.png
+prune packaging/profiles

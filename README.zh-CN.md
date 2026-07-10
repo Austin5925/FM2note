@@ -148,32 +148,12 @@ APPLE_NOTARY_PROFILE=fm2note-notary make macos-notarize
 ```
 
 这会产出 `dist/FM2note-macos.dmg`，同时保留备用 `dist/FM2note-macos.zip`。
-正常发给别人时，优先发 DMG。这个公众版不会预填你的个人 RSSHub 或订阅，用户首次
-启动后自己在界面里填写。
-
-如果要生成预置版，只能把你愿意暴露的一次性配置放到本机忽略目录。profile 里的所有值
-都会对 Apple 公证服务和任何拿到 DMG/App 包的人可见，包括 Obsidian 路径、RSSHub 地址、
-API key、token 和注释：
-
-```text
-packaging/profiles/girlfriend/
-  config/config.yaml
-  config/subscriptions.yaml
-  .env                  # 不要放密钥；这里的每个值都会在 App 包里可见
-```
-
-然后运行：
-
-```bash
-FM2NOTE_ALLOW_VISIBLE_PROFILE=1 APPLE_NOTARY_PROFILE=fm2note-notary make macos-notarize-girlfriend
-```
-
-这会产出 `dist/FM2note-girlfriend-macos.dmg`。内置 profile 只会在首次启动时复制到
-`~/Library/Application Support/FM2note`，之后不会覆盖用户自己的修改。
+正常分发时只需要发送 DMG。从 v1.8.8 起，macOS 只发布这一个通用安装包，包内不含
+预置 profile、个人配置、订阅、API key 或支付素材；新用户首次启动后自行填写设置。
 
 打包后的桌面 App 默认把配置和数据放在
 `~/Library/Application Support/FM2note`。如果要复用已有配置目录，启动前设置
-`FM2NOTE_HOME`。
+`FM2NOTE_HOME`。拖动替换 App 不会删除默认运行目录，因此已有设置和状态会在升级后保留。
 
 打包后的桌面 App 打开时会默认同时启动 launchd 后台自动检查服务，所以关掉窗口后仍会
 继续定时检查订阅。设置页可以关闭后台、重新开启后台，或恢复“已安装但未运行”的服务。

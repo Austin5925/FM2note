@@ -93,18 +93,8 @@
       <h3 class="text-lg font-semibold mb-2">阿里云余额不足 ⚠️</h3>
       <div id="balance-modal-amount" class="text-sm text-stone-600 mb-4"></div>
       <div class="text-sm text-stone-700 mb-4">
-        提醒男朋友给阿里云充值，否则转录可能失败。
+        请及时为阿里云账户充值，否则转录可能失败。
       </div>
-      <!-- QR starts visible so the browser loads it eagerly; if the file is
-           absent (fresh checkout without the personal payment-qr.png),
-           onerror hides it and JS won't unconditionally re-show it. -->
-      <img id="balance-qr"
-           src="/static/payment-qr.png"
-           alt="收款码"
-           data-loaded="0"
-           class="w-full max-w-[240px] mx-auto rounded border border-stone-200"
-           onload="this.dataset.loaded='1'"
-           onerror="this.classList.add('hidden'); this.dataset.loaded='0';" />
       <div class="mt-4 flex justify-end gap-2">
         <button id="balance-modal-close"
                 class="px-3 py-1.5 rounded-md border border-stone-300 text-xs hover:bg-stone-50">

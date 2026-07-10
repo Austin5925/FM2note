@@ -15,7 +15,7 @@ env/
 # Environment variables
 .env
 
-# Personal assets (never commit) — see CLAUDE.md
+# Legacy local assets (never commit or package)
 src/web/static/payment-qr.png
 packaging/profiles/
 

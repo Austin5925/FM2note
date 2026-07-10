@@ -41,6 +41,7 @@ class TestPages:
         # 5-stage progress list rendered
         for stage in ["resolve", "subtitle_check", "asr", "summary", "write"]:
             assert f'data-stage="{stage}"' in r.text
+        assert "生成精简版博客、摘要与章节" in r.text
 
     def test_history_page_renders(self, client):
         r = client.get("/history")

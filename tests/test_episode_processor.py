@@ -81,12 +81,23 @@ class TestHappyPath:
             return_value=SummaryResult(summary="摘要", analysis="精简版博客")
         )
         processor.summarizer = summarizer
+        events: list[tuple[str, str, str]] = []
 
-        await processor.process(_episode())
+        await processor.process(
+            _episode(),
+            progress_callback=lambda stage, status, message: events.append(
+                (stage, status, message)
+            ),
+        )
 
         rendered_transcript = processor.md_generator.render.call_args.args[1]
         assert rendered_transcript.analysis == "精简版博客"
         assert rendered_transcript.summary == "摘要"
+        assert (
+            "summary",
+            "start",
+            "生成精简版博客、摘要与章节中...",
+        ) in events
 
 
 class TestCacheHit:

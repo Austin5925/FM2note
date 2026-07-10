@@ -123,7 +123,7 @@
       ('resolve', '解析剧集信息'),
       ('subtitle_check', '检测字幕'),
       ('asr', '语音转文字'),
-      ('summary', '生成 AI 摘要'),
+      ('summary', '生成精简版博客、摘要与章节'),
       ('write', '写入 Obsidian')
     ] %}
     {% for stage_key, stage_label in stages %}
@@ -146,7 +146,7 @@
       <div id="complete-title" class="text-sm text-stone-700 mt-1"></div>
       <div id="complete-meta" class="text-xs text-stone-500 mt-2"></div>
       <div id="complete-summary-warning" class="hidden text-xs text-amber-700 mt-2">
-        ⚠️ AI 摘要生成失败，可在"历史"页面重试
+        ⚠️ 精简版博客、摘要与章节生成失败，可在"历史"页面重试
       </div>
       <div class="mt-4 flex gap-2">
         <a id="open-obsidian" href="#" target="_blank" rel="noopener"

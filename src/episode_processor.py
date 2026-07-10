@@ -391,7 +391,7 @@ class EpisodeProcessor:
             # past this stage instead of stalling at asr.
             _emit(progress_callback, "summary", "skipped", "引擎内置摘要")
             return False
-        _emit(progress_callback, "summary", "start", "生成 AI 摘要中...")
+        _emit(progress_callback, "summary", "start", "生成精简版博客、摘要与章节中...")
         try:
             summary = await self.summarizer.summarize(transcript.text, title)
             transcript.analysis = summary.analysis

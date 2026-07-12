@@ -148,7 +148,8 @@ class TestLoadConfig:
         config = load_config(minimal)
         assert config.podcast_dir == "Podcasts"
         assert config.poll_interval_hours == 3
-        assert config.asr_engine == "funasr"
+        assert config.asr_engine == "poe"
+        assert config.poe_asr_model == "qwen3.5-omni-flash"
         assert config.max_retries == 3
         assert config.log_level == "INFO"
 

@@ -3,17 +3,40 @@
 // window doesn't re-trigger the popup — it comes back only after the window is
 // closed and reopened (or a new browser tab is started).
 const DISMISS_KEY = 'fm2note-balance-modal-dismissed';
+const BALANCE_STYLE_CLASSES = [
+  'text-stone-500', 'dark:text-stone-400',
+  'bg-red-100', 'text-red-700', 'border-red-200',
+  'dark:bg-red-950', 'dark:text-red-300', 'dark:border-red-800',
+  'bg-amber-100', 'text-amber-700', 'border-amber-200',
+  'dark:bg-amber-950', 'dark:text-amber-300', 'dark:border-amber-800',
+  'bg-emerald-50', 'text-emerald-700', 'border-emerald-200',
+  'dark:bg-emerald-950', 'dark:text-emerald-300', 'dark:border-emerald-800',
+];
 
-(async function () {
+async function refreshBalanceBadge() {
   const badge = document.getElementById('balance-badge');
   if (!badge) return;
+  badge.classList.add('hidden');
+  badge.classList.remove(...BALANCE_STYLE_CLASSES);
+  document.getElementById('balance-modal')?.classList.add('hidden');
   try {
     const resp = await fetch('/api/balance');
     if (!resp.ok) return;
     const data = await resp.json();
     if (!data.configured) return;
+    if (data.mode === 'unlimited') {
+      badge.textContent = '无限';
+      badge.title = `Poe 转写 · ${data.model || '套餐积分'}`;
+      badge.classList.remove('hidden');
+      badge.classList.add(
+        'bg-emerald-50', 'text-emerald-700', 'border-emerald-200',
+        'dark:bg-emerald-950', 'dark:text-emerald-300', 'dark:border-emerald-800'
+      );
+      return;
+    }
     if (data.error) {
       badge.textContent = '余额查询失败';
+      badge.title = '点击查看余额详情';
       badge.classList.remove('hidden');
       badge.classList.add('text-stone-500', 'dark:text-stone-400');
       return;
@@ -21,6 +44,7 @@ const DISMISS_KEY = 'fm2note-balance-modal-dismissed';
     const cash = (data.available_cash_amount || 0).toFixed(2);
     const cur = data.currency || 'CNY';
     badge.textContent = `${cur === 'CNY' ? '¥' : cur + ' '}${cash}`;
+    badge.title = '点击查看阿里云余额详情';
     badge.classList.remove('hidden');
     if (data.alert_level === 'critical') {
       badge.classList.add(
@@ -44,7 +68,10 @@ const DISMISS_KEY = 'fm2note-balance-modal-dismissed';
   } catch (_) {
     // silent
   }
-})();
+}
+
+window.refreshBalanceBadge = refreshBalanceBadge;
+refreshBalanceBadge();
 
 function showCriticalModal(currency, cash) {
   const modal = document.getElementById('balance-modal');
@@ -61,8 +88,8 @@ function showCriticalModal(currency, cash) {
     modal.classList.add('hidden');
     try { sessionStorage.setItem(DISMISS_KEY, '1'); } catch (_) {}
   };
-  close.addEventListener('click', dismiss);
-  modal.addEventListener('click', (e) => {
+  close.onclick = dismiss;
+  modal.onclick = (e) => {
     if (e.target === modal) dismiss();
-  });
+  };
 }

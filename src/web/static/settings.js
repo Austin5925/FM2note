@@ -1,8 +1,8 @@
 // Settings page — read + write config.yaml + .env.
 (function () {
   const KEY_DEFS = [
-    { id: 'dashscope_api_key', label: 'DashScope（语音转文字 · 必需）', placeholder: 'sk-xxx' },
-    { id: 'poe_api_key', label: 'Poe（AI 摘要）', placeholder: '' },
+    { id: 'dashscope_api_key', label: 'DashScope（阿里语音引擎）', placeholder: 'sk-xxx' },
+    { id: 'poe_api_key', label: 'Poe（语音转文字 / AI 摘要）', placeholder: '' },
     { id: 'openai_api_key', label: 'OpenAI', placeholder: '' },
     { id: 'tingwu_app_id', label: 'TingWu App ID', placeholder: '仅 asr_engine=tingwu 时需要' },
   ];
@@ -17,6 +17,12 @@
     DEFAULT_POE_MODEL,
     'gemini-3.1-flash-lite',
     'claude-sonnet-4.6',
+  ];
+
+  const DEFAULT_POE_ASR_MODEL = 'qwen3.5-omni-flash';
+  const POE_ASR_MODELS = [
+    DEFAULT_POE_ASR_MODEL,
+    'qwen3.5-omni-plus',
   ];
 
   const statusEl = document.getElementById('save-status');
@@ -87,6 +93,17 @@
     return '';
   }
 
+  function renderPoeAsrModelControl(engine, modelValue) {
+    const group = document.getElementById('poe_asr_model_group');
+    const select = document.getElementById('poe_asr_model');
+    if (!group || !select) return;
+    group.classList.toggle('hidden', engine !== 'poe');
+    select.innerHTML = POE_ASR_MODELS.map((id) => (
+      `<option value="${escapeHtml(id)}">${escapeHtml(id)}</option>`
+    )).join('');
+    select.value = POE_ASR_MODELS.includes(modelValue) ? modelValue : DEFAULT_POE_ASR_MODEL;
+  }
+
   async function loadSettings() {
     try {
       const resp = await fetch('/api/settings');
@@ -104,7 +121,9 @@
         }
       }
       document.getElementById('podcast_dir').value = s.podcast_dir || '';
-      document.getElementById('asr_engine').value = s.asr_engine || 'funasr';
+      const asrEngineEl = document.getElementById('asr_engine');
+      asrEngineEl.value = s.asr_engine || 'poe';
+      renderPoeAsrModelControl(asrEngineEl.value, s.poe_asr_model);
       const providerEl = document.getElementById('summary_provider');
       providerEl.value = s.summary_provider || 'auto';
       renderSummaryModelControl(providerEl.value, s.summary_model);
@@ -147,6 +166,7 @@
       vault_path: vaultEl.value,
       podcast_dir: podcastEl.value,
       asr_engine: document.getElementById('asr_engine').value,
+      poe_asr_model: document.getElementById('poe_asr_model').value,
       summary_provider: document.getElementById('summary_provider').value,
       summary_model: selectedSummaryModel(),
       dashscope_api_key: document.getElementById('dashscope_api_key').value,
@@ -178,6 +198,7 @@
         : '✓ 已保存';
       statusEl.className = 'text-xs text-emerald-700';
       await loadSettings();
+      if (window.refreshBalanceBadge) await window.refreshBalanceBadge();
     } catch (e) {
       statusEl.textContent = '✕ ' + e.message;
       statusEl.className = 'text-xs text-red-700';
@@ -190,6 +211,13 @@
   if (summaryProviderEl) {
     summaryProviderEl.addEventListener('change', () => {
       renderSummaryModelControl(summaryProviderEl.value, selectedSummaryModel());
+    });
+  }
+
+  const asrEngineEl = document.getElementById('asr_engine');
+  if (asrEngineEl) {
+    asrEngineEl.addEventListener('change', () => {
+      renderPoeAsrModelControl(asrEngineEl.value, document.getElementById('poe_asr_model').value);
     });
   }
 

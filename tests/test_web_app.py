@@ -101,6 +101,36 @@ class TestSettingsAPI:
         # Unset keys are empty strings
         assert body["keys"]["poe"]["configured"] is False
         assert body["keys"]["poe"]["preview"] == ""
+        assert body["poe_asr_model"] == "qwen3.5-omni-flash"
+
+    def test_poe_engine_balance_is_unlimited(self, client, tmp_path, monkeypatch):
+        (tmp_path / "config" / "config.yaml").write_text(
+            f'vault_path: "{tmp_path}"\nasr_engine: "poe"\npoe_asr_model: "qwen3.5-omni-plus"\n',
+            encoding="utf-8",
+        )
+        monkeypatch.setenv("POE_API_KEY", "pk-test")
+
+        r = client.get("/api/balance")
+
+        assert r.status_code == 200
+        assert r.json() == {
+            "configured": True,
+            "mode": "unlimited",
+            "provider": "poe",
+            "label": "无限",
+            "model": "qwen3.5-omni-plus",
+        }
+
+    def test_poe_engine_without_key_does_not_claim_unlimited(self, client, tmp_path, monkeypatch):
+        (tmp_path / "config" / "config.yaml").write_text(
+            f'vault_path: "{tmp_path}"\nasr_engine: "poe"\n',
+            encoding="utf-8",
+        )
+        monkeypatch.delenv("POE_API_KEY", raising=False)
+
+        r = client.get("/api/balance")
+
+        assert r.json() == {"configured": False, "provider": "poe"}
 
     def test_get_settings_exposes_vault_path_default(self, client):
         """The personal-default vault path is surfaced as a separate field so
@@ -134,6 +164,8 @@ class TestStaticFiles:
         assert r.status_code == 200
         assert "payment-qr" not in r.text
         assert "balance-qr" not in r.text
+        assert "data.mode === 'unlimited'" in r.text
+        assert "badge.textContent = '无限'" in r.text
 
     def test_daemon_chip_uses_desktop_app_copy(self, client):
         r = client.get("/static/daemon-chip.js")

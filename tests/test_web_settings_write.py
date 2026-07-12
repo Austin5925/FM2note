@@ -146,6 +146,24 @@ def test_summary_provider_persists_to_yaml_and_survives_reload(client, tmp_path)
     assert r2.json()["summary_provider"] == "poe"
 
 
+def test_poe_asr_model_persists_and_requires_restart(client, tmp_path):
+    r = client.put(
+        "/api/settings",
+        json={"asr_engine": "poe", "poe_asr_model": "qwen3.5-omni-plus"},
+    )
+    assert r.status_code == 200, r.json()
+    assert r.json()["restart_required"] is True
+    text = (tmp_path / "config" / "config.yaml").read_text(encoding="utf-8")
+    assert "qwen3.5-omni-plus" in text
+    assert client.get("/api/settings").json()["poe_asr_model"] == "qwen3.5-omni-plus"
+
+
+def test_unknown_poe_asr_model_is_rejected(client):
+    r = client.put("/api/settings", json={"poe_asr_model": "untrusted-community-bot"})
+    assert r.status_code == 400
+    assert "不支持的 Poe 转写模型" in r.json()["detail"]
+
+
 def test_settings_page_scopes_poe_model_options_to_poe_provider():
     html = (ROOT / "src/web/templates/settings.html").read_text(encoding="utf-8")
     js = (ROOT / "src/web/static/settings.js").read_text(encoding="utf-8")
@@ -154,6 +172,8 @@ def test_settings_page_scopes_poe_model_options_to_poe_provider():
     assert "const DEFAULT_POE_MODEL = 'gpt-5.4-mini';" in js
     assert "gemini-3.1-flash-lite" in js
     assert "gpt-5.4-mini" in js
+    assert "const DEFAULT_POE_ASR_MODEL = 'qwen3.5-omni-flash';" in js
+    assert "qwen3.5-omni-plus" in js
     assert "claude-sonnet-4.6" in js
     assert "provider !== 'poe'" in js
     assert "provider !== 'openai'" in js

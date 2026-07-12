@@ -19,13 +19,18 @@ podcast_dir: "Podcasts"
 # RSS polling interval (hours), used in `serve` mode
 poll_interval_hours: 3
 
-# ASR engine: funasr | paraformer | tingwu | bailian | whisper_api
-# - funasr: Alibaba FunASR (recommended, Chinese-optimized, ~0.79 CNY/hour)
+# ASR engine: poe | funasr | paraformer | tingwu | bailian | whisper_api
+# - poe: Qwen3.5 Omni via Poe file attachment (default; uses subscription points)
+# - funasr: Alibaba FunASR (Chinese-optimized, ~0.79 CNY/hour)
 # - paraformer: Alibaba Paraformer (cheaper, ~0.29 CNY/hour)
 # - tingwu: Alibaba TingWu (ASR + AI summary built-in, ~3 CNY/hour)
 # - bailian: Alibaba Bailian ASR (DashScope SDK, up to 12h/2GB, ~0.79 CNY/hour)
 # - whisper_api: OpenAI Whisper API (~$0.006/min)
-asr_engine: "funasr"
+asr_engine: "poe"
+
+# Poe ASR model: qwen3.5-omni-flash | qwen3.5-omni-plus
+# Omni Flash is the product default; Omni Plus is the higher-quality option.
+poe_asr_model: "qwen3.5-omni-flash"
 
 # Temporary directory for audio downloads
 temp_dir: "./data/tmp"

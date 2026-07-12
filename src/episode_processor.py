@@ -76,7 +76,7 @@ class ProcessOutcome:
     # When cache_hit=True or MCP dedup short-circuited, we don't have a real
     # TranscriptResult — fields below are populated only when ASR ran.
     transcript: TranscriptResult | None = None
-    asr_engine_used: str = ""  # "funasr" | "subtitle" | "" (cache hit, no ASR)
+    asr_engine_used: str = ""  # "poe/model" | "funasr" | "subtitle" | "" (cache hit)
 
 
 def _emit(callback: ProgressCallback | None, stage: str, status: str, message: str = "") -> None:
@@ -370,7 +370,10 @@ class EpisodeProcessor:
             "done",
             f"{len(transcript.text)} 字 · {len(transcript.paragraphs)} 段",
         )
-        return transcript, self.config.asr_engine
+        engine_used = self.config.asr_engine
+        if engine_used == "poe":
+            engine_used = f"poe/{self.config.poe_asr_model}"
+        return transcript, engine_used
 
     async def _maybe_summarize(
         self,

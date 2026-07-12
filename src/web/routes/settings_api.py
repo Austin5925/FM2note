@@ -7,6 +7,7 @@ from fastapi import APIRouter, HTTPException
 from loguru import logger
 
 from src.config import DEFAULT_VAULT_PATH, load_config
+from src.transcriber.poe import POE_ASR_MODELS
 from src.web.paths import CONFIG_PATH, ENV_PATH
 from src.web.services import locks
 from src.web.services.env_writer import build_env_text, stage_atomic_write
@@ -31,6 +32,7 @@ _YAML_FIELDS = {
     "vault_path",
     "podcast_dir",
     "asr_engine",
+    "poe_asr_model",
     "summary_provider",
     "summary_model",
     "summary_cooldown",
@@ -86,6 +88,7 @@ async def get_settings() -> dict:
         "vault_path_default": DEFAULT_VAULT_PATH,
         "podcast_dir": config.podcast_dir,
         "asr_engine": config.asr_engine,
+        "poe_asr_model": config.poe_asr_model,
         "summary_provider": config.summary_provider,
         "summary_model": config.summary_model or "(provider default)",
         "summary_cooldown": config.summary_cooldown,
@@ -180,6 +183,12 @@ async def update_settings(payload: dict) -> dict:
     if "podcast_dir" in yaml_updates:
         yaml_updates["podcast_dir"] = _clean_path_input(str(yaml_updates["podcast_dir"]))
 
+    if "poe_asr_model" in yaml_updates:
+        model = str(yaml_updates["poe_asr_model"]).strip()
+        if model not in POE_ASR_MODELS:
+            raise HTTPException(status_code=400, detail=f"不支持的 Poe 转写模型: {model}")
+        yaml_updates["poe_asr_model"] = model
+
     # Build both new file contents up front, then commit both within the lock.
     # Two-phase ensures we never persist YAML without ENV (or vice versa) on a
     # partial failure — the window between the two os.replace() calls is microseconds.
@@ -232,7 +241,17 @@ async def update_settings(payload: dict) -> dict:
         "ok": True,
         "yaml_keys_updated": sorted(yaml_updates.keys()),
         "env_keys_updated": sorted(env_updates.keys()),
-        "restart_required": bool(env_updates),
+        "restart_required": bool(
+            env_updates
+            or {
+                "asr_engine",
+                "poe_asr_model",
+                "summary_provider",
+                "summary_model",
+                "summary_base_url",
+            }
+            & yaml_updates.keys()
+        ),
     }
 
 

@@ -18,6 +18,7 @@ from dateutil import parser as dateutil_parser
 # unless otherwise noted; sources are the engines' own pricing pages.
 # Kept conservative — when in doubt, round up to avoid lowballing the user.
 _COST_CNY_PER_MIN = {
+    "poe": 0.0,  # Existing subscription points: no incremental cash charge
     "funasr": 0.0132,  # ~¥0.79/hour
     "paraformer": 0.0048,  # ~¥0.29/hour
     "bailian": 0.0132,

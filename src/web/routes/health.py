@@ -86,15 +86,29 @@ async def health_check() -> dict:
         )
     )
 
-    # ---- DashScope key ----
-    if config.dashscope_api_key:
-        items.append(_check("DashScope 语音 Key", True, "已配置"))
+    # ---- ASR provider key ----
+    if config.asr_engine == "poe":
+        items.append(
+            _check(
+                "Poe 语音 Key",
+                bool(config.poe_api_key),
+                "已配置" if config.poe_api_key else "Poe 转写引擎需要 POE_API_KEY",
+            )
+        )
+    elif config.asr_engine == "whisper_api":
+        items.append(
+            _check(
+                "OpenAI 语音 Key",
+                bool(config.openai_api_key),
+                "已配置" if config.openai_api_key else "Whisper 引擎需要 OPENAI_API_KEY",
+            )
+        )
     else:
         items.append(
             _check(
                 "DashScope 语音 Key",
-                False,
-                "未配置（去设置页填 sk- 开头的 key）",
+                bool(config.dashscope_api_key),
+                "已配置" if config.dashscope_api_key else "未配置（去设置页填 sk- 开头的 key）",
             )
         )
 
@@ -117,21 +131,30 @@ async def health_check() -> dict:
             )
         )
 
-    # ---- Aliyun balance (only if configured) ----
-    balance_state = await fetch_balance()
-    if balance_state.configured:
-        if balance_state.snapshot is not None:
-            snap = balance_state.snapshot
-            tag = {"ok": "✓", "warn": "⚠", "critical": "✕"}.get(snap.alert_level, "?")
-            items.append(
-                _check(
-                    "阿里云余额",
-                    snap.alert_level != "critical",
-                    f"{tag} ¥{snap.available_cash_amount:.2f} 现金可用",
-                )
+    # ---- Active transcription balance ----
+    if config.asr_engine == "poe":
+        items.append(
+            _check(
+                "Poe 转写余额",
+                bool(config.poe_api_key),
+                "无限（使用套餐积分）" if config.poe_api_key else "配置 POE_API_KEY 后显示",
             )
-        else:
-            items.append(_check("阿里云余额", False, balance_state.error or "未知错误"))
+        )
+    else:
+        balance_state = await fetch_balance()
+        if balance_state.configured:
+            if balance_state.snapshot is not None:
+                snap = balance_state.snapshot
+                tag = {"ok": "✓", "warn": "⚠", "critical": "✕"}.get(snap.alert_level, "?")
+                items.append(
+                    _check(
+                        "阿里云余额",
+                        snap.alert_level != "critical",
+                        f"{tag} ¥{snap.available_cash_amount:.2f} 现金可用",
+                    )
+                )
+            else:
+                items.append(_check("阿里云余额", False, balance_state.error or "未知错误"))
 
     overall_ok = all(item["ok"] for item in items)
     return {"items": items, "overall_ok": overall_ok}

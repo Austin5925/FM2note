@@ -274,19 +274,25 @@
     // user-editable config.yaml, so escapeHtml it before going into innerHTML.
     // Numbers are safe (toFixed coerces to a numeric string), the engine
     // name is the only string field interpolated here.
-    const safeEngine = escapeHtml(preview.asr_engine || 'funasr');
+    const engine = String(preview.asr_engine || 'poe');
+    const safeEngine = escapeHtml(engine);
+    const isPoe = engine === 'poe';
     const missingDur = preview.missing_duration_count || 0;
     const missingHint = missingDur > 0
       ? `<span class="text-orange-600">⚠️ 含 ${missingDur} 集未提供时长，实际可能更贵</span><br/>`
       : '';
-    const costText = preview.estimated_cost_cny > 0
-      ? `约 ¥${preview.estimated_cost_cny.toFixed(2)}（${totalMin} 分钟 · ${safeEngine} 计价 · 不含 AI 摘要）`
-      : '（feed 未提供 duration，无法估算成本）';
+    const costText = isPoe
+      ? `Poe 套餐积分（${totalMin} 分钟 · 现金成本 ¥0 · 不含 AI 摘要）`
+      : preview.estimated_cost_cny > 0
+        ? `约 ¥${preview.estimated_cost_cny.toFixed(2)}（${totalMin} 分钟 · ${safeEngine} 计价 · 不含 AI 摘要）`
+        : '（feed 未提供 duration，无法估算成本）';
     const feedLimitHint = '<br/><span class="text-stone-500">注：podcast feed 通常只返回最近 ~15-20 集，更早的历史无法通过订阅抓取（可在【转录】页粘单集链接补转）。</span>';
     summaryEl.innerHTML = `Feed 当前有 <b>${preview.episode_count}</b> 集，其中 <b>${preview.unprocessed_count}</b> 集未在本机处理。<br/>${missingHint}全部转录预计 ${costText}${feedLimitHint}`;
-    allHintEl.textContent = preview.estimated_cost_cny > 0
-      ? `预计消耗约 ¥${preview.estimated_cost_cny.toFixed(2)}（${preview.unprocessed_count} 集 · ${safeEngine}）`
-      : '— 这会一次性消耗大量 DashScope / Poe 额度';
+    allHintEl.textContent = isPoe
+      ? `将使用 Poe 套餐积分（${preview.unprocessed_count} 集 · 现金成本 ¥0）`
+      : preview.estimated_cost_cny > 0
+        ? `预计消耗约 ¥${preview.estimated_cost_cny.toFixed(2)}（${preview.unprocessed_count} 集 · ${safeEngine}）`
+        : '— 这会一次性消耗大量 DashScope 额度';
     // Reset radio + secondary inputs
     document.querySelectorAll('#backfill-form input[name="backfill"]').forEach((el) => {
       el.checked = el.value === 'new_only';

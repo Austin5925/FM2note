@@ -79,11 +79,22 @@
       <label class="block text-xs text-stone-600">语音转文字</label>
       <select id="asr_engine"
               class="w-full px-3 py-2 mt-1 rounded-md border border-stone-300 text-sm">
+        <option value="poe">poe</option>
         <option value="funasr">funasr</option>
         <option value="paraformer">paraformer</option>
         <option value="tingwu">tingwu</option>
+        <option value="bailian">bailian</option>
         <option value="whisper_api">whisper_api</option>
       </select>
+      <div id="poe_asr_model_group" class="hidden mt-3">
+        <label class="block text-xs text-stone-600">Poe 转写模型</label>
+        <select id="poe_asr_model"
+                class="w-full px-3 py-2 mt-1 rounded-md border border-stone-300 text-sm">
+        </select>
+        <p class="text-xs text-stone-400 mt-1">
+          默认 Omni Flash；Omni Plus 文字质量更高，但消耗更多 Poe 积分。
+        </p>
+      </div>
       <label class="block text-xs text-stone-600 mt-3">AI 摘要提供方</label>
       <select id="summary_provider"
               class="w-full px-3 py-2 mt-1 rounded-md border border-stone-300 text-sm">
@@ -113,7 +124,7 @@
       <h3 class="text-sm font-semibold text-stone-700 mb-3">阿里云余额查询（可选）</h3>
       <p class="text-xs text-stone-500 mb-3">
         填入只挂 <code>AliyunBSSReadOnlyAccess</code> 权限的 RAM 子账号 AK/SK 后，
-        顶部会显示余额徽章；余额低于 ¥10 会弹出提醒。
+        阿里语音引擎会显示现金余额并在低于 ¥10 时提醒；Poe 转写引擎显示“无限”。
       </p>
       <div id="aliyun-fields" class="space-y-3"></div>
     </div>

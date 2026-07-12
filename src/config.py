@@ -32,7 +32,8 @@ class AppConfig:
     vault_path: str
     podcast_dir: str = "Podcasts"
     poll_interval_hours: int = 3
-    asr_engine: str = "funasr"
+    asr_engine: str = "poe"
+    poe_asr_model: str = "qwen3.5-omni-flash"
     temp_dir: str = "./data/tmp"
     max_retries: int = 3
     log_level: str = "INFO"
@@ -140,7 +141,8 @@ def load_config(path: str | Path = "config/config.yaml") -> AppConfig:
         vault_path=raw["vault_path"],
         podcast_dir=raw.get("podcast_dir", "Podcasts"),
         poll_interval_hours=raw.get("poll_interval_hours", 3),
-        asr_engine=raw.get("asr_engine", "funasr"),
+        asr_engine=raw.get("asr_engine", "poe"),
+        poe_asr_model=raw.get("poe_asr_model", "qwen3.5-omni-flash"),
         temp_dir=raw.get("temp_dir", "./data/tmp"),
         max_retries=raw.get("max_retries", 3),
         log_level=raw.get("log_level", "INFO"),

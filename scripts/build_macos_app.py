@@ -179,6 +179,8 @@ def build_app(args: argparse.Namespace) -> Path:
         "--hidden-import",
         "src.transcriber.whisper_api",
         "--hidden-import",
+        "src.transcriber.poe",
+        "--hidden-import",
         "src.summarizer.poe_client",
         "--hidden-import",
         "src.summarizer.openai_client",

@@ -99,6 +99,18 @@ class TestHappyPath:
             "生成精简版博客、摘要与章节中...",
         ) in events
 
+    @pytest.mark.asyncio
+    async def test_poe_model_is_recorded_in_note_provenance(self, processor):
+        processor.config.asr_engine = "poe"
+        processor.config.poe_asr_model = "qwen3.5-omni-plus"
+
+        outcome = await processor.process(_episode())
+
+        assert outcome.asr_engine_used == "poe/qwen3.5-omni-plus"
+        assert (
+            processor.md_generator.render.call_args.kwargs["asr_engine"] == "poe/qwen3.5-omni-plus"
+        )
+
 
 class TestCacheHit:
     @pytest.mark.asyncio

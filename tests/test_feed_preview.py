@@ -66,6 +66,9 @@ class TestEstimateCost:
         cost = estimate_cost_cny(3600, "funasr")  # 60 min
         assert cost == round(60 * 0.0132, 2)
 
+    def test_poe_subscription_has_zero_incremental_cash_cost(self):
+        assert estimate_cost_cny(3600, "poe") == 0.0
+
     def test_unknown_engine_falls_back_to_funasr(self):
         assert estimate_cost_cny(3600, "imaginary_engine") == estimate_cost_cny(3600, "funasr")
 

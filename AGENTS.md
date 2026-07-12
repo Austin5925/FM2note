@@ -13,7 +13,7 @@ FM2note — 播客 → Obsidian 笔记自动化管线。
 | 语言 | Python 3.11+ |
 | RSS 解析 | feedparser（兼容 RSS 2.0 / Atom） |
 | HTTP 客户端 | httpx（async） |
-| ASR 转写 | FunASR / Paraformer / 通义听悟 / 百炼 / Whisper API（dashscope + openai SDK） |
+| ASR 转写 | Poe 千问 Omni / FunASR / Paraformer / 通义听悟 / 百炼 / Whisper API |
 | AI 摘要 | Poe API / OpenAI-compatible API（自动检测，Protocol 抽象） |
 | 模板渲染 | Jinja2（可自定义模板路径和标签） |
 | 状态管理 | SQLite（aiosqlite） |
@@ -45,6 +45,7 @@ FM2note — 播客 → Obsidian 笔记自动化管线。
 | `src/transcriber/funasr.py` | FunASR + Paraformer 实现 |
 | `src/transcriber/bailian.py` | 百炼 ASR 实现 |
 | `src/transcriber/whisper_api.py` | OpenAI Whisper API 实现 |
+| `src/transcriber/poe.py` | Poe 千问 Omni 音频附件转写实现 |
 | `src/transcriber/factory.py` | 转写器工厂 |
 | `src/summarizer/base.py` | Summarizer Protocol 抽象 |
 | `src/summarizer/poe_client.py` | Poe API 摘要实现 |
@@ -135,6 +136,7 @@ make bump-minor  # 版本号 minor +1
 | 通义听悟 | DashScope SDK | DASHSCOPE_API_KEY + TINGWU_APP_ID |
 | 百炼 ASR | DashScope SDK | DASHSCOPE_API_KEY |
 | OpenAI Whisper | OpenAI API | OPENAI_API_KEY |
+| Poe 千问 Omni 转写 | `api.poe.com/v1/chat/completions` | POE_API_KEY |
 | Poe 摘要 | `api.poe.com/v1` | POE_API_KEY |
 | OpenAI 摘要 | `api.openai.com/v1`（或自定义 base_url） | OPENAI_API_KEY |
 | RSSHub（自建） | 服务器 Docker，通过 Nginx 反代 | 无 |
@@ -191,7 +193,8 @@ make bump-minor  # 版本号 minor +1
 - **v1.8.6** — 摘要 prompt 统一为 provider 共享；笔记最前面新增“播客内容分析”快速阅读区，并兼容历史页补摘要
 - **v1.8.7** — “播客内容分析”升级为信息保真的“精简版博客”；Poe 默认模型切换为 gpt-5.4-mini
 - **v1.8.8** — 余额提醒改为中性文案；移除个人收款码、预置 profile 与多版本打包机制；macOS 只发布一个通用安装包
+- **v1.9.0** — Poe 千问 Omni 音频转写接入生产管线；Omni Flash 成为默认模型、Plus 可选；Poe 余额显示“无限”
 
 ## Current Version
 
-v1.8.8 — 单一无预置信息的通用版本
+v1.9.0 — Poe 千问 Omni 转写 + 当前引擎余额状态

@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.9.0] - 2026-07-12
+
+### Added
+- Added a production Poe audio transcriber using the documented base64 `type:file` attachment protocol, with Qwen3.5 Omni Flash as the default and Omni Plus as a selectable higher-quality model.
+- Added bounded retries, explicit response-contract validation, truncation rejection, readable paragraph generation, a 200MB input guard, and guaranteed temporary-file cleanup.
+- Settings now exposes the Poe ASR model selector and records the exact Poe model in note frontmatter.
+
+### Changed
+- New installations now default to `asr_engine: poe` and `poe_asr_model: qwen3.5-omni-flash`; existing runtime configuration remains untouched during drag-replace upgrades.
+- When Poe transcription is selected, the top balance badge and health check display `无限` instead of querying Aliyun cash balance. Subscription previews describe the work as using Poe plan points with zero incremental cash cost.
+- Health checks now validate the credential for the selected ASR provider instead of always requiring DashScope.
+
+### Verified
+- The packaged production transcriber completed an 11m39s podcast in 75.2s, returned 3,496 characters in six paragraphs, and left no temporary audio files behind.
+
 ## [1.8.8] - 2026-07-10
 
 ### Changed

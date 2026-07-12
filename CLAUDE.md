@@ -324,6 +324,12 @@ make bump-minor  # 版本号 minor +1
   - macOS 打包资源改为明确的公开文件 allowlist，不再整体收集本机 static 目录，避免忽略的个人素材进入签名 App
   - 只产出 `FM2note-macos.dmg` / `FM2note-macos.zip`；拖动替换继续保留 `~/Library/Application Support/FM2note` 中的已有配置和状态
 
+- **v1.9.0** — Poe 千问 Omni 音频转写
+  - 新增 Poe `type:file` base64 音频附件转写器；默认 `qwen3.5-omni-flash`，设置页可切换 `qwen3.5-omni-plus`
+  - 新装默认使用 Poe 转写，现有 App Support 配置在拖动替换升级时保持不变
+  - Poe 转写启用时顶部余额与健康检查显示“无限”；阿里引擎继续显示阿里云现金余额
+  - 长音频生产冒烟验证：11 分 39 秒音频 75.2 秒完成，3496 字 / 6 段，临时文件零残留
+
 ## Current Version
 
-v1.8.8 — 单一无预置信息的通用版本
+v1.9.0 — Poe 千问 Omni 转写 + 当前引擎余额状态

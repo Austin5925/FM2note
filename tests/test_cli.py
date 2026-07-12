@@ -23,7 +23,8 @@ class TestInit:
         assert (tmp_path / "config" / "config.yaml").exists()
         assert (tmp_path / "config" / "subscriptions.yaml").exists()
         config_content = (tmp_path / "config" / "config.yaml").read_text()
-        assert "funasr" in config_content  # default
+        assert 'asr_engine: "poe"' in config_content  # default
+        assert 'poe_asr_model: "qwen3.5-omni-flash"' in config_content
         assert "Podcasts" in config_content  # default
 
     def test_init_silent_creates_env_file(self, tmp_path, monkeypatch):

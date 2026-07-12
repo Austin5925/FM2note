@@ -1,0 +1,21 @@
+{
+  "id": "chatcmpl-8ee9abb31030a8361339f31e",
+  "object": "chat.completion",
+  "created": 1783847860,
+  "model": "qwen3.5-omni-flash",
+  "choices": [
+    {
+      "index": 0,
+      "message": {
+        "role": "assistant",
+        "content": "欢迎大家来体验达摩院推出的语音识别模型。"
+      },
+      "finish_reason": "stop"
+    }
+  ],
+  "usage": {
+    "prompt_tokens": 44,
+    "completion_tokens": 24,
+    "total_tokens": 68
+  }
+}

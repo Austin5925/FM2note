@@ -18,7 +18,19 @@ def create_transcriber(config: AppConfig) -> Transcriber:
     """
     engine = config.asr_engine
 
-    if engine == "tingwu":
+    if engine == "poe":
+        if not config.poe_api_key:
+            raise TranscriptionError("Poe 转写需要配置 POE_API_KEY")
+
+        from src.transcriber.poe import PoeTranscriber
+
+        return PoeTranscriber(
+            api_key=config.poe_api_key,
+            model=config.poe_asr_model,
+            temp_dir=config.temp_dir,
+        )
+
+    elif engine == "tingwu":
         if not config.dashscope_api_key:
             raise TranscriptionError("通义听悟需要配置 DASHSCOPE_API_KEY")
         if not config.tingwu_app_id:

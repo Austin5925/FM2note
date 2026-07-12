@@ -365,8 +365,10 @@ def init(interactive: bool):
         vault_path = click.prompt("Obsidian vault path", default=default_vault, type=str)
         asr_engine = click.prompt(
             "ASR engine",
-            type=click.Choice(["funasr", "paraformer", "tingwu", "whisper_api"]),
-            default="funasr",
+            type=click.Choice(
+                ["poe", "funasr", "paraformer", "tingwu", "bailian", "whisper_api"]
+            ),
+            default="poe",
         )
         podcast_dir = click.prompt("Podcast subdirectory in vault", default="Podcasts")
         poll_hours = click.prompt("Polling interval (hours)", default=3, type=int)
@@ -377,7 +379,7 @@ def init(interactive: bool):
         )
     else:
         vault_path = default_vault
-        asr_engine = "funasr"
+        asr_engine = "poe"
         podcast_dir = "Podcasts"
         poll_hours = 3
         rsshub_url = ""
@@ -391,6 +393,7 @@ def init(interactive: bool):
             podcast_dir: "{podcast_dir}"
             poll_interval_hours: {poll_hours}
             asr_engine: "{asr_engine}"
+            poe_asr_model: "qwen3.5-omni-flash"
             temp_dir: "./data/tmp"
             db_path: "./data/state.db"
             max_retries: 3
@@ -451,11 +454,13 @@ def init(interactive: bool):
             env_content = dedent("""\
                 # FM2note credentials. Non-secret config lives in config/config.yaml.
 
-                # DashScope (required for FunASR / Paraformer / TingWu)
-                export DASHSCOPE_API_KEY=sk-xxx
-
-                # AI summary (optional — fill one, or both empty to skip summaries)
+                # Poe (required for the default ASR engine; also supports AI summaries)
                 export POE_API_KEY=
+
+                # DashScope (only for FunASR / Paraformer / TingWu / Bailian)
+                export DASHSCOPE_API_KEY=
+
+                # OpenAI (optional Whisper ASR and/or AI summaries)
                 export OPENAI_API_KEY=
 
                 # TingWu App ID (only if asr_engine=tingwu)

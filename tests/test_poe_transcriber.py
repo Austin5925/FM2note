@@ -153,6 +153,63 @@ async def test_transcribe_file_sends_and_parses_wire_shape(tmp_path):
     assert request.kwargs["json"]["messages"][0]["content"][1]["type"] == "file"
 
 
+@pytest.mark.asyncio
+async def test_proxy_connect_error_falls_back_to_direct_connection(tmp_path):
+    transcriber = PoeTranscriber("pk-test", temp_dir=str(tmp_path))
+    audio = tmp_path / "episode.wav"
+    audio.write_bytes(b"RIFF-test")
+
+    proxy_client = AsyncMock()
+    proxy_client.post.side_effect = httpx.ConnectError("proxy reset")
+    proxy_context = AsyncMock()
+    proxy_context.__aenter__.return_value = proxy_client
+    proxy_context.__aexit__.return_value = False
+
+    direct_client = AsyncMock()
+    direct_client.post.return_value = httpx.Response(200, json=_real_response())
+    direct_context = AsyncMock()
+    direct_context.__aenter__.return_value = direct_client
+    direct_context.__aexit__.return_value = False
+
+    with (
+        patch(
+            "src.transcriber.poe.httpx.AsyncClient",
+            side_effect=[proxy_context, direct_context],
+        ) as client_factory,
+        patch("src.transcriber.poe.asyncio.sleep", new_callable=AsyncMock),
+    ):
+        result = await transcriber._transcribe_file(audio, "audio/wav", "cn")
+
+    assert result.text.startswith("欢迎大家")
+    assert proxy_client.post.await_count == transcriber.MAX_ATTEMPTS
+    assert direct_client.post.await_count == 1
+    assert client_factory.call_args_list[0].kwargs["trust_env"] is True
+    assert client_factory.call_args_list[1].kwargs["trust_env"] is False
+
+
+@pytest.mark.asyncio
+async def test_read_timeout_does_not_switch_connection_route(tmp_path):
+    transcriber = PoeTranscriber("pk-test", temp_dir=str(tmp_path))
+    audio = tmp_path / "episode.wav"
+    audio.write_bytes(b"RIFF-test")
+
+    client = AsyncMock()
+    client.post.side_effect = httpx.ReadTimeout("read timed out")
+    context = AsyncMock()
+    context.__aenter__.return_value = client
+    context.__aexit__.return_value = False
+
+    with (
+        patch("src.transcriber.poe.httpx.AsyncClient", return_value=context) as client_factory,
+        patch("src.transcriber.poe.asyncio.sleep", new_callable=AsyncMock),
+        pytest.raises(TranscriptionError, match="ReadTimeout"),
+    ):
+        await transcriber._transcribe_file(audio, "audio/wav", "cn")
+
+    assert client_factory.call_count == 1
+    assert client_factory.call_args.kwargs["trust_env"] is True
+
+
 @pytest.mark.parametrize(
     ("status", "message"),
     [

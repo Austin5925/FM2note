@@ -194,7 +194,8 @@ make bump-minor  # 版本号 minor +1
 - **v1.8.7** — “播客内容分析”升级为信息保真的“精简版博客”；Poe 默认模型切换为 gpt-5.4-mini
 - **v1.8.8** — 余额提醒改为中性文案；移除个人收款码、预置 profile 与多版本打包机制；macOS 只发布一个通用安装包
 - **v1.9.0** — Poe 千问 Omni 音频转写接入生产管线；Omni Flash 成为默认模型、Plus 可选；Poe 余额显示“无限”
+- **v1.9.1** — Poe 系统代理 TLS 连接失败时安全回退直连，避免 Clash 节点重置导致转写失败
 
 ## Current Version
 
-v1.9.0 — Poe 千问 Omni 转写 + 当前引擎余额状态
+v1.9.1 — Poe 千问 Omni 转写 + 系统代理失败直连回退

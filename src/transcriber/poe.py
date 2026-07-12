@@ -162,10 +162,67 @@ class PoeTranscriber:
         }
         timeout = httpx.Timeout(900, connect=30, read=900, write=300, pool=30)
 
-        async with httpx.AsyncClient(headers=headers, timeout=timeout) as client:
+        try:
+            response = await self._post_with_retries(
+                payload,
+                headers=headers,
+                timeout=timeout,
+                trust_env=True,
+            )
+        except httpx.ConnectError:
+            # macOS system proxy settings are surfaced through urllib and therefore
+            # picked up by httpx even when no HTTP_PROXY variables are exported.
+            # A broken local proxy route can reset TLS before the request is sent.
+            # Only that pre-request connection failure is safe to retry directly;
+            # timeouts and other transport failures keep their normal error path.
+            logger.warning("Poe 系统代理连接失败，改用直连重试")
+            try:
+                response = await self._post_with_retries(
+                    payload,
+                    headers=headers,
+                    timeout=timeout,
+                    trust_env=False,
+                )
+            except httpx.ConnectError as exc:
+                raise TranscriptionError("Poe 转写请求失败: ConnectError") from exc
+
+        if response.status_code != 200:
+            raise self._http_error(response)
+
+        try:
+            body = response.json()
+        except ValueError as exc:
+            raise TranscriptionError("Poe 转写返回了无效 JSON") from exc
+        result = self._parse_response(body)
+        logger.info(
+            "Poe 转写完成: model={}, {} 字, {} 段",
+            self._model,
+            len(result.text),
+            len(result.paragraphs),
+        )
+        return result
+
+    async def _post_with_retries(
+        self,
+        payload: dict,
+        *,
+        headers: dict[str, str],
+        timeout: httpx.Timeout,
+        trust_env: bool,
+    ) -> httpx.Response:
+        async with httpx.AsyncClient(
+            headers=headers,
+            timeout=timeout,
+            trust_env=trust_env,
+        ) as client:
             for attempt in range(self.MAX_ATTEMPTS):
                 try:
                     response = await client.post(f"{self.BASE_URL}/chat/completions", json=payload)
+                except httpx.ConnectError:
+                    if attempt + 1 >= self.MAX_ATTEMPTS:
+                        raise
+                    await asyncio.sleep(2**attempt)
+                    continue
                 except (httpx.TimeoutException, httpx.TransportError) as exc:
                     if attempt + 1 >= self.MAX_ATTEMPTS:
                         raise TranscriptionError(f"Poe 转写请求失败: {type(exc).__name__}") from exc
@@ -178,21 +235,7 @@ class PoeTranscriber:
                 ):
                     await self._retry_delay(response, attempt)
                     continue
-                if response.status_code != 200:
-                    raise self._http_error(response)
-
-                try:
-                    body = response.json()
-                except ValueError as exc:
-                    raise TranscriptionError("Poe 转写返回了无效 JSON") from exc
-                result = self._parse_response(body)
-                logger.info(
-                    "Poe 转写完成: model={}, {} 字, {} 段",
-                    self._model,
-                    len(result.text),
-                    len(result.paragraphs),
-                )
-                return result
+                return response
 
         raise TranscriptionError("Poe 转写重试耗尽")  # pragma: no cover
 

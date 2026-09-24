@@ -40,7 +40,7 @@ def _make_config(tmp_path: Path) -> AppConfig:
         summary_provider="none",
         summary_model="",
         summary_cooldown=0,
-        poe_api_key="",
+        deepseek_api_key="",
         openai_api_key="",
         db_path=str(tmp_path / "state.db"),
     )

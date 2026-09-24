@@ -10,12 +10,12 @@ FM2note monitors podcast RSS feeds, transcribes episodes using cloud ASR, genera
 
 - **Local Web UI** — `fm2note web` (browser) or `fm2note app` (native window) with transcribe / history / subscriptions / settings pages
 - **RSS monitoring** — auto-detect new episodes from any RSS/Atom feed
-- **Multiple ASR engines** — Poe Qwen3.5 Omni, FunASR, Paraformer, TingWu, Bailian, OpenAI Whisper
-- **AI summaries** — chapter breakdown + keywords via Poe, OpenAI, or any OpenAI-compatible API
+- **Multiple ASR engines** — Bailian Qwen Audio 3.1, FunASR, Paraformer, TingWu, OpenAI Whisper
+- **AI summaries** — chapter breakdown + keywords via DeepSeek V4.1 Flash, OpenAI, or any OpenAI-compatible API
 - **Direct Obsidian vault write** — Markdown with YAML frontmatter
 - **Customizable templates** — configurable note template path and section labels
 - **Subtitle detection** — skip ASR when subtitles are available (saves cost)
-- **Active-provider balance widget** — `无限` for Poe transcription; optional Aliyun cash balance for Alibaba engines
+- **Active-provider balance widget** — optional Aliyun cash balance for Alibaba engines
 - **Auto-retry** — failed episodes retried on next cycle
 - **Self-hosted** — your data stays on your machine
 
@@ -70,11 +70,11 @@ This interactively creates `config/config.yaml`, `config/subscriptions.yaml`, an
    in `config/config.yaml` and is editable from the Web UI):
 
 ```bash
-export POE_API_KEY=pk-xxx                # Required for default Poe Qwen ASR
-export DASHSCOPE_API_KEY=sk-xxx          # Only for Alibaba ASR engines
+export DASHSCOPE_API_KEY=sk-xxx          # Bailian / FunASR / TingWu
+# export DEEPSEEK_API_KEY=sk-xxx         # DeepSeek V4.1 Flash 摘要
 
 # Optional OpenAI ASR / AI summary
-export OPENAI_API_KEY=sk-xxx             # OpenAI / DeepSeek / Groq
+export OPENAI_API_KEY=sk-xxx             # OpenAI-compatible
 ```
 
 2. Set the Obsidian vault path in `config/config.yaml` (or the Web UI's 设置 page):
@@ -177,26 +177,26 @@ The UI ships four pages:
 - **订阅** — paste Xiaoyuzhou links to auto-generate RSSHub feeds, or manually edit/test RSS feeds (ruamel.yaml preserves your YAML comments)
 - **设置** — write API keys, switch engines, edit vault path; with health self-check and launchd service status
 
-The active transcription balance shows in the top nav: Poe displays `无限`
-(plan points, no incremental cash charge), while Alibaba engines show the
-optional Aliyun cash balance configured through `ALIYUN_ACCESS_KEY_ID` /
-`_SECRET`. Bind is always `127.0.0.1`; use a reverse proxy for LAN access.
+The active transcription balance shows the optional Aliyun cash balance configured
+through `ALIYUN_ACCESS_KEY_ID` / `_SECRET`. Bind is always `127.0.0.1`; use a
+reverse proxy for LAN access.
 
 ## ASR Engines
 
 | Engine | Cost/hour | Features | Best for |
 |---|---|---|---|
-| Poe Qwen3.5 Omni Flash (default) | Plan points | Fast multimodal transcription | Existing Poe subscribers |
-| Poe Qwen3.5 Omni Plus | More plan points | Best text quality in the project benchmark | Accuracy-first transcription |
+| Bailian Qwen Audio 3.1 (default) | ~0.08 CNY/hour* | 12-hour file transcription, context enhancement, diarization | Long-form audio |
 | FunASR | ~0.79 CNY | Chinese-optimized, dialect support | Dedicated ASR structure |
 | Paraformer | ~0.29 CNY | Budget option, 7+ languages | Cost-sensitive |
 | TingWu | ~3.00 CNY | ASR + built-in AI summary | All-in-one |
-| Bailian | ~0.79 CNY | DashScope SDK, up to 12h/2GB | Long episodes |
 | Whisper API | ~$0.36 | Multilingual | English/other languages |
 
-Set `asr_engine` in `config/config.yaml`. For Poe, choose
-`poe_asr_model: qwen3.5-omni-flash` or `qwen3.5-omni-plus`; both use
-`POE_API_KEY`. All DashScope engines share `DASHSCOPE_API_KEY`.
+Set `asr_engine` in `config/config.yaml`. Bailian defaults to
+`qwen-audio-3.1-asr-flash-filetrans` (token billing, so actual cost varies with
+transcript length). You can select the duration-billed `qwen3-asr-flash-filetrans`
+or `qwen-audio-3.0-asr-flash-filetrans`; `funasr_model` selects a FunASR stable
+model or snapshot. *The Qwen Audio 3.1 hourly figure is an estimate from a live
+probe, not a fixed unit price. All DashScope engines share `DASHSCOPE_API_KEY`.
 
 ## AI Summary
 
@@ -204,11 +204,11 @@ FM2note generates AI summaries with chapter breakdowns and keywords. Set the pro
 
 | Provider | YAML | API Key (`.env`) | Model Default |
 |---|---|---|---|
-| Poe | `summary_provider: poe` | `POE_API_KEY` | gpt-5.4-mini |
+| DeepSeek V4.1 Flash | `summary_provider: deepseek` | `DEEPSEEK_API_KEY` | deepseek-flash |
 | OpenAI | `summary_provider: openai` | `OPENAI_API_KEY` | gpt-4o-mini |
-| DeepSeek/Groq/Ollama | `summary_provider: openai` + `summary_base_url: <url>` | `OPENAI_API_KEY` | varies |
+| OpenAI-compatible (CometAPI / DeepInfra / Groq / Ollama) | `summary_provider: openai` + `summary_base_url: <url>` | `OPENAI_API_KEY` | 手动填写 |
 | None | `summary_provider: none` | — | — |
-| Auto (default) | `summary_provider: auto` | any available | auto |
+| Auto (default) | `summary_provider: auto` | DeepSeek or OpenAI key | auto |
 
 Without any summary API key, FM2note outputs transcription only (no error).
 
@@ -269,10 +269,11 @@ All non-sensitive configuration lives here and is editable from the Web UI's 设
 | `vault_path` | — | Obsidian vault path (required) |
 | `podcast_dir` | `Podcasts` | Subdirectory in vault for notes |
 | `poll_interval_hours` | `3` | Polling interval for `serve` mode |
-| `asr_engine` | `poe` | ASR engine: `poe` / `funasr` / `paraformer` / `tingwu` / `bailian` / `whisper_api` |
-| `poe_asr_model` | `qwen3.5-omni-flash` | `qwen3.5-omni-flash` / `qwen3.5-omni-plus` |
+| `asr_engine` | `bailian` | ASR engine: `funasr` / `paraformer` / `tingwu` / `bailian` / `whisper_api` |
+| `funasr_model` | `fun-asr` | FunASR stable model or snapshot |
+| `bailian_model` | `qwen-audio-3.1-asr-flash-filetrans` | Qwen Audio 3.1 / Qwen3 / Qwen Audio 3.0 filetrans |
 | `max_retries` | `3` | Max retry attempts for failed episodes |
-| `summary_provider` | `auto` | `auto` / `poe` / `openai` / `none` |
+| `summary_provider` | `auto` | `auto` / `deepseek` / `openai` / `none` |
 | `summary_model` | — | Override model (default: provider-specific) |
 | `summary_cooldown` | `60` | Seconds between summary API calls |
 | `summary_base_url` | — | OpenAI-compatible endpoint (DeepSeek, Groq, Ollama) |
@@ -285,7 +286,7 @@ As of v1.4.12, `.env` holds **only** API keys / credentials. Putting any non-sec
 
 | Variable | Required | Description |
 |---|---|---|
-| `POE_API_KEY` | Yes (for default Poe ASR) | Poe API key for Qwen transcription and/or summaries |
+| `DEEPSEEK_API_KEY` | No | DeepSeek V4.1 Flash summary API key |
 | `DASHSCOPE_API_KEY` | Yes (for DashScope engines) | Alibaba DashScope API key |
 | `OPENAI_API_KEY` | No | OpenAI API key (summaries and/or Whisper) |
 | `TINGWU_APP_ID` | No (only for `tingwu`) | TingWu App ID |
@@ -307,9 +308,9 @@ As of v1.4.12, `.env` holds **only** API keys / credentials. Putting any non-sec
 
 | Setup | Monthly Cost |
 |---|---|
-| Poe Qwen Omni + existing subscription points | 0 CNY incremental cash cost |
-| FunASR + Poe/OpenAI summary | ~16 CNY (~$2) |
-| Paraformer + Poe/OpenAI summary | ~6 CNY (~$1) |
+| Bailian Qwen Audio 3.1 + OpenAI/DeepSeek summary | ~1.6 CNY transcription* |
+| FunASR + OpenAI/DeepSeek summary | ~16 CNY (~$2) |
+| Paraformer + OpenAI/DeepSeek summary | ~6 CNY (~$1) |
 | TingWu (all-in-one) | ~55 CNY (~$8) |
 
 ## Development

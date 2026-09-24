@@ -5,77 +5,39 @@ from loguru import logger
 from src.config import AppConfig
 from src.summarizer.base import Summarizer
 
+DEFAULT_DEEPSEEK_MODEL = "deepseek-flash"
+
 
 def create_summarizer(config: AppConfig) -> Summarizer | None:
-    """Create a summarizer based on config.
+    """Select DeepSeek or an OpenAI-compatible summary endpoint.
 
-    Selection logic:
-    - summary_provider="poe"    → PoeSummarizer (requires POE_API_KEY)
-    - summary_provider="openai" → OpenAISummarizer (requires OPENAI_API_KEY)
-    - summary_provider="none"   → None
-    - summary_provider="auto"   → auto-detect based on available API keys
-
-    Returns:
-        Summarizer instance or None if no provider configured.
+    Auto prefers the dedicated DeepSeek key.
     """
     provider = config.summary_provider
-
+    if provider == "auto":
+        provider = "deepseek" if config.deepseek_api_key else "openai"
     if provider == "none":
-        logger.info("Summary provider set to 'none', skipping AI summaries")
+        return None
+    if provider not in {"deepseek", "openai"}:
+        logger.warning("Unsupported summary provider: {}", provider)
         return None
 
-    if provider == "poe":
-        if not config.poe_api_key:
-            logger.warning("summary_provider=poe but POE_API_KEY not set, skipping")
-            return None
-        return _create_poe(config)
-
-    if provider == "openai":
-        if not config.openai_api_key:
-            logger.warning("summary_provider=openai but OPENAI_API_KEY not set, skipping")
-            return None
-        return _create_openai(config)
-
-    # Auto-detect: try available keys
-    if config.poe_api_key:
-        return _create_poe(config)
-    if config.openai_api_key:
-        return _create_openai(config)
-
-    logger.info("No summary API key configured, skipping AI summaries")
-    return None
-
-
-def _create_poe(config: AppConfig) -> Summarizer:
-    from src.summarizer.poe_client import DEFAULT_POE_MODEL, PoeSummarizer
-
-    model = config.summary_model or DEFAULT_POE_MODEL
-
-    logger.info(
-        "Summarizer: Poe (model={}, cooldown={}s)",
-        model,
-        config.summary_cooldown,
-    )
-    return PoeSummarizer(
-        api_key=config.poe_api_key,
-        model=model,
-        cooldown=float(config.summary_cooldown),
-    )
-
-
-def _create_openai(config: AppConfig) -> Summarizer:
     from src.summarizer.openai_client import OpenAISummarizer
 
-    model = config.summary_model or "gpt-4o-mini"
-    base_url = config.summary_base_url or "https://api.openai.com/v1"
-    logger.info(
-        "Summarizer: OpenAI-compatible (model={}, base_url={}, cooldown={}s)",
-        model,
-        base_url,
-        config.summary_cooldown,
-    )
+    if provider == "deepseek":
+        key = config.deepseek_api_key
+        model = config.summary_model or DEFAULT_DEEPSEEK_MODEL
+        base_url = "https://api.deepseek.com"
+    else:
+        key = config.openai_api_key
+        model = config.summary_model or "gpt-4o-mini"
+        base_url = config.summary_base_url or "https://api.openai.com/v1"
+    if not key:
+        logger.warning("No API key configured for summary provider {}", provider)
+        return None
+    logger.info("Summarizer: {} (model={})", provider, model)
     return OpenAISummarizer(
-        api_key=config.openai_api_key,
+        api_key=key,
         model=model,
         base_url=base_url,
         cooldown=float(config.summary_cooldown),

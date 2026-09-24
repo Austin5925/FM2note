@@ -366,9 +366,9 @@ def init(interactive: bool):
         asr_engine = click.prompt(
             "ASR engine",
             type=click.Choice(
-                ["poe", "funasr", "paraformer", "tingwu", "bailian", "whisper_api"]
+                ["funasr", "paraformer", "tingwu", "bailian", "whisper_api"]
             ),
-            default="poe",
+                default="bailian",
         )
         podcast_dir = click.prompt("Podcast subdirectory in vault", default="Podcasts")
         poll_hours = click.prompt("Polling interval (hours)", default=3, type=int)
@@ -379,7 +379,7 @@ def init(interactive: bool):
         )
     else:
         vault_path = default_vault
-        asr_engine = "poe"
+        asr_engine = "bailian"
         podcast_dir = "Podcasts"
         poll_hours = 3
         rsshub_url = ""
@@ -393,7 +393,9 @@ def init(interactive: bool):
             podcast_dir: "{podcast_dir}"
             poll_interval_hours: {poll_hours}
             asr_engine: "{asr_engine}"
-            poe_asr_model: "qwen3.5-omni-flash"
+            # FunASR and Bailian model defaults (change in Web UI if needed)
+            funasr_model: "fun-asr"
+            bailian_model: "qwen-audio-3.1-asr-flash-filetrans"
             temp_dir: "./data/tmp"
             db_path: "./data/state.db"
             max_retries: 3
@@ -438,7 +440,7 @@ def init(interactive: bool):
     # users don't ship .env.example (it lives at repo root, not in the
     # src/ package), so the fallback below is now the FULL template — same
     # content as repo-root .env.example so all optional API key slots are
-    # visible (vs the old one-key fallback that hid Poe/OpenAI/Aliyun
+    # visible (vs the old one-key fallback that hid DashScope/OpenAI/Aliyun
     # placeholders from new users).
     #
     # As of v1.4.12, .env holds ONLY sensitive credentials. Every non-secret
@@ -454,8 +456,8 @@ def init(interactive: bool):
             env_content = dedent("""\
                 # FM2note credentials. Non-secret config lives in config/config.yaml.
 
-                # Poe (required for the default ASR engine; also supports AI summaries)
-                export POE_API_KEY=
+                # DeepSeek V4.1 Flash summaries (optional)
+                export DEEPSEEK_API_KEY=
 
                 # DashScope (only for FunASR / Paraformer / TingWu / Bailian)
                 export DASHSCOPE_API_KEY=
@@ -758,7 +760,7 @@ async def _run_once(config_path: str, subs_path: str):
     await state.init()
 
     try:
-        rss_checker = RSSChecker(subscriptions, state)
+        rss_checker = RSSChecker(subscriptions, state, max_retries=config.max_retries)
         downloader = AudioDownloader(config.temp_dir)
         transcriber = create_transcriber(config)
         md_generator = _create_md_generator(config)
@@ -810,7 +812,12 @@ async def _serve(config_path: str, subs_path: str):
                 logger.warning("subscriptions reload failed: {}: {}", type(e).__name__, e)
                 return subscriptions
 
-        rss_checker = RSSChecker(subscriptions, state, subs_provider=_reload_subscriptions)
+        rss_checker = RSSChecker(
+            subscriptions,
+            state,
+            subs_provider=_reload_subscriptions,
+            max_retries=config.max_retries,
+        )
         downloader = AudioDownloader(config.temp_dir)
         transcriber = create_transcriber(config)
         md_generator = _create_md_generator(config)
@@ -867,7 +874,7 @@ async def _retry_summaries(config_path: str):
     config = load_config(config_path)
     summarizer = _create_summarizer(config)
     if not summarizer:
-        logger.error("POE_API_KEY not configured, cannot retry summaries")
+        logger.error("No summary API key configured, cannot retry summaries")
         return
 
     pending = load_all_pending()

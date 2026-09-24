@@ -20,6 +20,7 @@ from src.web.routes import (
     settings_api,
     subscriptions,
     transcribe,
+    updates,
 )
 from src.web.services.log_buffer import ensure_buffer_installed
 from src.web.services.state_singleton import close_state_manager
@@ -57,6 +58,7 @@ def create_app() -> FastAPI:
     app.include_router(service.router)
     app.include_router(logs.router)
     app.include_router(cloud.router)
+    app.include_router(updates.router)
 
     @app.exception_handler(Exception)
     async def _unhandled(request: Request, exc: Exception) -> JSONResponse:

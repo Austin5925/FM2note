@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.10.0] - 2026-09-24
+
+### Added
+- Added selectable FunASR model snapshots and Bailian long-audio models in the Web UI and YAML configuration.
+- Bailian now defaults to `qwen-audio-3.1-asr-flash-filetrans`; subscription previews include a token-billing estimate for this model.
+
+### Changed
+- New installations now default to Bailian Qwen Audio 3.1.
+- Removed Poe transcription and summary integration from the product and package; old persisted selections are migrated in memory to Bailian/DeepSeek-safe defaults during loading.
+- Added DeepSeek V4.1 Flash as the default summary preset and OpenAI-compatible endpoint fields for manual model IDs and third-party gateways.
+- Added a read-only GitHub Releases update checker; App replacement preserves the existing runtime home, configuration, subscriptions, and SQLite state.
+
 ## [1.9.1] - 2026-07-12
 
 ### Fixed

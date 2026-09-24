@@ -86,7 +86,7 @@ class TestRSSChecker:
         )
 
         # old 已处理，new 未处理
-        async def is_processed(guid):
+        async def is_processed(guid, max_retries=3):
             return guid == "old"
 
         mock_state.is_processed = is_processed

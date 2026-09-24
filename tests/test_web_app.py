@@ -99,38 +99,35 @@ class TestSettingsAPI:
         assert "1234567890abcdef" not in preview
         assert preview.startswith("sk-t")
         # Unset keys are empty strings
-        assert body["keys"]["poe"]["configured"] is False
-        assert body["keys"]["poe"]["preview"] == ""
-        assert body["poe_asr_model"] == "qwen3.5-omni-flash"
+        assert body["keys"]["deepseek"]["configured"] is False
+        assert body["keys"]["deepseek"]["preview"] == ""
+        assert body["funasr_model"] == "fun-asr"
+        assert body["bailian_model"] == "qwen-audio-3.1-asr-flash-filetrans"
 
-    def test_poe_engine_balance_is_unlimited(self, client, tmp_path, monkeypatch):
+    def test_legacy_poe_engine_is_migrated_to_bailian_balance(self, client, tmp_path, monkeypatch):
         (tmp_path / "config" / "config.yaml").write_text(
             f'vault_path: "{tmp_path}"\nasr_engine: "poe"\npoe_asr_model: "qwen3.5-omni-plus"\n',
             encoding="utf-8",
         )
-        monkeypatch.setenv("POE_API_KEY", "pk-test")
+        monkeypatch.setenv("DEEPSEEK_API_KEY", "sk-test")
 
         r = client.get("/api/balance")
 
         assert r.status_code == 200
-        assert r.json() == {
-            "configured": True,
-            "mode": "unlimited",
-            "provider": "poe",
-            "label": "无限",
-            "model": "qwen3.5-omni-plus",
-        }
+        assert r.json() == {"configured": False}
 
-    def test_poe_engine_without_key_does_not_claim_unlimited(self, client, tmp_path, monkeypatch):
+    def test_legacy_poe_engine_without_key_does_not_claim_unlimited(
+        self, client, tmp_path, monkeypatch
+    ):
         (tmp_path / "config" / "config.yaml").write_text(
             f'vault_path: "{tmp_path}"\nasr_engine: "poe"\n',
             encoding="utf-8",
         )
-        monkeypatch.delenv("POE_API_KEY", raising=False)
+        monkeypatch.delenv("DEEPSEEK_API_KEY", raising=False)
 
         r = client.get("/api/balance")
 
-        assert r.json() == {"configured": False, "provider": "poe"}
+        assert r.json() == {"configured": False}
 
     def test_get_settings_exposes_vault_path_default(self, client):
         """The personal-default vault path is surfaced as a separate field so
@@ -164,8 +161,8 @@ class TestStaticFiles:
         assert r.status_code == 200
         assert "payment-qr" not in r.text
         assert "balance-qr" not in r.text
-        assert "data.mode === 'unlimited'" in r.text
-        assert "badge.textContent = '无限'" in r.text
+        assert "unlimited" not in r.text
+        assert "balance" in r.text
 
     def test_daemon_chip_uses_desktop_app_copy(self, client):
         r = client.get("/static/daemon-chip.js")

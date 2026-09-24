@@ -18,12 +18,21 @@ from dateutil import parser as dateutil_parser
 # unless otherwise noted; sources are the engines' own pricing pages.
 # Kept conservative — when in doubt, round up to avoid lowballing the user.
 _COST_CNY_PER_MIN = {
-    "poe": 0.0,  # Existing subscription points: no incremental cash charge
     "funasr": 0.0132,  # ~¥0.79/hour
     "paraformer": 0.0048,  # ~¥0.29/hour
+    # Legacy duration-billed Bailian ASR models.
     "bailian": 0.0132,
     "tingwu": 0.05,  # ~¥3/hour
     "whisper_api": 0.045,  # ~$0.006/min × ~7.5 RMB/USD
+}
+
+# Qwen Audio 3.1 Filetrans is token-billed. This is an intentionally rough
+# preview multiplier derived from the first 13m49s production-shaped probe
+# (14,441 total tokens at the Beijing list price), not a billing guarantee.
+_BAILIAN_MODEL_COST_CNY_PER_MIN = {
+    "qwen-audio-3.1-asr-flash-filetrans": 0.0013,
+    "qwen3-asr-flash-filetrans": 0.0132,
+    "qwen-audio-3.0-asr-flash-filetrans": 0.0132,
 }
 
 
@@ -111,7 +120,7 @@ def project_feed(feed: Any) -> list[EpisodePreview]:
     return out
 
 
-def estimate_cost_cny(total_sec: int, asr_engine: str) -> float:
+def estimate_cost_cny(total_sec: int, asr_engine: str, asr_model: str | None = None) -> float:
     """Cheap multiplier — returns CNY. Conservative for unknown engines.
 
     Total seconds × per-minute rate. Returns 0.0 if total_sec is 0 (we don't
@@ -120,7 +129,10 @@ def estimate_cost_cny(total_sec: int, asr_engine: str) -> float:
     """
     if total_sec <= 0:
         return 0.0
-    rate = _COST_CNY_PER_MIN.get(asr_engine, _COST_CNY_PER_MIN["funasr"])
+    if asr_engine == "bailian" and asr_model:
+        rate = _BAILIAN_MODEL_COST_CNY_PER_MIN.get(asr_model, _COST_CNY_PER_MIN["bailian"])
+    else:
+        rate = _COST_CNY_PER_MIN.get(asr_engine, _COST_CNY_PER_MIN["funasr"])
     return round(total_sec / 60 * rate, 2)
 
 

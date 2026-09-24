@@ -106,7 +106,8 @@ async def retry_summary(payload: dict) -> dict:
     summarizer = create_summarizer(config)
     if summarizer is None:
         raise HTTPException(
-            status_code=409, detail="未配置摘要服务（请在设置页配置 Poe / OpenAI key）"
+            status_code=409,
+            detail="未配置摘要服务（请在设置页配置 DeepSeek / OpenAI-compatible key）",
         )
 
     target_path = _resolve_pending(target_id)
@@ -136,7 +137,8 @@ async def retry_all_summaries() -> dict:
     summarizer = create_summarizer(config)
     if summarizer is None:
         raise HTTPException(
-            status_code=409, detail="未配置摘要服务（请在设置页配置 Poe / OpenAI key）"
+            status_code=409,
+            detail="未配置摘要服务（请在设置页配置 DeepSeek / OpenAI-compatible key）",
         )
 
     pending = load_all_pending()

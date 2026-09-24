@@ -23,8 +23,9 @@ class TestInit:
         assert (tmp_path / "config" / "config.yaml").exists()
         assert (tmp_path / "config" / "subscriptions.yaml").exists()
         config_content = (tmp_path / "config" / "config.yaml").read_text()
-        assert 'asr_engine: "poe"' in config_content  # default
-        assert 'poe_asr_model: "qwen3.5-omni-flash"' in config_content
+        assert 'asr_engine: "bailian"' in config_content  # default
+        assert 'funasr_model: "fun-asr"' in config_content
+        assert 'bailian_model: "qwen-audio-3.1-asr-flash-filetrans"' in config_content
         assert "Podcasts" in config_content  # default
 
     def test_init_silent_creates_env_file(self, tmp_path, monkeypatch):
@@ -36,7 +37,7 @@ class TestInit:
         env_content = (tmp_path / ".env").read_text()
         # v1.5.1 full template includes more than just DashScope
         assert "DASHSCOPE_API_KEY" in env_content
-        assert "POE_API_KEY" in env_content
+        assert "DEEPSEEK_API_KEY" in env_content
 
     def test_init_silent_does_not_overwrite_existing(self, tmp_path, monkeypatch):
         """Silent mode is non-destructive — must NOT clobber existing config."""
@@ -366,14 +367,14 @@ class TestParseEnvFile:
         env_file.write_text(
             "# comment\nexport DASHSCOPE_API_KEY=real-key\n"
             'export OBSIDIAN_VAULT_PATH="/Users/test/vault"\n'
-            "export POE_API_KEY=\n"
+            "export DEEPSEEK_API_KEY=\n"
             "export OPENAI_API_KEY=sk-xxx\n"
         )
         result = _parse_env_file(env_file)
         assert result["DASHSCOPE_API_KEY"] == "real-key"
         assert result["OBSIDIAN_VAULT_PATH"] == "/Users/test/vault"
         # Empty and placeholder values should be excluded
-        assert "POE_API_KEY" not in result
+        assert "DEEPSEEK_API_KEY" not in result
         assert "OPENAI_API_KEY" not in result
 
 

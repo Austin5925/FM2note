@@ -9,16 +9,24 @@ from loguru import logger
 from src.models import TranscriptResult
 from src.transcriber.base import TranscriptionError
 
+DEFAULT_BAILIAN_MODEL = "qwen-audio-3.1-asr-flash-filetrans"
+BAILIAN_ASR_MODELS = (
+    DEFAULT_BAILIAN_MODEL,
+    "qwen3-asr-flash-filetrans",
+    "qwen-audio-3.0-asr-flash-filetrans",
+)
+
 
 class BailianTranscriber:
     """阿里云百炼 ASR 转写实现
 
-    使用 DashScope SDK，模型 qwen3-asr-flash-filetrans
+    使用 DashScope SDK，默认模型 qwen-audio-3.1-asr-flash-filetrans
     最长 12 小时 / 2GB
     """
 
-    def __init__(self, api_key: str):
+    def __init__(self, api_key: str, model: str = DEFAULT_BAILIAN_MODEL):
         self._api_key = api_key
+        self.model = model
 
     @property
     def name(self) -> str:
@@ -46,22 +54,23 @@ class BailianTranscriber:
         Raises:
             TranscriptionError: 转写失败
         """
-        import dashscope
         from dashscope.audio.asr import Transcription
-
-        dashscope.api_key = self._api_key
 
         # 提交异步转写任务
         try:
-            response = Transcription.async_call(
-                model="qwen3-asr-flash-filetrans",
+            response = await asyncio.to_thread(
+                Transcription.async_call,
+                model=self.model,
                 file_urls=[audio_url],
+                api_key=self._api_key,
                 channel_id=[0],
+                language_hints=["zh", "en"] if language == "cn" else [language],
             )
         except Exception as e:
             raise TranscriptionError(f"百炼 ASR 提交任务失败: {e}") from e
 
-        task_id = response.output.get("task_id")
+        output = getattr(response, "output", None) or {}
+        task_id = output.get("task_id")
         if not task_id:
             raise TranscriptionError(
                 f"百炼 ASR 未返回 task_id (status={getattr(response, 'status_code', '?')})"
@@ -72,14 +81,15 @@ class BailianTranscriber:
         # 轮询等待完成
         deadline = time.time() + timeout_minutes * 60
         while time.time() < deadline:
-            result = Transcription.fetch(task_id)
-            status = result.output.get("task_status", "")
+            result = await asyncio.to_thread(Transcription.fetch, task_id, api_key=self._api_key)
+            output = getattr(result, "output", None) or {}
+            status = output.get("task_status", "")
             logger.debug("百炼 ASR 任务 {} 状态: {}", task_id, status)
 
             if status == "SUCCEEDED":
                 return await self._parse_result(result)
             elif status == "FAILED":
-                error = result.output.get("message", "未知错误")
+                error = output.get("message", "未知错误")
                 raise TranscriptionError(f"百炼 ASR 转写失败: {error}")
 
             await asyncio.sleep(poll_interval)

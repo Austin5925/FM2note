@@ -66,11 +66,14 @@ class TestEstimateCost:
         cost = estimate_cost_cny(3600, "funasr")  # 60 min
         assert cost == round(60 * 0.0132, 2)
 
-    def test_poe_subscription_has_zero_incremental_cash_cost(self):
-        assert estimate_cost_cny(3600, "poe") == 0.0
-
     def test_unknown_engine_falls_back_to_funasr(self):
         assert estimate_cost_cny(3600, "imaginary_engine") == estimate_cost_cny(3600, "funasr")
+
+    def test_bailian_qwen_audio_31_uses_token_estimate(self):
+        assert estimate_cost_cny(3600, "bailian", "qwen-audio-3.1-asr-flash-filetrans") == 0.08
+
+    def test_bailian_legacy_models_use_duration_rate(self):
+        assert estimate_cost_cny(3600, "bailian", "qwen3-asr-flash-filetrans") == 0.79
 
 
 def _ep(guid, pub):

@@ -32,7 +32,7 @@ def client(tmp_path, monkeypatch):
 
 
 def test_empty_strings_leave_keys_unchanged(client, tmp_path):
-    r = client.put("/api/settings", json={"dashscope_api_key": "", "poe_api_key": ""})
+    r = client.put("/api/settings", json={"dashscope_api_key": "", "deepseek_api_key": ""})
     assert r.status_code == 200
     body = r.json()
     assert body["env_keys_updated"] == []
@@ -132,51 +132,66 @@ def test_summary_provider_persists_to_yaml_and_survives_reload(client, tmp_path)
     persists to YAML and is read back from there. Without this test we'd
     never catch a regression that re-routes the field through .env."""
     # 1) Save a non-default summary_provider
-    r = client.put("/api/settings", json={"summary_provider": "poe"})
+    r = client.put("/api/settings", json={"summary_provider": "deepseek"})
     assert r.status_code == 200, r.json()
     assert "summary_provider" in r.json()["yaml_keys_updated"]
     # 2) It actually landed in YAML, not .env
     yaml_text = (tmp_path / "config" / "config.yaml").read_text(encoding="utf-8")
     assert "summary_provider" in yaml_text
-    assert "poe" in yaml_text
+    assert "deepseek" in yaml_text
     env_text = (tmp_path / ".env").read_text(encoding="utf-8")
     assert "SUMMARY_PROVIDER" not in env_text
     # 3) GET /api/settings reads it back from YAML
     r2 = client.get("/api/settings")
-    assert r2.json()["summary_provider"] == "poe"
+    assert r2.json()["summary_provider"] == "deepseek"
 
 
-def test_poe_asr_model_persists_and_requires_restart(client, tmp_path):
+def test_bailian_model_persists_and_requires_restart(client, tmp_path):
     r = client.put(
         "/api/settings",
-        json={"asr_engine": "poe", "poe_asr_model": "qwen3.5-omni-plus"},
+        json={"asr_engine": "bailian", "bailian_model": "qwen3-asr-flash-filetrans"},
     )
     assert r.status_code == 200, r.json()
     assert r.json()["restart_required"] is True
     text = (tmp_path / "config" / "config.yaml").read_text(encoding="utf-8")
-    assert "qwen3.5-omni-plus" in text
-    assert client.get("/api/settings").json()["poe_asr_model"] == "qwen3.5-omni-plus"
+    assert "qwen3-asr-flash-filetrans" in text
+    assert client.get("/api/settings").json()["bailian_model"] == "qwen3-asr-flash-filetrans"
 
 
-def test_unknown_poe_asr_model_is_rejected(client):
-    r = client.put("/api/settings", json={"poe_asr_model": "untrusted-community-bot"})
+def test_funasr_model_persists(client, tmp_path):
+    r = client.put("/api/settings", json={"funasr_model": "fun-asr-mtl"})
+    assert r.status_code == 200, r.json()
+    assert r.json()["restart_required"] is True
+    assert "fun-asr-mtl" in (tmp_path / "config" / "config.yaml").read_text(encoding="utf-8")
+    assert client.get("/api/settings").json()["funasr_model"] == "fun-asr-mtl"
+
+
+def test_poe_asr_engine_is_rejected(client):
+    r = client.put("/api/settings", json={"asr_engine": "poe"})
     assert r.status_code == 400
-    assert "不支持的 Poe 转写模型" in r.json()["detail"]
+    assert "不支持的 ASR 引擎" in r.json()["detail"]
 
 
-def test_settings_page_scopes_poe_model_options_to_poe_provider():
+def test_unknown_bailian_model_is_rejected(client):
+    r = client.put("/api/settings", json={"bailian_model": "untrusted-community-bot"})
+    assert r.status_code == 200
+    assert client.get("/api/settings").json()["bailian_model"] == "untrusted-community-bot"
+
+
+def test_settings_page_has_model_presets_and_manual_inputs():
     html = (ROOT / "src/web/templates/settings.html").read_text(encoding="utf-8")
     js = (ROOT / "src/web/static/settings.js").read_text(encoding="utf-8")
 
-    assert 'id="poe_summary_model"' in html
-    assert "const DEFAULT_POE_MODEL = 'gpt-5.4-mini';" in js
-    assert "gemini-3.1-flash-lite" in js
-    assert "gpt-5.4-mini" in js
-    assert "const DEFAULT_POE_ASR_MODEL = 'qwen3.5-omni-flash';" in js
-    assert "qwen3.5-omni-plus" in js
-    assert "claude-sonnet-4.6" in js
-    assert "provider !== 'poe'" in js
-    assert "provider !== 'openai'" in js
+    assert 'id="summary_provider"' in html
+    assert 'value="deepseek">DeepSeek V4.1 Flash' in html
+    assert 'list="bailian_models"' in html
+    assert 'list="funasr_models"' in html
+    assert 'list="summary_models"' in html
+    assert "const DEFAULT_BAILIAN_MODEL = 'qwen-audio-3.1-asr-flash-filetrans';" in js
+    assert "qwen3-asr-flash-filetrans" in js
+    assert "const DEFAULT_FUNASR_MODEL = 'fun-asr';" in js
+    assert "const DEFAULT_DEEPSEEK_MODEL = 'deepseek-flash';" in js
+    assert "update-check-btn" in html
 
 
 def test_collie_has_transcribe_state_reactions():

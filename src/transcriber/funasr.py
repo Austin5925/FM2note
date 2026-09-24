@@ -9,6 +9,15 @@ from loguru import logger
 from src.models import TranscriptResult
 from src.transcriber.base import TranscriptionError
 
+DEFAULT_FUNASR_MODEL = "fun-asr"
+FUNASR_MODELS = (
+    DEFAULT_FUNASR_MODEL,
+    "fun-asr-2025-11-07",
+    "fun-asr-2025-08-25",
+    "fun-asr-mtl",
+    "fun-asr-mtl-2025-08-25",
+)
+
 
 class FunASRTranscriber:
     """FunASR 录音文件识别实现（DashScope SDK）
@@ -18,16 +27,10 @@ class FunASRTranscriber:
     支持模型轮换：当某个模型免费额度用尽（403）时自动切换到下一个。
     """
 
-    MODEL = "fun-asr"
+    MODEL = DEFAULT_FUNASR_MODEL
 
     # 同代模型变体，免费额度独立计算，用于轮换
-    FALLBACK_MODELS = [
-        "fun-asr",
-        "fun-asr-2025-11-07",
-        "fun-asr-2025-08-25",
-        "fun-asr-mtl",
-        "fun-asr-mtl-2025-08-25",
-    ]
+    FALLBACK_MODELS = list(FUNASR_MODELS)
 
     def __init__(self, api_key: str, model: str | None = None):
         self._api_key = api_key

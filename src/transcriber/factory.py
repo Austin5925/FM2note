@@ -18,19 +18,7 @@ def create_transcriber(config: AppConfig) -> Transcriber:
     """
     engine = config.asr_engine
 
-    if engine == "poe":
-        if not config.poe_api_key:
-            raise TranscriptionError("Poe 转写需要配置 POE_API_KEY")
-
-        from src.transcriber.poe import PoeTranscriber
-
-        return PoeTranscriber(
-            api_key=config.poe_api_key,
-            model=config.poe_asr_model,
-            temp_dir=config.temp_dir,
-        )
-
-    elif engine == "tingwu":
+    if engine == "tingwu":
         if not config.dashscope_api_key:
             raise TranscriptionError("通义听悟需要配置 DASHSCOPE_API_KEY")
         if not config.tingwu_app_id:
@@ -49,7 +37,10 @@ def create_transcriber(config: AppConfig) -> Transcriber:
 
         from src.transcriber.funasr import FunASRTranscriber
 
-        return FunASRTranscriber(api_key=config.dashscope_api_key)
+        return FunASRTranscriber(
+            api_key=config.dashscope_api_key,
+            model=config.funasr_model,
+        )
 
     elif engine == "paraformer":
         if not config.dashscope_api_key:
@@ -65,7 +56,10 @@ def create_transcriber(config: AppConfig) -> Transcriber:
 
         from src.transcriber.bailian import BailianTranscriber
 
-        return BailianTranscriber(api_key=config.dashscope_api_key)
+        return BailianTranscriber(
+            api_key=config.dashscope_api_key,
+            model=config.bailian_model,
+        )
 
     elif engine == "whisper_api":
         if not config.openai_api_key:

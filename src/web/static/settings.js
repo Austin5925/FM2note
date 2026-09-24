@@ -2,7 +2,7 @@
 (function () {
   const KEY_DEFS = [
     { id: 'dashscope_api_key', label: 'DashScope（阿里语音引擎）', placeholder: 'sk-xxx' },
-    { id: 'poe_api_key', label: 'Poe（语音转文字 / AI 摘要）', placeholder: '' },
+    { id: 'deepseek_api_key', label: 'DeepSeek API Key（V4.1 Flash）', placeholder: 'sk-xxx' },
     { id: 'openai_api_key', label: 'OpenAI', placeholder: '' },
     { id: 'tingwu_app_id', label: 'TingWu App ID', placeholder: '仅 asr_engine=tingwu 时需要' },
   ];
@@ -12,17 +12,23 @@
     { id: 'aliyun_access_key_secret', label: 'Aliyun Access Key Secret', placeholder: '' },
   ];
 
-  const DEFAULT_POE_MODEL = 'gpt-5.4-mini';
-  const POE_MODELS = [
-    DEFAULT_POE_MODEL,
-    'gemini-3.1-flash-lite',
-    'claude-sonnet-4.6',
+  const DEFAULT_DEEPSEEK_MODEL = 'deepseek-flash';
+  const SUMMARY_MODELS = [DEFAULT_DEEPSEEK_MODEL, 'gpt-4o-mini'];
+
+  const DEFAULT_FUNASR_MODEL = 'fun-asr';
+  const FUNASR_MODELS = [
+    DEFAULT_FUNASR_MODEL,
+    'fun-asr-2025-11-07',
+    'fun-asr-2025-08-25',
+    'fun-asr-mtl',
+    'fun-asr-mtl-2025-08-25',
   ];
 
-  const DEFAULT_POE_ASR_MODEL = 'qwen3.5-omni-flash';
-  const POE_ASR_MODELS = [
-    DEFAULT_POE_ASR_MODEL,
-    'qwen3.5-omni-plus',
+  const DEFAULT_BAILIAN_MODEL = 'qwen-audio-3.1-asr-flash-filetrans';
+  const BAILIAN_MODELS = [
+    DEFAULT_BAILIAN_MODEL,
+    'qwen3-asr-flash-filetrans',
+    'qwen-audio-3.0-asr-flash-filetrans',
   ];
 
   const statusEl = document.getElementById('save-status');
@@ -51,57 +57,61 @@
     return value === '(provider default)' ? '' : String(value || '').trim();
   }
 
-  function renderSummaryModelControl(provider, modelValue) {
+  function fillDatalist(id, values) {
+    const list = document.getElementById(id);
+    if (list) list.innerHTML = values.map((id) => `<option value="${escapeHtml(id)}"></option>`).join('');
+  }
+
+  function renderSummaryModelControl(provider, modelValue, baseUrl) {
     const group = document.getElementById('summary_model_group');
     const label = document.getElementById('summary_model_label');
-    const poeSelect = document.getElementById('poe_summary_model');
-    const textInput = document.getElementById('summary_model');
+    const input = document.getElementById('summary_model');
     const hint = document.getElementById('summary_model_hint');
-    if (!group || !label || !poeSelect || !textInput || !hint) return;
+    const urlGroup = document.getElementById('summary_base_url_group');
+    const urlInput = document.getElementById('summary_base_url');
+    if (!group || !label || !input || !hint || !urlGroup || !urlInput) return;
 
     const model = normalizedSummaryModel(modelValue);
-    group.classList.toggle('hidden', provider !== 'poe' && provider !== 'openai');
-    poeSelect.classList.toggle('hidden', provider !== 'poe');
-    textInput.classList.toggle('hidden', provider !== 'openai');
-
-    if (provider === 'poe') {
-      label.textContent = 'Poe 摘要模型';
-      poeSelect.innerHTML = POE_MODELS.map((id) => (
-        `<option value="${escapeHtml(id)}">${escapeHtml(id)}</option>`
-      )).join('');
-      poeSelect.value = POE_MODELS.includes(model) ? model : DEFAULT_POE_MODEL;
-      textInput.value = '';
-      hint.textContent = '仅在 Poe provider 下显示；这里使用 Poe API model id。';
+    const visible = provider === 'deepseek' || provider === 'openai';
+    group.classList.toggle('hidden', !visible);
+    urlGroup.classList.toggle('hidden', provider !== 'openai');
+    input.value = model || (provider === 'deepseek' ? DEFAULT_DEEPSEEK_MODEL : '');
+    urlInput.value = baseUrl || '';
+    fillDatalist('summary_models', SUMMARY_MODELS);
+    if (provider === 'deepseek') {
+      label.textContent = 'DeepSeek 摘要模型';
+      hint.textContent = '默认 deepseek-flash（DeepSeek V4.1 Flash）；也可手动填写兼容模型 ID。';
     } else if (provider === 'openai') {
-      label.textContent = 'OpenAI-compatible 摘要模型（留空使用默认）';
-      textInput.value = model;
-      hint.textContent = 'OpenAI-compatible provider 可填写自定义模型。';
+      label.textContent = 'OpenAI-compatible 摘要模型';
+      hint.textContent = '可填写 CometAPI、DeepInfra 或其他 OpenAI-compatible 服务提供的模型 ID。';
     } else {
-      textInput.value = '';
       hint.textContent = '';
     }
   }
 
   function selectedSummaryModel() {
     const provider = document.getElementById('summary_provider').value;
-    if (provider === 'poe') {
-      return document.getElementById('poe_summary_model').value;
+    if (provider === 'deepseek' && !document.getElementById('summary_model').value.trim()) {
+      return DEFAULT_DEEPSEEK_MODEL;
     }
-    if (provider === 'openai') {
-      return document.getElementById('summary_model').value.trim();
-    }
-    return '';
+    return provider === 'deepseek' || provider === 'openai'
+      ? document.getElementById('summary_model').value.trim()
+      : '';
   }
 
-  function renderPoeAsrModelControl(engine, modelValue) {
-    const group = document.getElementById('poe_asr_model_group');
-    const select = document.getElementById('poe_asr_model');
-    if (!group || !select) return;
-    group.classList.toggle('hidden', engine !== 'poe');
-    select.innerHTML = POE_ASR_MODELS.map((id) => (
-      `<option value="${escapeHtml(id)}">${escapeHtml(id)}</option>`
-    )).join('');
-    select.value = POE_ASR_MODELS.includes(modelValue) ? modelValue : DEFAULT_POE_ASR_MODEL;
+  function renderAsrModelControls(engine, funasrValue, bailianValue) {
+    const funasrGroup = document.getElementById('funasr_model_group');
+    const funasrInput = document.getElementById('funasr_model');
+    const bailianGroup = document.getElementById('bailian_model_group');
+    const bailianInput = document.getElementById('bailian_model');
+    if (!funasrGroup || !funasrInput || !bailianGroup || !bailianInput) return;
+
+    funasrGroup.classList.toggle('hidden', engine !== 'funasr');
+    bailianGroup.classList.toggle('hidden', engine !== 'bailian');
+    fillDatalist('funasr_models', FUNASR_MODELS);
+    fillDatalist('bailian_models', BAILIAN_MODELS);
+    funasrInput.value = funasrValue || DEFAULT_FUNASR_MODEL;
+    bailianInput.value = bailianValue || DEFAULT_BAILIAN_MODEL;
   }
 
   async function loadSettings() {
@@ -122,14 +132,14 @@
       }
       document.getElementById('podcast_dir').value = s.podcast_dir || '';
       const asrEngineEl = document.getElementById('asr_engine');
-      asrEngineEl.value = s.asr_engine || 'poe';
-      renderPoeAsrModelControl(asrEngineEl.value, s.poe_asr_model);
+      asrEngineEl.value = s.asr_engine || 'bailian';
+      renderAsrModelControls(asrEngineEl.value, s.funasr_model, s.bailian_model);
       const providerEl = document.getElementById('summary_provider');
       providerEl.value = s.summary_provider || 'auto';
-      renderSummaryModelControl(providerEl.value, s.summary_model);
+      renderSummaryModelControl(providerEl.value, s.summary_model, s.summary_base_url);
       document.getElementById('key-fields').innerHTML =
         makeField(KEY_DEFS[0], s.keys.dashscope) +
-        makeField(KEY_DEFS[1], s.keys.poe) +
+        makeField(KEY_DEFS[1], s.keys.deepseek) +
         makeField(KEY_DEFS[2], s.keys.openai) +
         makeField(KEY_DEFS[3], s.keys.tingwu_app_id);
       document.getElementById('aliyun-fields').innerHTML =
@@ -166,11 +176,13 @@
       vault_path: vaultEl.value,
       podcast_dir: podcastEl.value,
       asr_engine: document.getElementById('asr_engine').value,
-      poe_asr_model: document.getElementById('poe_asr_model').value,
+      funasr_model: document.getElementById('funasr_model').value,
+      bailian_model: document.getElementById('bailian_model').value,
       summary_provider: document.getElementById('summary_provider').value,
       summary_model: selectedSummaryModel(),
+      summary_base_url: document.getElementById('summary_base_url').value.trim() || null,
       dashscope_api_key: document.getElementById('dashscope_api_key').value,
-      poe_api_key: document.getElementById('poe_api_key').value,
+      deepseek_api_key: document.getElementById('deepseek_api_key').value,
       openai_api_key: document.getElementById('openai_api_key').value,
       tingwu_app_id: document.getElementById('tingwu_app_id').value,
       aliyun_access_key_id: document.getElementById('aliyun_access_key_id').value,
@@ -210,14 +222,18 @@
   const summaryProviderEl = document.getElementById('summary_provider');
   if (summaryProviderEl) {
     summaryProviderEl.addEventListener('change', () => {
-      renderSummaryModelControl(summaryProviderEl.value, selectedSummaryModel());
+      renderSummaryModelControl(summaryProviderEl.value, selectedSummaryModel(), document.getElementById('summary_base_url').value);
     });
   }
 
   const asrEngineEl = document.getElementById('asr_engine');
   if (asrEngineEl) {
     asrEngineEl.addEventListener('change', () => {
-      renderPoeAsrModelControl(asrEngineEl.value, document.getElementById('poe_asr_model').value);
+      renderAsrModelControls(
+        asrEngineEl.value,
+        document.getElementById('funasr_model').value,
+        document.getElementById('bailian_model').value,
+      );
     });
   }
 
@@ -227,6 +243,38 @@
     fillDefaultBtn.addEventListener('click', () => {
       const v = fillDefaultBtn.dataset.default;
       if (v) document.getElementById('vault_path').value = v;
+    });
+  }
+
+  // -------- Software update check --------
+  async function loadUpdate() {
+    const el = document.getElementById('update-status');
+    if (!el) return;
+    try {
+      const resp = await fetch('/api/updates');
+      const data = await resp.json();
+      if (!resp.ok || !data.ok) {
+        el.textContent = data.detail || '暂时无法检查更新';
+        return;
+      }
+      const link = data.release_url
+        ? ` <a class="text-blue-700 hover:underline" target="_blank" rel="noreferrer" href="${escapeHtml(data.release_url)}">打开 Releases</a>`
+        : '';
+      el.innerHTML = data.update_available
+        ? `当前 ${escapeHtml(data.current_version)}，发现新版本 ${escapeHtml(data.latest_version)}。${link}`
+        : `当前 ${escapeHtml(data.current_version)}，已经是最新版本。${link}`;
+    } catch (e) {
+      el.textContent = '检查失败：' + e.message;
+    }
+  }
+  const updateBtn = document.getElementById('update-check-btn');
+  if (updateBtn) {
+    updateBtn.addEventListener('click', async () => {
+      updateBtn.disabled = true;
+      updateBtn.textContent = '检查中…';
+      await loadUpdate();
+      updateBtn.disabled = false;
+      updateBtn.textContent = '检查更新';
     });
   }
 
@@ -478,4 +526,5 @@
   loadSettings();
   loadHealth();
   loadService();
+  loadUpdate();
 })();

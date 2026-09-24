@@ -104,7 +104,7 @@ class TestRetrySummary:
         assert "未配置" in r.json()["detail"]
 
     def test_not_found(self, client, monkeypatch, tmp_path):
-        monkeypatch.setenv("POE_API_KEY", "pk-test")
+        monkeypatch.setenv("DEEPSEEK_API_KEY", "sk-test")
         # Build pending dir so the retry endpoint can search it
         (tmp_path / "data" / "pending_summaries").mkdir(parents=True)
         # "deadbeef" is valid hex but no such file exists → 404
@@ -113,14 +113,14 @@ class TestRetrySummary:
 
     def test_invalid_id_rejected(self, client, monkeypatch, tmp_path):
         """Path-traversal payloads must be rejected before any filesystem access."""
-        monkeypatch.setenv("POE_API_KEY", "pk-test")
+        monkeypatch.setenv("DEEPSEEK_API_KEY", "sk-test")
         (tmp_path / "data" / "pending_summaries").mkdir(parents=True)
         for bad in ["../etc", "abc/def", "../../passwd", "not-hex"]:
             r = client.post("/api/history/retry-summary", json={"id": bad})
             assert r.status_code == 400, f"expected 400 for {bad!r}, got {r.status_code}"
 
     def test_happy_path_marks_retried(self, client, monkeypatch, tmp_path):
-        monkeypatch.setenv("POE_API_KEY", "pk-test")
+        monkeypatch.setenv("DEEPSEEK_API_KEY", "sk-test")
         pending_dir = tmp_path / "data" / "pending_summaries"
         pending_dir.mkdir(parents=True)
         note_path = tmp_path / "note.md"

@@ -47,7 +47,7 @@ def save_pending(
 
     Args:
         guid: 剧集唯一标识
-        title: 剧集标题（用于 Poe 摘要 prompt）
+        title: 剧集标题（用于摘要 prompt）
         text: 转写全文
         note_path: 已写入的笔记路径（补摘要时更新此文件）
         podcast_name: 播客名称

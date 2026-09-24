@@ -66,12 +66,12 @@ class TestLoadConfig:
         """Sensitive credentials still come from env (and ONLY from env)."""
         monkeypatch.setenv("DASHSCOPE_API_KEY", "test-ds-key")
         monkeypatch.setenv("TINGWU_APP_ID", "test-app-id")
-        monkeypatch.setenv("POE_API_KEY", "test-poe-key")
+        monkeypatch.setenv("DEEPSEEK_API_KEY", "test-deepseek-key")
         monkeypatch.setenv("OPENAI_API_KEY", "test-openai-key")
         config = load_config(tmp_config)
         assert config.dashscope_api_key == "test-ds-key"
         assert config.tingwu_app_id == "test-app-id"
-        assert config.poe_api_key == "test-poe-key"
+        assert config.deepseek_api_key == "test-deepseek-key"
         assert config.openai_api_key == "test-openai-key"
 
     def test_stale_env_warning_fires_only_once(self, tmp_config, monkeypatch):
@@ -148,8 +148,9 @@ class TestLoadConfig:
         config = load_config(minimal)
         assert config.podcast_dir == "Podcasts"
         assert config.poll_interval_hours == 3
-        assert config.asr_engine == "poe"
-        assert config.poe_asr_model == "qwen3.5-omni-flash"
+        assert config.asr_engine == "bailian"
+        assert config.funasr_model == "fun-asr"
+        assert config.bailian_model == "qwen-audio-3.1-asr-flash-filetrans"
         assert config.max_retries == 3
         assert config.log_level == "INFO"
 

@@ -16,7 +16,6 @@ from src.models import TranscriptResult
 from src.transcriber.bailian import BailianTranscriber
 from src.transcriber.base import TranscriptionError
 from src.transcriber.factory import create_transcriber
-from src.transcriber.poe import PoeTranscriber
 from src.transcriber.tingwu import TingwuTranscriber
 from src.transcriber.whisper_api import WhisperTranscriber
 
@@ -230,7 +229,6 @@ class TestTranscriberFactory:
             "dashscope_api_key": "test_ds_key",
             "tingwu_app_id": "test_app_id",
             "openai_api_key": "test_oai_key",
-            "poe_api_key": "test_poe_key",
         }
         defaults.update(overrides)
         return AppConfig(**defaults)
@@ -241,23 +239,17 @@ class TestTranscriberFactory:
         assert isinstance(t, TingwuTranscriber)
         assert t.name == "tingwu"
 
-    def test_create_poe_with_default_model(self):
-        config = self._make_config(asr_engine="poe")
-        t = create_transcriber(config)
-        assert isinstance(t, PoeTranscriber)
-        assert t.name == "poe/qwen3.5-omni-flash"
-
-    def test_create_poe_with_plus_model(self):
-        config = self._make_config(asr_engine="poe", poe_asr_model="qwen3.5-omni-plus")
-        t = create_transcriber(config)
-        assert isinstance(t, PoeTranscriber)
-        assert t.name == "poe/qwen3.5-omni-plus"
-
     def test_create_bailian(self):
         config = self._make_config(asr_engine="bailian")
         t = create_transcriber(config)
         assert isinstance(t, BailianTranscriber)
         assert t.name == "bailian"
+        assert t.model == "qwen-audio-3.1-asr-flash-filetrans"
+
+    def test_create_bailian_with_selected_model(self):
+        config = self._make_config(asr_engine="bailian", bailian_model="qwen3-asr-flash-filetrans")
+        t = create_transcriber(config)
+        assert t.model == "qwen3-asr-flash-filetrans"
 
     def test_create_whisper(self):
         config = self._make_config(asr_engine="whisper_api")
@@ -272,6 +264,12 @@ class TestTranscriberFactory:
 
         assert isinstance(t, FunASRTranscriber)
         assert t.name == "funasr"
+        assert t.MODEL == "fun-asr"
+
+    def test_create_funasr_with_selected_model(self):
+        config = self._make_config(asr_engine="funasr", funasr_model="fun-asr-mtl")
+        t = create_transcriber(config)
+        assert t.MODEL == "fun-asr-mtl"
 
     def test_create_paraformer(self):
         config = self._make_config(asr_engine="paraformer")
@@ -284,11 +282,6 @@ class TestTranscriberFactory:
     def test_missing_dashscope_key_for_funasr_raises(self):
         config = self._make_config(asr_engine="funasr", dashscope_api_key="")
         with pytest.raises(TranscriptionError, match="DASHSCOPE_API_KEY"):
-            create_transcriber(config)
-
-    def test_missing_poe_key_for_poe_raises(self):
-        config = self._make_config(asr_engine="poe", poe_api_key="")
-        with pytest.raises(TranscriptionError, match="POE_API_KEY"):
             create_transcriber(config)
 
     def test_missing_dashscope_key_for_paraformer_raises(self):

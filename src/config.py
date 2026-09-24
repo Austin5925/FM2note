@@ -32,8 +32,9 @@ class AppConfig:
     vault_path: str
     podcast_dir: str = "Podcasts"
     poll_interval_hours: int = 3
-    asr_engine: str = "poe"
-    poe_asr_model: str = "qwen3.5-omni-flash"
+    asr_engine: str = "bailian"
+    funasr_model: str = "fun-asr"
+    bailian_model: str = "qwen-audio-3.1-asr-flash-filetrans"
     temp_dir: str = "./data/tmp"
     max_retries: int = 3
     log_level: str = "INFO"
@@ -45,14 +46,13 @@ class AppConfig:
     # TingWu AppId
     tingwu_app_id: str = ""
 
-    # AI summary provider: auto | poe | openai | none
+    # AI summary provider: auto | deepseek | openai | none
     summary_provider: str = "auto"
     summary_model: str = ""  # provider default if empty
     summary_cooldown: int = 60
     summary_base_url: str = ""  # OpenAI-compatible endpoint (optional)
 
-    # Poe API (AI summaries)
-    poe_api_key: str = ""
+    deepseek_api_key: str = ""
 
     # OpenAI (Whisper API + summaries)
     openai_api_key: str = ""
@@ -98,7 +98,7 @@ def load_config(path: str | Path = "config/config.yaml") -> AppConfig:
 
     Non-sensitive fields (vault_path, podcast_dir, asr_engine, log_level,
     summary_*, etc.) come ONLY from ``config.yaml`` — the Web UI's single
-    editable surface. Sensitive credentials (DashScope/Poe/OpenAI keys,
+    editable surface. Sensitive credentials (DashScope/DeepSeek/OpenAI keys,
     Aliyun AK/SK, TingWu App ID) come ONLY from environment variables (.env)
     because they shouldn't live in a file that gets synced or committed.
 
@@ -137,12 +137,20 @@ def load_config(path: str | Path = "config/config.yaml") -> AppConfig:
             )
         _legacy_env_warning_emitted = True
 
+    configured_asr_engine = raw.get("asr_engine", "bailian")
+    # Retired provider selections are migrated in memory so drag-replace upgrades
+    # do not keep using a removed provider. Obsolete YAML fields and secrets are ignored.
+    if configured_asr_engine == "poe":
+        configured_asr_engine = "bailian"
+    retired_summary = raw.get("summary_provider") == "poe"
+
     config = AppConfig(
         vault_path=raw["vault_path"],
         podcast_dir=raw.get("podcast_dir", "Podcasts"),
         poll_interval_hours=raw.get("poll_interval_hours", 3),
-        asr_engine=raw.get("asr_engine", "poe"),
-        poe_asr_model=raw.get("poe_asr_model", "qwen3.5-omni-flash"),
+        asr_engine=configured_asr_engine,
+        funasr_model=raw.get("funasr_model") or "fun-asr",
+        bailian_model=raw.get("bailian_model") or "qwen-audio-3.1-asr-flash-filetrans",
         temp_dir=raw.get("temp_dir", "./data/tmp"),
         max_retries=raw.get("max_retries", 3),
         log_level=raw.get("log_level", "INFO"),
@@ -150,13 +158,13 @@ def load_config(path: str | Path = "config/config.yaml") -> AppConfig:
         # Sensitive — env-only
         dashscope_api_key=os.environ.get("DASHSCOPE_API_KEY", ""),
         tingwu_app_id=os.environ.get("TINGWU_APP_ID", ""),
-        poe_api_key=os.environ.get("POE_API_KEY", ""),
+        deepseek_api_key=os.environ.get("DEEPSEEK_API_KEY", ""),
         openai_api_key=os.environ.get("OPENAI_API_KEY", ""),
         # Non-sensitive — yaml-only (formerly env > yaml, see top of function)
-        summary_provider=raw.get("summary_provider", "auto"),
-        summary_model=raw.get("summary_model", ""),
+        summary_provider="deepseek" if retired_summary else raw.get("summary_provider", "auto"),
+        summary_model="" if retired_summary else (raw.get("summary_model") or ""),
         summary_cooldown=int(raw.get("summary_cooldown", 60)),
-        summary_base_url=raw.get("summary_base_url", ""),
+        summary_base_url="" if retired_summary else (raw.get("summary_base_url") or ""),
         template_path=raw.get("template_path", ""),
     )
 

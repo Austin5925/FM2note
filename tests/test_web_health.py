@@ -17,7 +17,7 @@ def client(tmp_path, monkeypatch):
         encoding="utf-8",
     )
     monkeypatch.delenv("DASHSCOPE_API_KEY", raising=False)
-    monkeypatch.delenv("POE_API_KEY", raising=False)
+    monkeypatch.delenv("DEEPSEEK_API_KEY", raising=False)
     monkeypatch.delenv("OPENAI_API_KEY", raising=False)
     monkeypatch.delenv("ALIYUN_ACCESS_KEY_ID", raising=False)
     monkeypatch.delenv("ALIYUN_ACCESS_KEY_SECRET", raising=False)
@@ -37,9 +37,9 @@ class TestHealthCheck:
         assert labels["DashScope 语音 Key"] is False
         assert body["overall_ok"] is False
 
-    def test_with_dashscope_and_poe_keys(self, client, monkeypatch):
+    def test_with_dashscope_and_deepseek_key(self, client, monkeypatch):
         monkeypatch.setenv("DASHSCOPE_API_KEY", "sk-test")
-        monkeypatch.setenv("POE_API_KEY", "pk-test")
+        monkeypatch.setenv("DEEPSEEK_API_KEY", "sk-test")
         r = client.get("/api/health-check")
         body = r.json()
         labels = {it["label"]: it["ok"] for it in body["items"]}
@@ -71,20 +71,21 @@ class TestHealthCheck:
         assert "TingWu App ID" in labels
         assert labels["TingWu App ID"] is False
 
-    def test_poe_engine_uses_poe_key_and_unlimited_balance(self, client, tmp_path, monkeypatch):
+    def test_legacy_poe_engine_requires_dashscope_after_migration(
+        self, client, tmp_path, monkeypatch
+    ):
         (tmp_path / "config" / "config.yaml").write_text(
             f'vault_path: "{tmp_path}"\nasr_engine: "poe"\n',
             encoding="utf-8",
         )
-        monkeypatch.setenv("POE_API_KEY", "pk-test")
+        monkeypatch.setenv("DEEPSEEK_API_KEY", "sk-test")
         monkeypatch.delenv("DASHSCOPE_API_KEY", raising=False)
 
         r = client.get("/api/health-check")
 
         labels = {it["label"]: it for it in r.json()["items"]}
-        assert labels["Poe 语音 Key"]["ok"] is True
-        assert labels["Poe 转写余额"]["hint"] == "无限（使用套餐积分）"
-        assert "DashScope 语音 Key" not in labels
+        assert labels["DashScope 语音 Key"]["ok"] is False
+        assert "Poe 语音 Key" not in labels
 
 
 class TestServiceStatus:

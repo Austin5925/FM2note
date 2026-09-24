@@ -87,15 +87,7 @@ async def health_check() -> dict:
     )
 
     # ---- ASR provider key ----
-    if config.asr_engine == "poe":
-        items.append(
-            _check(
-                "Poe 语音 Key",
-                bool(config.poe_api_key),
-                "已配置" if config.poe_api_key else "Poe 转写引擎需要 POE_API_KEY",
-            )
-        )
-    elif config.asr_engine == "whisper_api":
+    if config.asr_engine == "whisper_api":
         items.append(
             _check(
                 "OpenAI 语音 Key",
@@ -113,13 +105,14 @@ async def health_check() -> dict:
         )
 
     # ---- Summary provider ----
+    from src.summarizer.factory import create_summarizer
+
     if config.summary_provider == "none":
         items.append(_check("AI 摘要", True, "已禁用"))
-    elif config.poe_api_key or config.openai_api_key:
-        which = "Poe" if config.poe_api_key else "OpenAI"
-        items.append(_check("AI 摘要", True, f"{which} key 已配置"))
+    elif create_summarizer(config) is not None:
+        items.append(_check("AI 摘要", True, "所选服务的 key 已配置"))
     else:
-        items.append(_check("AI 摘要", False, "无可用 key（可在设置页填 Poe 或 OpenAI）"))
+        items.append(_check("AI 摘要", False, "去设置页填写 DeepSeek 或 OpenAI-compatible key"))
 
     # ---- TingWu app id (only if engine selected) ----
     if config.asr_engine == "tingwu":
@@ -132,15 +125,7 @@ async def health_check() -> dict:
         )
 
     # ---- Active transcription balance ----
-    if config.asr_engine == "poe":
-        items.append(
-            _check(
-                "Poe 转写余额",
-                bool(config.poe_api_key),
-                "无限（使用套餐积分）" if config.poe_api_key else "配置 POE_API_KEY 后显示",
-            )
-        )
-    else:
+    if config.asr_engine in {"bailian", "funasr", "paraformer", "tingwu"}:
         balance_state = await fetch_balance()
         if balance_state.configured:
             if balance_state.snapshot is not None:

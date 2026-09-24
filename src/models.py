@@ -34,7 +34,7 @@ class TranscriptResult:
 
 @dataclass
 class SummaryResult:
-    """AI 摘要结果（Poe LLM 生成）"""
+    """AI 摘要结果（由配置的摘要模型生成）"""
 
     summary: str
     analysis: str | None = None

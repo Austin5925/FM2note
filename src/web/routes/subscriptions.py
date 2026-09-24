@@ -319,7 +319,7 @@ async def preview_sub(payload: dict) -> dict:
           "unprocessed_count": 23,          # not yet in state.db
           "total_duration_sec": 51840,       # sum of itunes:duration when available
           "estimated_cost_cny": 11.4,        # 0 if no duration info
-          "asr_engine": "poe",
+          "asr_engine": "bailian",
           "episodes": [
             {"guid": "...", "title": "...", "pub_date": "2026-05-01", "duration_sec": 3600},
             ...
@@ -365,16 +365,24 @@ async def preview_sub(payload: dict) -> dict:
             if not await state.is_processed(episode.guid):
                 unprocessed += 1
         asr_engine = config.asr_engine
+        asr_model = (
+            config.funasr_model
+            if asr_engine == "funasr"
+            else config.bailian_model
+            if asr_engine == "bailian"
+            else None
+        )
     except Exception as e:
         # Don't fail the preview just because state.db / config is unavailable.
         # v1.5.4: full traceback (was just type name) so the next regression
         # like "TypeError out of nowhere" is debuggable from logs alone.
         logger.exception("preview state lookup failed: {}", type(e).__name__)
-        asr_engine = "poe"
+        asr_engine = "bailian"
+        asr_model = None
 
     total_duration_sec = sum(e.duration_sec for e in episodes)
     missing_duration_count = sum(1 for e in episodes if e.duration_sec == 0)
-    estimated_cost_cny = estimate_cost_cny(total_duration_sec, asr_engine)
+    estimated_cost_cny = estimate_cost_cny(total_duration_sec, asr_engine, asr_model)
 
     feed_title = ""
     if hasattr(feed.feed, "get"):
@@ -391,6 +399,7 @@ async def preview_sub(payload: dict) -> dict:
         "missing_duration_count": missing_duration_count,
         "estimated_cost_cny": estimated_cost_cny,
         "asr_engine": asr_engine,
+        "asr_model": asr_model,
         "episodes": [e.to_dict() for e in episodes],
     }
 

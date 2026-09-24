@@ -1,13 +1,15 @@
 from __future__ import annotations
 
 import os
+import re
 from pathlib import Path
 
 from fastapi import APIRouter, HTTPException
 from loguru import logger
 
 from src.config import DEFAULT_VAULT_PATH, load_config
-from src.transcriber.poe import POE_ASR_MODELS
+from src.transcriber.bailian import DEFAULT_BAILIAN_MODEL
+from src.transcriber.funasr import DEFAULT_FUNASR_MODEL
 from src.web.paths import CONFIG_PATH, ENV_PATH
 from src.web.services import locks
 from src.web.services.env_writer import build_env_text, stage_atomic_write
@@ -21,7 +23,7 @@ router = APIRouter(prefix="/api")
 # stale .env can't silently shadow Web UI edits — see v1.4.12 changelog.
 _ENV_KEY_MAP = {
     "dashscope_api_key": "DASHSCOPE_API_KEY",
-    "poe_api_key": "POE_API_KEY",
+    "deepseek_api_key": "DEEPSEEK_API_KEY",
     "openai_api_key": "OPENAI_API_KEY",
     "tingwu_app_id": "TINGWU_APP_ID",
     "aliyun_access_key_id": "ALIYUN_ACCESS_KEY_ID",
@@ -32,13 +34,16 @@ _YAML_FIELDS = {
     "vault_path",
     "podcast_dir",
     "asr_engine",
-    "poe_asr_model",
+    "funasr_model",
+    "bailian_model",
     "summary_provider",
     "summary_model",
     "summary_cooldown",
     "summary_base_url",
     "log_level",
 }
+
+_ASR_ENGINES = {"funasr", "paraformer", "tingwu", "bailian", "whisper_api"}
 
 
 def _clean_path_input(value: str) -> str:
@@ -88,13 +93,15 @@ async def get_settings() -> dict:
         "vault_path_default": DEFAULT_VAULT_PATH,
         "podcast_dir": config.podcast_dir,
         "asr_engine": config.asr_engine,
-        "poe_asr_model": config.poe_asr_model,
+        "funasr_model": config.funasr_model,
+        "bailian_model": config.bailian_model,
         "summary_provider": config.summary_provider,
         "summary_model": config.summary_model or "(provider default)",
         "summary_cooldown": config.summary_cooldown,
+        "summary_base_url": config.summary_base_url,
         "keys": {
             "dashscope": _key_info(config.dashscope_api_key),
-            "poe": _key_info(config.poe_api_key),
+            "deepseek": _key_info(config.deepseek_api_key),
             "openai": _key_info(config.openai_api_key),
             "tingwu_app_id": _key_info(config.tingwu_app_id),
             "aliyun_access_key_id": _key_info(aliyun_ak),
@@ -183,11 +190,42 @@ async def update_settings(payload: dict) -> dict:
     if "podcast_dir" in yaml_updates:
         yaml_updates["podcast_dir"] = _clean_path_input(str(yaml_updates["podcast_dir"]))
 
-    if "poe_asr_model" in yaml_updates:
-        model = str(yaml_updates["poe_asr_model"]).strip()
-        if model not in POE_ASR_MODELS:
-            raise HTTPException(status_code=400, detail=f"不支持的 Poe 转写模型: {model}")
-        yaml_updates["poe_asr_model"] = model
+    if "asr_engine" in yaml_updates:
+        engine = str(yaml_updates["asr_engine"]).strip()
+        if engine not in _ASR_ENGINES:
+            raise HTTPException(status_code=400, detail=f"不支持的 ASR 引擎: {engine}")
+        yaml_updates["asr_engine"] = engine
+
+    for field, default in (
+        ("funasr_model", DEFAULT_FUNASR_MODEL),
+        ("bailian_model", DEFAULT_BAILIAN_MODEL),
+        ("summary_model", ""),
+    ):
+        if field not in yaml_updates:
+            continue
+        raw_model = yaml_updates[field]
+        if raw_model is not None and not isinstance(raw_model, str):
+            raise HTTPException(status_code=400, detail=f"{field} 必须是模型 ID")
+        model = (raw_model or "").strip() or default
+        if model and not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._:/-]{0,199}", model):
+            raise HTTPException(status_code=400, detail=f"{field} 模型 ID 格式无效")
+        yaml_updates[field] = model
+
+    if "summary_provider" in yaml_updates and yaml_updates["summary_provider"] not in {
+        "auto",
+        "deepseek",
+        "openai",
+        "none",
+    }:
+        raise HTTPException(status_code=400, detail="请选择 DeepSeek 或 OpenAI-compatible 摘要")
+    if "summary_base_url" in yaml_updates:
+        from urllib.parse import urlparse
+
+        url = str(yaml_updates["summary_base_url"] or "").strip().rstrip("/")
+        parsed = urlparse(url)
+        if url and (parsed.scheme not in {"http", "https"} or not parsed.netloc):
+            raise HTTPException(status_code=400, detail="摘要 API 地址必须是 HTTP(S) URL")
+        yaml_updates["summary_base_url"] = url
 
     # Build both new file contents up front, then commit both within the lock.
     # Two-phase ensures we never persist YAML without ENV (or vice versa) on a
@@ -245,7 +283,8 @@ async def update_settings(payload: dict) -> dict:
             env_updates
             or {
                 "asr_engine",
-                "poe_asr_model",
+                "funasr_model",
+                "bailian_model",
                 "summary_provider",
                 "summary_model",
                 "summary_base_url",

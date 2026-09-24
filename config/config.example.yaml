@@ -19,18 +19,23 @@ podcast_dir: "Podcasts"
 # RSS polling interval (hours), used in `serve` mode
 poll_interval_hours: 3
 
-# ASR engine: poe | funasr | paraformer | tingwu | bailian | whisper_api
-# - poe: Qwen3.5 Omni via Poe file attachment (default; uses subscription points)
+# ASR engine: funasr | paraformer | tingwu | bailian | whisper_api
+# - bailian: Alibaba Bailian ASR (default; Qwen Audio 3.1, up to 12h/2GB)
 # - funasr: Alibaba FunASR (Chinese-optimized, ~0.79 CNY/hour)
 # - paraformer: Alibaba Paraformer (cheaper, ~0.29 CNY/hour)
 # - tingwu: Alibaba TingWu (ASR + AI summary built-in, ~3 CNY/hour)
-# - bailian: Alibaba Bailian ASR (DashScope SDK, up to 12h/2GB, ~0.79 CNY/hour)
 # - whisper_api: OpenAI Whisper API (~$0.006/min)
-asr_engine: "poe"
+asr_engine: "bailian"
 
-# Poe ASR model: qwen3.5-omni-flash | qwen3.5-omni-plus
-# Omni Flash is the product default; Omni Plus is the higher-quality option.
-poe_asr_model: "qwen3.5-omni-flash"
+# FunASR model: fun-asr | fun-asr-2025-11-07 | fun-asr-2025-08-25 |
+#   fun-asr-mtl | fun-asr-mtl-2025-08-25
+funasr_model: "fun-asr"
+
+# Bailian long-audio model:
+# qwen-audio-3.1-asr-flash-filetrans (default, token billing) |
+# qwen3-asr-flash-filetrans (duration billing) |
+# qwen-audio-3.0-asr-flash-filetrans (duration billing)
+bailian_model: "qwen-audio-3.1-asr-flash-filetrans"
 
 # Temporary directory for audio downloads
 temp_dir: "./data/tmp"
@@ -41,12 +46,12 @@ db_path: "./data/state.db"
 # Max retry attempts for failed episodes
 max_retries: 3
 
-# AI summary provider: auto | poe | openai | none
-# "auto" detects based on available API keys (POE_API_KEY or OPENAI_API_KEY)
+# AI summary provider: auto | deepseek | openai | none
+# "auto" prefers DEEPSEEK_API_KEY, then OPENAI_API_KEY
 summary_provider: "auto"
 
 # Summary model (leave empty for provider default)
-# Poe default: gpt-5.4-mini | OpenAI default: gpt-4o-mini
+# DeepSeek default: deepseek-flash | OpenAI-compatible default: gpt-4o-mini
 summary_model: ""
 
 # Summary API call interval in seconds (rate limiting)

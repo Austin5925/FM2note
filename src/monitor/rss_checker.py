@@ -22,6 +22,7 @@ class RSSChecker:
         state: StateManager,
         *,
         subs_provider: Callable[[], list[Subscription]] | None = None,
+        max_retries: int = 3,
     ):
         """Construct the checker.
 
@@ -38,6 +39,7 @@ class RSSChecker:
         self._subscriptions = subscriptions
         self._state = state
         self._subs_provider = subs_provider
+        self._max_retries = max(1, int(max_retries))
 
     async def check_all(self) -> list[Episode]:
         """检查所有订阅的 RSS feed，返回未处理的新剧集列表。
@@ -133,7 +135,7 @@ class RSSChecker:
                     getattr(entry, "title", "?"),
                 )
                 continue
-            if not await self._state.is_processed(episode.guid):
+            if not await self._state.is_processed(episode.guid, self._max_retries):
                 episodes.append(episode)
         return episodes
 
@@ -151,7 +153,7 @@ class RSSChecker:
                     getattr(entry, "title", "?"),
                 )
                 continue
-            if not await self._state.is_processed(episode.guid):
+            if not await self._state.is_processed(episode.guid, self._max_retries):
                 episodes.append(episode)
 
         return episodes

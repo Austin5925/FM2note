@@ -24,16 +24,6 @@ async function refreshBalanceBadge() {
     if (!resp.ok) return;
     const data = await resp.json();
     if (!data.configured) return;
-    if (data.mode === 'unlimited') {
-      badge.textContent = '无限';
-      badge.title = `Poe 转写 · ${data.model || '套餐积分'}`;
-      badge.classList.remove('hidden');
-      badge.classList.add(
-        'bg-emerald-50', 'text-emerald-700', 'border-emerald-200',
-        'dark:bg-emerald-950', 'dark:text-emerald-300', 'dark:border-emerald-800'
-      );
-      return;
-    }
     if (data.error) {
       badge.textContent = '余额查询失败';
       badge.title = '点击查看余额详情';

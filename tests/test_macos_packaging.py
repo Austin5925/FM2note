@@ -84,11 +84,12 @@ def test_bundle_data_files_are_public_allowlisted():
     assert all(source.name != "payment-qr.png" for source, _ in files)
 
 
-def test_poe_transcriber_is_included_in_frozen_app():
+def test_poe_transcriber_is_removed_from_frozen_app():
     build_script = (
         Path(__file__).resolve().parents[1] / "scripts" / "build_macos_app.py"
     ).read_text(encoding="utf-8")
-    assert '"src.transcriber.poe"' in build_script
+    assert "src.transcriber.poe" not in build_script
+    assert "src.summarizer.poe_client" not in build_script
 
 
 def test_python_distribution_excludes_local_private_assets():

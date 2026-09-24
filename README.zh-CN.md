@@ -10,12 +10,12 @@ FM2note 监听播客 RSS 更新，使用云端 ASR 转写，生成 AI 摘要，�
 
 - **本地 Web UI** — `fm2note web`（浏览器）或 `fm2note app`（桌面窗口），含转录 / 历史 / 订阅 / 设置 四个页面
 - **RSS 监听** — 支持任意 RSS/Atom feed，自动检测新剧集
-- **多 ASR 引擎** — Poe 千问 Omni、FunASR、Paraformer、通义听悟、百炼、OpenAI Whisper
-- **AI 摘要** — 章节速览 + 关键词（Poe / OpenAI / DeepSeek / Groq 等）
+- **多 ASR 引擎** — 百炼 Qwen Audio 3.1、FunASR、Paraformer、通义听悟、OpenAI Whisper
+- **AI 摘要** — 章节速览 + 关键词（DeepSeek V4.1 Flash / OpenAI-compatible）
 - **直写 Obsidian** — Markdown + YAML frontmatter
 - **模板可定制** — 自定义笔记模板路径和章节标签
 - **字幕检测** — 有字幕时跳过 ASR（节省成本）
-- **当前引擎余额徽章** — Poe 转写显示“无限”；阿里引擎可显示现金余额并在过低时提醒
+- **当前引擎余额徽章** — 阿里引擎可显示现金余额并在过低时提醒
 - **自动重试** — 失败的剧集在下次轮询时重试
 - **自托管** — 数据完全在你的设备上
 
@@ -69,11 +69,11 @@ fm2note init
 1. 编辑 `.env` — 只填 API Key 这类敏感信息（非敏感配置走 `config/config.yaml` 或 Web UI 设置页）：
 
 ```bash
-export POE_API_KEY=pk-xxx                # 默认 Poe 千问转写必需
-export DASHSCOPE_API_KEY=sk-xxx          # 仅阿里语音引擎需要
+export DASHSCOPE_API_KEY=sk-xxx          # 默认百炼 / FunASR / 通义听悟
+# export DEEPSEEK_API_KEY=sk-xxx         # DeepSeek V4.1 Flash 摘要
 
 # 可选 OpenAI 转写 / AI 摘要
-export OPENAI_API_KEY=sk-xxx             # OpenAI / DeepSeek / Groq
+export OPENAI_API_KEY=sk-xxx             # OpenAI-compatible
 ```
 
 2. 在 `config/config.yaml`（或 Web UI 设置页）设置 Obsidian vault 路径：
@@ -165,25 +165,24 @@ APPLE_NOTARY_PROFILE=fm2note-notary make macos-notarize
 - **订阅** — 粘贴小宇宙链接自动识别并生成 RSSHub 地址，也可手动编辑/测试 RSS；ruamel.yaml 保留 YAML 注释
 - **设置** — 编辑 API key、切换引擎、改 vault 路径；含健康自检 + launchd 服务状态
 
-顶部导航显示当前转写引擎的余额状态：选择 Poe 时显示“无限”（使用套餐积分，
-现金增量成本为零）；选择阿里引擎时显示可选的阿里云现金余额。Web 服务只监听
+顶部导航显示当前转写引擎的余额状态：选择阿里引擎时显示可选的阿里云现金余额。Web 服务只监听
 `127.0.0.1`；需要局域网访问请用反向代理。
 
 ## ASR 引擎
 
 | 引擎 | 单价/小时 | 特点 | 适用场景 |
 |---|---|---|---|
-| Poe 千问 Omni Flash（默认） | 套餐积分 | 快速多模态转写 | Poe 积分有结余 |
-| Poe 千问 Omni Plus | 更多套餐积分 | 项目实测纯文字质量最好 | 准确度优先 |
+| 百炼 Qwen Audio 3.1（默认） | 约 0.08 元/小时* | 12 小时长音频、上下文增强、说话人分离 | 长音频首选 |
 | FunASR | ~0.79 元 | 中文优化，支持方言 | 需要专用 ASR 结构 |
 | Paraformer | ~0.29 元 | 低成本，7+ 语言 | 预算有限 |
 | 通义听悟 | ~3.00 元 | ASR + AI 摘要一体 | 一站式方案 |
-| 百炼 | ~0.79 元 | DashScope SDK，最长 12h/2GB | 长时音频 |
 | Whisper API | ~$0.36 | 多语言 | 英文播客 |
 
-在 `config/config.yaml` 中设置 `asr_engine`。Poe 可通过 `poe_asr_model` 选择
-`qwen3.5-omni-flash` 或 `qwen3.5-omni-plus`，共用 `POE_API_KEY`；所有 DashScope
-引擎共用 `DASHSCOPE_API_KEY`。
+在 `config/config.yaml` 中设置 `asr_engine`。百炼默认使用
+`qwen-audio-3.1-asr-flash-filetrans`（按 token 计费，实际费用随文本量变化）；也可切换
+到按音频时长计费的 `qwen3-asr-flash-filetrans` 或 `qwen-audio-3.0-asr-flash-filetrans`。
+FunASR 可通过 `funasr_model` 选择稳定版或历史快照。所有 DashScope 引擎共用
+`DASHSCOPE_API_KEY`。*Qwen Audio 3.1 的小时数是按本次实测 token 密度估算，不是固定单价。
 
 ## AI 摘要
 
@@ -191,11 +190,11 @@ FM2note 支持多种 AI 摘要提供商，默认**自动检测**可用的 API Ke
 
 | 提供商 | YAML 配置 | API Key（`.env`） | 默认模型 |
 |---|---|---|---|
-| Poe | `summary_provider: poe` | `POE_API_KEY` | gpt-5.4-mini |
+| DeepSeek V4.1 Flash | `summary_provider: deepseek` | `DEEPSEEK_API_KEY` | deepseek-flash |
 | OpenAI | `summary_provider: openai` | `OPENAI_API_KEY` | gpt-4o-mini |
-| DeepSeek/Groq/Ollama | `summary_provider: openai` + `summary_base_url: <url>` | `OPENAI_API_KEY` | 自定义 |
+| OpenAI-compatible（CometAPI / DeepInfra / Groq / Ollama） | `summary_provider: openai` + `summary_base_url: <url>` | `OPENAI_API_KEY` | 手动填写 |
 | 不使用 | `summary_provider: none` | — | — |
-| 自动（默认） | `summary_provider: auto` | 任一可用 | 自动 |
+| 自动（默认） | `summary_provider: auto` | DeepSeek 或 OpenAI key | 自动 |
 
 不配置任何摘要 Key 时，仅输出转写文本，不报错。
 
@@ -245,10 +244,11 @@ docker compose up -d
 | `vault_path` | — | Obsidian Vault 路径（必填） |
 | `podcast_dir` | `Podcasts` | Vault 内笔记子目录 |
 | `poll_interval_hours` | `3` | `serve` 模式轮询间隔 |
-| `asr_engine` | `poe` | `poe` / `funasr` / `paraformer` / `tingwu` / `bailian` / `whisper_api` |
-| `poe_asr_model` | `qwen3.5-omni-flash` | `qwen3.5-omni-flash` / `qwen3.5-omni-plus` |
+| `asr_engine` | `bailian` | `funasr` / `paraformer` / `tingwu` / `bailian` / `whisper_api` |
+| `funasr_model` | `fun-asr` | FunASR 稳定版或快照 |
+| `bailian_model` | `qwen-audio-3.1-asr-flash-filetrans` | Qwen Audio 3.1 / Qwen3 / Qwen Audio 3.0 filetrans |
 | `max_retries` | `3` | 失败剧集最大重试次数 |
-| `summary_provider` | `auto` | `auto` / `poe` / `openai` / `none` |
+| `summary_provider` | `auto` | `auto` / `deepseek` / `openai` / `none` |
 | `summary_model` | — | 覆写模型（默认走 provider 默认） |
 | `summary_cooldown` | `60` | 摘要 API 调用间隔（秒） |
 | `summary_base_url` | — | OpenAI-compatible 端点（DeepSeek/Groq/Ollama） |
@@ -261,7 +261,7 @@ v1.4.12 起，`.env` **只放** API Key / 凭据。任何非敏感字段放这�
 
 | 变量 | 是否必需 | 说明 |
 |---|---|---|
-| `POE_API_KEY` | 默认 Poe 转写必需 | Poe API Key（千问转写 / 摘要） |
+| `DEEPSEEK_API_KEY` | 否 | DeepSeek V4.1 Flash 摘要 API Key |
 | `DASHSCOPE_API_KEY` | DashScope 引擎必需 | 阿里云 DashScope API Key |
 | `OPENAI_API_KEY` | 否 | OpenAI API Key（摘要 / Whisper） |
 | `TINGWU_APP_ID` | 仅 `tingwu` 引擎需要 | 通义听悟 App ID |
@@ -271,9 +271,9 @@ v1.4.12 起，`.env` **只放** API Key / 凭据。任何非敏感字段放这�
 
 | 方案 | 月费 |
 |---|---|
-| Poe 千问 Omni + 已有套餐积分 | 现金增量成本 0 元 |
-| FunASR + Poe/OpenAI 摘要 | ~16 元 |
-| Paraformer + Poe/OpenAI 摘要 | ~6 元 |
+| 百炼 Qwen Audio 3.1 + OpenAI/DeepSeek 摘要 | 转写约 1.6 元* |
+| FunASR + OpenAI/DeepSeek 摘要 | ~16 元 |
+| Paraformer + OpenAI/DeepSeek 摘要 | ~6 元 |
 | 通义听悟（一站式） | ~55 元 |
 
 ## 开发

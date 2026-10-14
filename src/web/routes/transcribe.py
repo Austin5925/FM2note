@@ -9,7 +9,11 @@ from fastapi.responses import StreamingResponse
 from loguru import logger
 
 from src.config import load_config
-from src.transcribe_flow import preview_episode, transcribe_single_url
+from src.transcribe_flow import (
+    UnsupportedXiaoyuzhouUrlError,
+    preview_episode,
+    transcribe_single_url,
+)
 from src.web.paths import CONFIG_PATH
 from src.web.progress import ProgressEvent, get_bus
 from src.web.services.error_messages import friendly_transcribe_error
@@ -29,6 +33,8 @@ async def episode_preview(url: str) -> dict[str, Any]:
         raise HTTPException(status_code=400, detail="url is required")
     try:
         return await preview_episode(url)
+    except UnsupportedXiaoyuzhouUrlError as e:
+        return {"error": str(e), "invalid_url": True, "audio_url": url}
     except Exception as e:
         logger.warning("preview failed for {}: {}: {}", url, type(e).__name__, e)
         return {"error": f"{type(e).__name__}: {e}", "audio_url": url}

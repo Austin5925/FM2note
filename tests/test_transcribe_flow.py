@@ -6,14 +6,21 @@ mocked so the test exercises stage ordering and callback invocation only.
 
 from __future__ import annotations
 
+import sqlite3
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
+import httpx
 import pytest
 
 from src.config import AppConfig
 from src.models import TranscriptResult
-from src.transcribe_flow import _is_xiaoyuzhou_episode_url, transcribe_single_url
+from src.transcribe_flow import (
+    UnsupportedXiaoyuzhouUrlError,
+    _is_xiaoyuzhou_episode_url,
+    preview_episode,
+    transcribe_single_url,
+)
 
 
 def test_xiaoyuzhou_host_check_rejects_substring_spoofing():
@@ -44,6 +51,60 @@ def _make_config(tmp_path: Path) -> AppConfig:
         openai_api_key="",
         db_path=str(tmp_path / "state.db"),
     )
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "url",
+    [
+        "https://www.xiaoyuzhoufm.com/podcast/61358d971c5d56efe5bcb5d2",
+        "https://xiaoyuzhoufm.com/podcast/61358d971c5d56efe5bcb5d2?share=1",
+        "https://www.xiaoyuzhoufm.com/",
+        "https://www.xiaoyuzhoufm.com/user/example",
+    ],
+)
+async def test_non_episode_xiaoyuzhou_page_never_reaches_asr(tmp_path, url):
+    with (
+        patch("httpx.AsyncClient") as http_client,
+        patch("src.episode_processor.EpisodeProcessor.from_config") as processor,
+        pytest.raises(UnsupportedXiaoyuzhouUrlError, match="单集链接"),
+    ):
+        await transcribe_single_url(url, _make_config(tmp_path))
+
+    http_client.assert_not_called()
+    processor.assert_not_called()
+    assert not (tmp_path / "state.db").exists()
+
+
+@pytest.mark.asyncio
+async def test_episode_preview_resolves_real_audio_url():
+    url = "https://www.xiaoyuzhoufm.com/episode/5f20d34e9504bbdb77b7681f"
+    audio_url = "https://media.xyzcdn.net/podcast/episode.mp3"
+    response = httpx.Response(
+        200,
+        request=httpx.Request("GET", url),
+        text=(
+            '<script type="application/ld+json">'
+            '{"name":"单集标题","partOfSeries":{"name":"播客"},'
+            f'"associatedMedia":{{"contentUrl":"{audio_url}"}}}}'
+            "</script>"
+        ),
+    )
+    with patch("httpx.AsyncClient") as http_client:
+        http_client.return_value.__aenter__.return_value.get = AsyncMock(return_value=response)
+        result = await preview_episode(url)
+
+    assert result["audio_url"] == audio_url
+    assert result["title"] == "单集标题"
+    assert result["source"] == "xiaoyuzhou"
+
+
+@pytest.mark.asyncio
+async def test_preview_source_uses_parsed_host_instead_of_substring():
+    url = "https://example.com/audio/xiaoyuzhoufm.com.mp3"
+    result = await preview_episode(url)
+    assert result["audio_url"] == url
+    assert result["source"] == "direct"
 
 
 @pytest.mark.asyncio
@@ -156,6 +217,35 @@ async def test_asr_failure_propagates_with_error_event(tmp_path):
 
     assert ("asr", "error") in events
     assert ("write", "done") not in events
+    with sqlite3.connect(config.db_path) as db:
+        row = db.execute(
+            "SELECT status,error_msg,retry_count FROM processed_episodes WHERE guid=?",
+            ("http://audio.example/x.mp3",),
+        ).fetchone()
+    assert row == ("failed", "network", 1)
+
+
+@pytest.mark.asyncio
+async def test_failed_status_write_does_not_replace_transcription_error(tmp_path):
+    from src.monitor.state import StateManager
+
+    config = _make_config(tmp_path)
+    mark_status = StateManager.mark_status
+
+    async def fail_on_failed(self, guid, status, **kwargs):
+        if status == "failed":
+            raise OSError("database unavailable")
+        return await mark_status(self, guid, status, **kwargs)
+
+    fake_transcriber = MagicMock()
+    fake_transcriber.transcribe = AsyncMock(side_effect=RuntimeError("original ASR failure"))
+    with (
+        patch.object(StateManager, "mark_status", fail_on_failed),
+        patch("src.transcriber.factory.create_transcriber", return_value=fake_transcriber),
+        patch("src.summarizer.factory.create_summarizer", return_value=None),
+        pytest.raises(RuntimeError, match="original ASR failure"),
+    ):
+        await transcribe_single_url("https://example.com/audio.mp3", config)
 
 
 @pytest.mark.asyncio

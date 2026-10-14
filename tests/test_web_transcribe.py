@@ -27,6 +27,16 @@ def client(tmp_path, monkeypatch):
 
 
 class TestPreview:
+    def test_podcast_homepage_returns_actionable_validation_error(self, client):
+        r = client.get(
+            "/api/episode/preview",
+            params={"url": "https://www.xiaoyuzhoufm.com/podcast/61358d971c5d56efe5bcb5d2"},
+        )
+        assert r.status_code == 200
+        assert r.json()["invalid_url"] is True
+        assert "单集链接" in r.json()["error"]
+        assert "source" not in r.json()
+
     def test_preview_requires_url(self, client):
         r = client.get("/api/episode/preview", params={"url": ""})
         assert r.status_code == 400
@@ -89,6 +99,23 @@ class TestTranscribeSubmit:
 
 
 class TestSseStream:
+    def test_podcast_homepage_is_rejected_even_without_preview(self, client):
+        with patch("src.episode_processor.EpisodeProcessor.from_config") as processor:
+            r = client.post(
+                "/api/transcribe",
+                json={"url": "https://www.xiaoyuzhoufm.com/podcast/61358d971c5d56efe5bcb5d2"},
+            )
+            task_id = r.json()["task_id"]
+            with client.stream("GET", f"/api/transcribe/{task_id}/stream") as stream:
+                body = "".join(stream.iter_text())
+
+        processor.assert_not_called()
+        assert '"stage": "resolve", "status": "error"' in body
+        assert "单集链接" in body
+        assert "订阅" in body
+        assert '"stage": "asr"' not in body
+        assert "event: end" in body
+
     def test_unknown_task_id_404(self, client):
         r = client.get("/api/transcribe/nonexistent/stream")
         assert r.status_code == 404

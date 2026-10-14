@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.10.1] - 2026-10-14
+
+### Fixed
+- Reject Xiaoyuzhou podcast homepages and other non-episode pages before ASR submission, with guidance to use an episode link or add the podcast under Subscriptions.
+- Show invalid-link feedback beside the URL input, prevent submission after validation, and derive the preview source from the actual episode resolver.
+- Persist single-episode processing failures as `failed` with the error, instead of leaving history stuck at `transcribing` or `writing`.
+
 ## [1.10.0] - 2026-09-24
 
 ### Added

@@ -47,6 +47,13 @@ def _emit(callback: ProgressCallback | None, stage: str, status: str, message: s
 _XIAOYUZHOU_HOSTS = frozenset({"www.xiaoyuzhoufm.com", "xiaoyuzhoufm.com"})
 
 
+class UnsupportedXiaoyuzhouUrlError(ValueError):
+    """A known Xiaoyuzhou page that cannot be transcribed as one episode."""
+
+    def __init__(self):
+        super().__init__("请打开具体一集播客，复制单集链接后再转录；播客主页请到「订阅」页添加。")
+
+
 def _is_xiaoyuzhou_episode_url(url: str) -> bool:
     """Strict host + path check to prevent SSRF via substring spoofing.
 
@@ -79,6 +86,8 @@ async def _resolve_episode_url(
     import httpx
 
     if not _is_xiaoyuzhou_episode_url(url):
+        if urlparse(url).hostname in _XIAOYUZHOU_HOSTS:
+            raise UnsupportedXiaoyuzhouUrlError
         return url, None, None, "", None
 
     logger.info("Detected Xiaoyuzhou episode URL, parsing metadata...")
@@ -120,7 +129,7 @@ async def preview_episode(url: str) -> dict:
         "podcast_name": podcast,
         "link": link,
         "date_published": date_pub,
-        "source": "xiaoyuzhou" if "xiaoyuzhoufm.com" in url else "direct",
+        "source": "xiaoyuzhou" if _is_xiaoyuzhou_episode_url(url) else "direct",
     }
 
 
@@ -216,6 +225,20 @@ async def transcribe_single_url(
         outcome = await processor.process(
             episode, progress_callback=progress_callback, options=options
         )
+    except FileExistsError:
+        raise
+    except Exception as e:
+        try:
+            await state.mark_status(
+                episode.guid,
+                "failed",
+                podcast_name=episode.podcast_name,
+                title=episode.title,
+                error_msg=str(e),
+            )
+        except Exception as state_error:
+            logger.warning("记录单集转录失败状态失败: {}", type(state_error).__name__)
+        raise
     finally:
         if hasattr(state, "close"):
             with contextlib.suppress(Exception):

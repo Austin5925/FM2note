@@ -143,6 +143,8 @@ make bump-minor  # 版本号 minor +1
 
 ## Version History
 
+- **v1.10.1** — 单集转录拒绝小宇宙播客主页并提示使用单集链接；预览来源与解析分支一致；单集失败状态写入数据库
+
 - **v1.10.0** — 百炼 Qwen Audio 3.1 默认长音频转写；移除 Poe；DeepSeek V4.1 Flash 摘要；模型可手动输入；GitHub Releases 检查更新
 
 - **v0.1.0** — Phase 0 脚手架：项目结构初始化、config/models 模块，20 个测试
@@ -200,4 +202,4 @@ make bump-minor  # 版本号 minor +1
 
 ## Current Version
 
-v1.10.0 — 百炼 Qwen Audio 3.1 + DeepSeek 摘要 + GitHub Releases 更新检查
+v1.10.1 — 单集链接校验与转录失败状态修复

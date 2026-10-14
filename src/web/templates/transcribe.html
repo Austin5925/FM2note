@@ -12,11 +12,13 @@
       <input id="url-input"
              type="url"
              placeholder="https://www.xiaoyuzhoufm.com/episode/..."
+             aria-describedby="url-error"
              autocomplete="off"
              autofocus
              class="w-full px-4 py-3 rounded-lg border border-stone-300 bg-white
                     focus:outline-none focus:ring-2 focus:ring-stone-900 focus:border-stone-900
                     text-sm" />
+      <p id="url-error" class="hidden text-sm text-red-700 mt-2" role="alert"></p>
     </div>
 
     <div id="preview" class="hidden">

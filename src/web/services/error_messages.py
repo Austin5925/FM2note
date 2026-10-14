@@ -6,6 +6,8 @@ tone and vocabulary.
 
 from __future__ import annotations
 
+from src.transcribe_flow import UnsupportedXiaoyuzhouUrlError
+
 
 def friendly_transcribe_error(exc: BaseException) -> str:
     """Translate a transcribe-stage exception into a user-facing message.
@@ -16,6 +18,9 @@ def friendly_transcribe_error(exc: BaseException) -> str:
     name = type(exc).__name__
     raw = str(exc) or ""
     lower = raw.lower()
+
+    if isinstance(exc, UnsupportedXiaoyuzhouUrlError):
+        return raw
 
     # Common DashScope / OpenAI HTTP status patterns
     if "429" in raw or "rate" in lower and "limit" in lower:

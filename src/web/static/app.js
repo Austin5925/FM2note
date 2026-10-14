@@ -1,6 +1,7 @@
 // FM2note transcribe page — vanilla JS + EventSource
 (function () {
   const urlInput = document.getElementById('url-input');
+  const urlError = document.getElementById('url-error');
   const submitBtn = document.getElementById('submit-btn');
   const previewBox = document.getElementById('preview');
   const previewPodcast = document.getElementById('preview-podcast');
@@ -20,6 +21,7 @@
 
   let previewTimer = null;
   let activeStream = null;
+  let invalidPreviewUrl = null;
 
   // -------- Init step icons --------
   document.querySelectorAll('.step-icon').forEach((el) => {
@@ -37,6 +39,10 @@
 
   urlInput.addEventListener('input', () => {
     const value = urlInput.value.trim();
+    invalidPreviewUrl = null;
+    urlError.classList.add('hidden');
+    urlInput.removeAttribute('aria-invalid');
+    previewBox.classList.add('hidden');
     const ready = isLikelyUrl(value);
     submitBtn.disabled = !ready;
     setCollieState(ready ? 'ready' : 'idle');
@@ -53,8 +59,17 @@
       const resp = await fetch('/api/episode/preview?url=' + encodeURIComponent(url));
       if (!resp.ok) return;
       const data = await resp.json();
+      if (urlInput.value.trim() !== url) return;
       if (data.error) {
         previewBox.classList.add('hidden');
+        urlError.textContent = data.error;
+        urlError.classList.remove('hidden');
+        if (data.invalid_url) {
+          invalidPreviewUrl = url;
+          urlInput.setAttribute('aria-invalid', 'true');
+          submitBtn.disabled = true;
+          setCollieState('idle');
+        }
         return;
       }
       previewPodcast.textContent = data.podcast_name || '—';
@@ -73,6 +88,7 @@
   });
 
   async function startTranscribe(url) {
+    if (invalidPreviewUrl === url) return;
     resetUI(/*hideForm*/ true);
     progressSection.classList.remove('hidden');
     submitBtn.disabled = true;
@@ -187,6 +203,9 @@
   resetBtn.addEventListener('click', () => {
     resetUI(false);
     urlInput.value = '';
+    invalidPreviewUrl = null;
+    urlError.classList.add('hidden');
+    urlInput.removeAttribute('aria-invalid');
     submitBtn.disabled = true;
     previewBox.classList.add('hidden');
     urlInput.focus();
@@ -194,7 +213,7 @@
 
   errorResetBtn.addEventListener('click', () => {
     errorCard.classList.add('hidden');
-    submitBtn.disabled = !isLikelyUrl(urlInput.value);
+    submitBtn.disabled = !isLikelyUrl(urlInput.value) || invalidPreviewUrl === urlInput.value.trim();
     urlInput.focus();
   });
 })();

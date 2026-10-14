@@ -140,7 +140,9 @@ class TestRetrySummary:
 
         fake_summarizer = type("X", (), {})()
         fake_summarizer.summarize = AsyncMock(
-            return_value=SummaryResult(summary="The summary.", chapters=None, keywords=None)
+            return_value=SummaryResult(
+                summary="The summary.", analysis="The condensed blog.", chapters=None, keywords=None
+            )
         )
         with patch("src.web.routes.history.create_summarizer", return_value=fake_summarizer):
             r = client.post("/api/history/retry-summary", json={"id": "abcd"})

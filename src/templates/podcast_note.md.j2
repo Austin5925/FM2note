@@ -33,26 +33,13 @@ asr_engine: "{{ asr_engine }}"
 {{ transcript.analysis }}
 
 {% endif %}
-{% if transcript.summary %}
-## {{ labels.ai_summary | default("AI 摘要") }}
-
-{{ transcript.summary }}
-
-{% endif %}
 {% if transcript.chapters %}
-## {{ labels.chapters | default("章节速览") }}
+## {{ labels.chapters | default("章节") }}
 
 {% for ch in transcript.chapters %}
-### {{ ch.title }}
-
-{{ ch.summary }}
-
+- {{ ch.title }}
 {% endfor %}
 {% endif %}
-## {{ labels.show_notes | default("Show Notes") }}
-
-{{ show_notes_cleaned }}
-
 ## {{ labels.transcript | default("全文转写") }}
 
 {% for para in transcript.paragraphs %}

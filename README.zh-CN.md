@@ -11,7 +11,7 @@ FM2note 监听播客 RSS 更新，使用云端 ASR 转写，生成 AI 摘要，�
 - **本地 Web UI** — `fm2note web`（浏览器）或 `fm2note app`（桌面窗口），含转录 / 历史 / 订阅 / 设置 四个页面
 - **RSS 监听** — 支持任意 RSS/Atom feed，自动检测新剧集
 - **多 ASR 引擎** — 百炼 Qwen Audio 3.1、FunASR、Paraformer、通义听悟、OpenAI Whisper
-- **AI 摘要** — 章节速览 + 关键词（DeepSeek V4.1 Flash / OpenAI-compatible）
+- **AI 内容整理** — 精简版博客 + 章节标题目录 + 全文转写，关键词保留在笔记标签中（DeepSeek V4.1 Flash / OpenAI-compatible）
 - **直写 Obsidian** — Markdown + YAML frontmatter
 - **模板可定制** — 自定义笔记模板路径和章节标签
 - **字幕检测** — 有字幕时跳过 ASR（节省成本）

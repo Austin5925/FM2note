@@ -143,6 +143,8 @@ make bump-minor  # 版本号 minor +1
 
 ## Version History
 
+- **v1.10.2** — 默认笔记精简为博客、章节标题目录和全文转写；移除重复 AI 摘要、章节说明与 Show Notes；补摘要使用相同精简结构
+
 - **v1.10.1** — 单集转录拒绝小宇宙播客主页并提示使用单集链接；预览来源与解析分支一致；单集失败状态写入数据库
 
 - **v1.10.0** — 百炼 Qwen Audio 3.1 默认长音频转写；移除 Poe；DeepSeek V4.1 Flash 摘要；模型可手动输入；GitHub Releases 检查更新
@@ -202,4 +204,4 @@ make bump-minor  # 版本号 minor +1
 
 ## Current Version
 
-v1.10.1 — 单集链接校验与转录失败状态修复
+v1.10.2 — 精简笔记结构：博客、章节、全文转写

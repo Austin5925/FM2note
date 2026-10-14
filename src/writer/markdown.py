@@ -16,7 +16,7 @@ _PACKAGE_TEMPLATE_DIR = str(Path(__file__).resolve().parent.parent / "templates"
 DEFAULT_LABELS = {
     "content_analysis": "精简版博客",
     "ai_summary": "AI 摘要",
-    "chapters": "章节速览",
+    "chapters": "章节",
     "show_notes": "Show Notes",
     "transcript": "全文转写",
     "podcast": "播客",

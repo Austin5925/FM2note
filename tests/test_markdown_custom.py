@@ -49,9 +49,9 @@ class TestDefaultLabels:
         gen = MarkdownGenerator("templates")
         result = gen.render(_make_episode(), _make_transcript())
         assert "## 精简版博客" in result
-        assert "## AI 摘要" in result
-        assert "## 章节速览" in result
-        assert "## Show Notes" in result
+        assert "## AI 摘要" not in result
+        assert "## 章节\n" in result
+        assert "## Show Notes" not in result
         assert "## 全文转写" in result
 
 
@@ -72,7 +72,7 @@ class TestCustomLabels:
         gen = MarkdownGenerator("templates", labels=labels)
         result = gen.render(_make_episode(), _make_transcript())
         assert "## Condensed Blog" in result
-        assert "## AI Summary" in result
+        assert "## AI Summary" not in result
         assert "## Chapters" in result
         assert "## Full Transcript" in result
         assert "**Podcast**" in result
@@ -80,11 +80,10 @@ class TestCustomLabels:
 
     def test_partial_label_override(self):
         """Override only some labels, rest use defaults."""
-        gen = MarkdownGenerator("templates", labels={"ai_summary": "Summary"})
+        gen = MarkdownGenerator("templates", labels={"chapters": "Chapters"})
         result = gen.render(_make_episode(), _make_transcript())
-        assert "## Summary" in result
+        assert "## Chapters" in result
         assert "## 精简版博客" in result  # default preserved
-        assert "## 章节速览" in result  # default preserved
         assert "## 全文转写" in result  # default preserved
 
     def test_custom_footer(self):

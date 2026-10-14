@@ -118,13 +118,10 @@ def insert_summary_into_note(note_path: str, summary: SummaryResult) -> bool:
     sections: list[str] = []
     if summary.analysis:
         sections.append(f"## 精简版博客\n\n{summary.analysis}\n")
-    if summary.summary:
-        sections.append(f"## AI 摘要\n\n{summary.summary}\n")
     if summary.chapters:
-        chapter_parts = ["## 章节速览\n"]
+        chapter_parts = ["## 章节\n"]
         for ch in summary.chapters:
-            chapter_parts.append(f"### {ch['title']}\n")
-            chapter_parts.append(f"{ch['summary']}\n")
+            chapter_parts.append(f"- {ch['title']}")
         sections.append("\n".join(chapter_parts))
 
     if not sections:

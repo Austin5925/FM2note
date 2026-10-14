@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.10.2] - 2026-10-14
+
+### Changed
+- Default notes now contain the condensed blog, a chapter-title list, and the full transcript, without a second AI summary, chapter summaries, or a Show Notes section.
+- Pending-summary retries insert the same blog and chapter-title sections while preserving existing note content.
+
 ## [1.10.1] - 2026-10-14
 
 ### Fixed

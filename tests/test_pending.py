@@ -99,39 +99,40 @@ class TestInsertSummaryIntoNote:
         updated = Path(note_path).read_text(encoding="utf-8")
         assert "## 精简版博客" in updated
         assert "- 核心观点" in updated
-        assert "## AI 摘要" in updated
-        assert "这是摘要内容" in updated
-        assert "## 章节速览" in updated
-        assert "### 第一章" in updated
+        assert "## AI 摘要" not in updated
+        assert "这是摘要内容" not in updated
+        assert "## 章节\n" in updated
+        assert "- 第一章" in updated
+        assert "第一章总结" not in updated
         # 原有内容保留
         assert "## Show Notes" in updated
         assert "## 全文转写" in updated
         # 摘要在 Show Notes 之前
-        assert updated.index("## 精简版博客") < updated.index("## AI 摘要")
-        assert updated.index("## AI 摘要") < updated.index("## Show Notes")
+        assert updated.index("## 精简版博客") < updated.index("## 章节\n")
+        assert updated.index("## 章节\n") < updated.index("## Show Notes")
 
     def test_insert_before_transcript_if_no_show_notes(self, tmp_path):
         content = "# Title\n\n## 全文转写\n\ntext\n"
         note_path = self._write_note(tmp_path, content)
 
-        summary = SummaryResult(summary="摘要")
+        summary = SummaryResult(summary="摘要", analysis="博客正文")
         result = insert_summary_into_note(note_path, summary)
         assert result is True
 
         updated = Path(note_path).read_text(encoding="utf-8")
-        assert updated.index("## AI 摘要") < updated.index("## 全文转写")
+        assert updated.index("## 精简版博客") < updated.index("## 全文转写")
+        assert "## AI 摘要" not in updated
 
-    def test_insert_summary_only_no_chapters(self, tmp_path):
+    def test_summary_only_does_not_insert_a_duplicate_summary(self, tmp_path):
         content = "# Title\n\n## Show Notes\n\nnotes\n"
         note_path = self._write_note(tmp_path, content)
 
         summary = SummaryResult(summary="仅摘要无章节")
         result = insert_summary_into_note(note_path, summary)
-        assert result is True
+        assert result is False
 
         updated = Path(note_path).read_text(encoding="utf-8")
-        assert "## AI 摘要" in updated
-        assert "## 章节速览" not in updated
+        assert updated == content
 
     def test_insert_analysis_only(self, tmp_path):
         content = "# Title\n\n## Show Notes\n\nnotes\n"

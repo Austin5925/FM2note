@@ -214,6 +214,8 @@ Without any summary API key, FM2note outputs transcription only (no error).
 
 ## Template Customization
 
+The default note contains a condensed blog, chapter titles, and the full transcript. It omits a second AI summary and Show Notes; keywords remain in frontmatter tags. Custom templates can still access the summary, chapter descriptions, and cleaned Show Notes.
+
 The default note template uses Chinese section labels. You can customize:
 
 1. **Custom template path** — point to your own Jinja2 template:

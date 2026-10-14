@@ -46,7 +46,8 @@ class TestMarkdownGenerator:
         assert "测试播客" in result
         assert "2025-01-15" in result
         assert "01:23:45" in result
-        assert "这是 show notes 内容" in result
+        assert "Show Notes" not in result
+        assert "这是 show notes 内容" not in result
         assert "第一段文字" in result
         assert "第二段文字" in result
 
@@ -62,22 +63,23 @@ class TestMarkdownGenerator:
         assert "- tech" in result
         assert "- ai" in result
 
-    def test_render_with_summary(self):
+    def test_render_does_not_add_a_second_summary(self):
         ep = _make_episode()
         tr = _make_transcript(summary="这是 AI 摘要")
         result = self.gen.render(ep, tr)
 
-        assert "## AI 摘要" in result
-        assert "这是 AI 摘要" in result
+        assert "## AI 摘要" not in result
+        assert "这是 AI 摘要" not in result
 
-    def test_render_with_condensed_blog_before_summary(self):
+    def test_render_condensed_blog_without_duplicate_summary(self):
         ep = _make_episode()
         tr = _make_transcript(analysis="- 观点一\n- 观点二", summary="这是 AI 摘要")
         result = self.gen.render(ep, tr)
 
         assert "## 精简版博客" in result
         assert "- 观点一" in result
-        assert result.index("## 精简版博客") < result.index("## AI 摘要")
+        assert "## AI 摘要" not in result
+        assert "这是 AI 摘要" not in result
 
     def test_render_without_summary(self):
         ep = _make_episode()
@@ -96,9 +98,11 @@ class TestMarkdownGenerator:
         )
         result = self.gen.render(ep, tr)
 
-        assert "## 章节速览" in result
-        assert "### 第一章" in result
-        assert "章节一摘要" in result
+        assert "## 章节\n" in result
+        assert "- 第一章" in result
+        assert "- 第二章" in result
+        assert "章节速览" not in result
+        assert "章节一摘要" not in result
 
     def test_render_version(self):
         ep = _make_episode()
@@ -124,10 +128,12 @@ class TestMarkdownGenerator:
         assert "  - 播客" in result
         assert "## 关键词" not in result
 
-    def test_render_html_show_notes_cleaned(self):
+    def test_custom_template_can_still_render_cleaned_show_notes(self, tmp_path):
         ep = _make_episode(show_notes="<p>这是 <b>HTML</b> 格式</p>")
         tr = _make_transcript()
-        result = self.gen.render(ep, tr)
+        (tmp_path / "custom.md.j2").write_text("{{ show_notes_cleaned }}")
+        gen = MarkdownGenerator(str(tmp_path), template_name="custom.md.j2")
+        result = gen.render(ep, tr)
 
         assert "这是" in result
         assert "<p>" not in result
@@ -146,3 +152,19 @@ class TestMarkdownGenerator:
         result = self.gen.render(ep, tr, asr_engine="subtitle")
 
         assert 'asr_engine: "subtitle"' in result
+
+    def test_both_default_templates_use_three_content_sections(self):
+        ep = _make_episode()
+        tr = _make_transcript(
+            analysis="博客正文",
+            summary="多余摘要",
+            chapters=[{"title": "章节标题", "summary": "多余章节说明"}],
+        )
+        for directory in ("templates", "src/templates"):
+            result = MarkdownGenerator(directory).render(ep, tr)
+            headings = [line for line in result.splitlines() if line.startswith("## ")]
+            assert headings == ["## 精简版博客", "## 章节", "## 全文转写"]
+            assert "博客正文" in result
+            assert "- 章节标题" in result
+            assert "第一段文字" in result and "第二段文字" in result
+            assert "多余摘要" not in result and "多余章节说明" not in result
